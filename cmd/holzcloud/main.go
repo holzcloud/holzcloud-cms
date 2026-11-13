@@ -109,40 +109,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	database, err := db.Open(cfg.DBPath)
+	database, err := openDatabase(cfg)
 	if err != nil {
-		slog.Error("cannot open database", "err", err, "path", cfg.DBPath)
+		// openDatabase has logged its own lines.
 		os.Exit(1)
 	}
 	defer database.Close()
-
-	// Snapshot before migrating, so a half-applied migration is a two-command
-	// recovery instead of a restore from last night's backup.
-	var preUpgradeSnapshot string
-	if pending, err := db.HasPendingMigrations(database.Write); err != nil {
-		slog.Warn("cannot determine pending migrations", "err", err)
-	} else if pending {
-		name := fmt.Sprintf("pre-upgrade-%s-%s.sqlite", Version, time.Now().UTC().Format("20060102-150405"))
-		snapshot, err := db.Backup(context.Background(), database, filepath.Join(cfg.DataDir, name))
-		if err != nil {
-			slog.Error("cannot snapshot before migrating", "err", err)
-			os.Exit(1)
-		}
-		preUpgradeSnapshot = snapshot
-		slog.Info("pre-upgrade snapshot written", "path", snapshot)
-		if err := db.PruneSnapshots(cfg.DataDir, 5); err != nil {
-			slog.Warn("cannot prune old snapshots", "err", err)
-		}
-	}
-
-	if err := db.RunMigrations(database.Write); err != nil {
-		slog.Error("migrations failed", "err", err)
-		if preUpgradeSnapshot != "" {
-			slog.Error("restore with: systemctl stop holzcloud && cp " +
-				preUpgradeSnapshot + " " + cfg.DBPath + " && systemctl start holzcloud")
-		}
-		os.Exit(1)
-	}
 
 	// Report corruption without refusing to start: a partly readable database is
 	// still serviceable while the operator restores it, and /readyz carries the
@@ -673,6 +645,63 @@ func main() {
 		slog.Error("shutdown error", "err", err)
 	}
 	slog.Info("shutdown complete")
+}
+
+// openDatabase opens the database for the server, refuses one a newer binary
+// has migrated, snapshots it when a migration is pending and migrates it. It
+// logs its own lines; main only exits.
+func openDatabase(cfg config.Config) (*db.DB, error) {
+	database, err := db.Open(cfg.DBPath)
+	if err != nil {
+		slog.Error("cannot open database", "err", err, "path", cfg.DBPath)
+		return nil, err
+	}
+
+	// The guard runs before the snapshot and before the pruning, so a refused
+	// database gets neither: no snapshot of a schema this binary does not
+	// know, and no older snapshot pruned to make room for it.
+	if err := db.RefuseNewerSchema(context.Background(), database.Write); err != nil {
+		var newer *db.NewerSchemaError
+		if errors.As(err, &newer) {
+			slog.Error("refusing to start: the database schema is newer than this binary",
+				"db_level", newer.DBLevel, "binary_level", newer.BinaryLevel, "err", err)
+		} else {
+			slog.Error("cannot determine the schema level", "err", err)
+		}
+		database.Close()
+		return nil, err
+	}
+
+	// Snapshot before migrating, so a half-applied migration is a two-command
+	// recovery instead of a restore from last night's backup.
+	var preUpgradeSnapshot string
+	if pending, err := db.HasPendingMigrations(database.Write); err != nil {
+		slog.Warn("cannot determine pending migrations", "err", err)
+	} else if pending {
+		name := fmt.Sprintf("pre-upgrade-%s-%s.sqlite", Version, time.Now().UTC().Format("20060102-150405"))
+		snapshot, err := db.Backup(context.Background(), database, filepath.Join(cfg.DataDir, name))
+		if err != nil {
+			slog.Error("cannot snapshot before migrating", "err", err)
+			database.Close()
+			return nil, err
+		}
+		preUpgradeSnapshot = snapshot
+		slog.Info("pre-upgrade snapshot written", "path", snapshot)
+		if err := db.PruneSnapshots(cfg.DataDir, 5); err != nil {
+			slog.Warn("cannot prune old snapshots", "err", err)
+		}
+	}
+
+	if err := db.RunMigrations(database.Write); err != nil {
+		slog.Error("migrations failed", "err", err)
+		if preUpgradeSnapshot != "" {
+			slog.Error("restore with: systemctl stop holzcloud && cp " +
+				preUpgradeSnapshot + " " + cfg.DBPath + " && systemctl start holzcloud")
+		}
+		database.Close()
+		return nil, err
+	}
+	return database, nil
 }
 
 // pluginSettings answers a plugin that may read a website's settings. Handed in

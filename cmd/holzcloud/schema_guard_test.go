@@ -11,6 +11,7 @@ import (
 
 	"github.com/pressly/goose/v3"
 
+	"github.com/holzcloud/holzcloud-cms/internal/config"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 )
 
@@ -92,5 +93,88 @@ func TestEveryDatabaseSubcommandRefusesANewerDatabase(t *testing.T) {
 	}
 	if v := levelIn(t, dataDir); v != highest+1 {
 		t.Fatalf("level after the refusals: %d, want %d", v, highest+1)
+	}
+}
+
+func snapshotsIn(t *testing.T, dataDir string) []string {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join(dataDir, "pre-upgrade-*.sqlite"))
+	if err != nil {
+		t.Fatalf("glob: %v", err)
+	}
+	return matches
+}
+
+func TestTheServerRefusesANewerDatabaseBeforeItSnapshots(t *testing.T) {
+	dataDir := t.TempDir()
+	t.Setenv("HOLZCLOUD_DATA_DIR", dataDir)
+	highest := newerDatabaseIn(t, dataDir)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+
+	database, err := openDatabase(cfg)
+	if database != nil {
+		database.Close()
+	}
+	var newer *db.NewerSchemaError
+	if !errors.As(err, &newer) {
+		t.Fatalf("openDatabase on a newer database: %v", err)
+	}
+	if newer.DBLevel != highest+1 || newer.BinaryLevel != highest {
+		t.Errorf("levels: database %d, binary %d; want %d and %d",
+			newer.DBLevel, newer.BinaryLevel, highest+1, highest)
+	}
+	if got := snapshotsIn(t, dataDir); len(got) != 0 {
+		t.Errorf("a refused database got a pre-upgrade snapshot: %v", got)
+	}
+	if v := levelIn(t, dataDir); v != highest+1 {
+		t.Errorf("level after the refusal: %d, want %d", v, highest+1)
+	}
+}
+
+// A database one level below, with rows in it, is covered by
+// TestTheGuardLetsAnOlderDatabasePassAndItMigrates in internal/db: package main
+// cannot reach the unexported migration provider that migrates part-way, and no
+// export is added for a test.
+func TestTheServerStartsOnADatabaseAtOrBelowItsLevel(t *testing.T) {
+	dataDir := t.TempDir()
+	t.Setenv("HOLZCLOUD_DATA_DIR", dataDir)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+
+	// (a) An empty data directory is level 0, below the binary: the first
+	// start writes its small snapshot and migrates, as before.
+	database, err := openDatabase(cfg)
+	if err != nil {
+		t.Fatalf("first start: %v", err)
+	}
+	highest, err := db.CurrentVersion(database.Write)
+	database.Close()
+	if err != nil {
+		t.Fatalf("CurrentVersion: %v", err)
+	}
+	if highest == 0 {
+		t.Fatal("the first start did not migrate")
+	}
+	if got := snapshotsIn(t, dataDir); len(got) != 1 {
+		t.Fatalf("after the first start: %d pre-upgrade snapshots, want 1: %v", len(got), got)
+	}
+
+	// (b) The same directory, now at the binary's own level: no refusal and
+	// no further snapshot.
+	database, err = openDatabase(cfg)
+	if err != nil {
+		t.Fatalf("second start at the binary's own level: %v", err)
+	}
+	database.Close()
+	if got := snapshotsIn(t, dataDir); len(got) != 1 {
+		t.Fatalf("after the second start: %d pre-upgrade snapshots, want 1: %v", len(got), got)
+	}
+	if v := levelIn(t, dataDir); v != highest {
+		t.Fatalf("level after the second start: %d, want %d", v, highest)
 	}
 }
