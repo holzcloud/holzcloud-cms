@@ -308,7 +308,7 @@ func cmdCheck(args []string) error {
 	given := false
 	fs.Visit(func(f *flag.Flag) { given = given || f.Name == "files" })
 	if given && *files == "" {
-		return fmt.Errorf("check -files: %s is not a directory", *files)
+		return errors.New("check -files: needs a directory")
 	}
 	return runCheck(os.Stdout, *files)
 }

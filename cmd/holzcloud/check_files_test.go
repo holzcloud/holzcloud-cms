@@ -245,8 +245,16 @@ func TestCheckFilesRefusesADirectoryThatDoesNotExist(t *testing.T) {
 			}
 		}
 	}
-	if err := cmdCheck([]string{"-files", ""}); exitStatus(err) != 1 {
+	err := cmdCheck([]string{"-files", ""})
+	if exitStatus(err) != 1 {
 		t.Errorf("-files with an empty value: %v; want an error with status 1", err)
+	}
+	// An empty value names no directory, so the message names none either:
+	// not "check -files:  is not a directory" (code review 32, IN-03).
+	if err != nil {
+		if want := "check -files: needs a directory"; err.Error() != want {
+			t.Errorf("-files with an empty value: error %q; want %q", err.Error(), want)
+		}
 	}
 }
 
