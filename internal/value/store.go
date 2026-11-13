@@ -2,7 +2,11 @@ package value
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
@@ -44,6 +48,345 @@ func scan(row interface{ Scan(...any) error }) (*Value, error) {
 	v.CreatedAt, _ = time.Parse(timeLayout, createdAt)
 	v.UpdatedAt, _ = time.Parse(timeLayout, updatedAt)
 	return &v, nil
+}
+
+// List returns the values of a website, by key.
+func (s *Store) List(ctx context.Context, websiteID int64) ([]Value, error) {
+	rows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT `+columns+` FROM site_values WHERE website_id = $1 ORDER BY key`, websiteID)
+	if err != nil {
+		return nil, fmt.Errorf("list values: %w", err)
+	}
+	defer rows.Close()
+	var out []Value
+	for rows.Next() {
+		v, err := scan(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan value: %w", err)
+		}
+		out = append(out, *v)
+	}
+	return out, rows.Err()
+}
+
+// Get returns one value of one website by id, or nil when there is none — also
+// when the id belongs to another website, which is the same answer on purpose:
+// the website is part of the lookup, not a comparison a caller has to remember
+// (snippet.Store.Get says why).
+func (s *Store) Get(ctx context.Context, websiteID, id int64) (*Value, error) {
+	v, err := scan(s.DB.Read.QueryRowContext(ctx,
+		`SELECT `+columns+` FROM site_values WHERE id = $1 AND website_id = $2`, id, websiteID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get value: %w", err)
+	}
+	return v, nil
+}
+
+// GetByKey returns one value of one website by key, or nil.
+func (s *Store) GetByKey(ctx context.Context, websiteID int64, key string) (*Value, error) {
+	v, err := scan(s.DB.Read.QueryRowContext(ctx,
+		`SELECT `+columns+` FROM site_values WHERE website_id = $1 AND key = $2`, websiteID, key))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get value: %w", err)
+	}
+	return v, nil
+}
+
+// Create stores a new value. A key the website already has is ErrKeyTaken.
+func (s *Store) Create(ctx context.Context, websiteID int64, key, text string) (*Value, error) {
+	if err := CheckKey(key); err != nil {
+		return nil, err
+	}
+	text, err := CleanText(text)
+	if err != nil {
+		return nil, err
+	}
+	res, err := s.DB.Write.ExecContext(ctx,
+		`INSERT INTO site_values (website_id, key, value) VALUES ($1, $2, $3)`, websiteID, key, text)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, ErrKeyTaken
+		}
+		return nil, fmt.Errorf("create value: %w", err)
+	}
+	id, _ := res.LastInsertId()
+	return s.Get(ctx, websiteID, id)
+}
+
+// UpdateText changes the text of a value. The key stays: renaming a key in use
+// would silently empty every sentence that names it (D-13, A5).
+//
+// updated_at moves only when the text differs, for the reason Set gives.
+func (s *Store) UpdateText(ctx context.Context, websiteID, id int64, text string) error {
+	text, err := CleanText(text)
+	if err != nil {
+		return err
+	}
+	res, err := s.DB.Write.ExecContext(ctx,
+		`UPDATE site_values SET
+		   updated_at = CASE WHEN value = $1 THEN updated_at
+		                     ELSE strftime('%Y-%m-%dT%H:%M:%SZ', 'now') END,
+		   value = $1
+		 WHERE id = $2 AND website_id = $3`, text, id, websiteID)
+	if err != nil {
+		return fmt.Errorf("update value: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// Delete removes a value nobody names any more.
+//
+// A value a page or a snippet still names is refused with an *InUseError that
+// names them (D-02): deleting it would empty every sentence that says it, and
+// the editor would learn of it from a visitor. Drafts and every language count;
+// a page in the wastebasket does not, the rule media follows. There is no force
+// flag — the editor removes the placeholders first.
+//
+// The check and the delete are one statement, so a page saved between a check
+// and a delete cannot slip through. The search is instr, never a pattern match:
+// an underscore in a key is a wildcard to LIKE, and a_b would be kept alive by
+// a page that names axb.
+func (s *Store) Delete(ctx context.Context, websiteID int64, key string) error {
+	if err := CheckKey(key); err != nil {
+		return err
+	}
+	res, err := s.DB.Write.ExecContext(ctx,
+		`DELETE FROM site_values WHERE website_id = $1 AND key = $2
+		   AND NOT EXISTS (SELECT 1 FROM pages
+		         WHERE website_id = $1 AND deleted_at IS NULL
+		           AND (instr(content_markdown, '[[wert:' || $2 || ']]') > 0
+		                OR instr(COALESCE(blocks, ''), '[[wert:' || $2 || ']]') > 0))
+		   AND NOT EXISTS (SELECT 1 FROM snippets
+		         WHERE website_id = $1
+		           AND instr(content_markdown, '[[wert:' || $2 || ']]') > 0)`,
+		websiteID, key)
+	if err != nil {
+		return fmt.Errorf("delete value: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	existing, err := s.GetByKey(ctx, websiteID, key)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return ErrNotFound
+	}
+	used, err := s.usage(ctx, websiteID)
+	if err != nil {
+		return err
+	}
+	inUse := &InUseError{}
+	for _, u := range used[key] {
+		inUse.Users = append(inUse.Users, u.Name())
+	}
+	return inUse
+}
+
+// Use is one page or snippet that names a value.
+type Use struct {
+	// Kind is "page" or "snippet".
+	Kind string
+	ID   int64
+	// Title is the page's title or the snippet's name.
+	Title string
+	// Slug is the page's slug or the snippet's key.
+	Slug string
+	// Locale is the page's language, empty for the main language and for a
+	// snippet.
+	Locale string
+	// Status is the page's status, empty for a snippet.
+	Status string
+}
+
+// Name is how a refusal and a report call the user: a page by its title, with
+// its language in brackets when it is not the main one, and a snippet by its
+// name and the marker that places it, which is what an editor searches for.
+func (u Use) Name() string {
+	if u.Kind == "snippet" {
+		return u.Title + " [[snippet:" + u.Slug + "]]"
+	}
+	if u.Locale != "" {
+		return u.Title + " (" + u.Locale + ")"
+	}
+	return u.Title
+}
+
+// Outside is a marker standing where values are not resolved: a page title, a
+// meta description, a menu item (D-11). It prints as written there, so the
+// report names it.
+type Outside struct {
+	Key string
+	// Where is "title", "description" or "menu".
+	Where string
+	// ID is the page's id, or the menu item's.
+	ID int64
+	// Title is the page's title or the menu item's.
+	Title string
+	// Locale is the page's or the menu's language, empty for the main one.
+	Locale string
+}
+
+// Report is what a website does with its values.
+type Report struct {
+	// Used lists, per key, every page and snippet that names it — defined
+	// keys and undefined ones alike. Pages come first, then snippets.
+	Used map[string][]Use
+	// Undefined are the keys named somewhere and defined nowhere, sorted.
+	Undefined []string
+	// Outside are the markers in places values do not reach.
+	Outside []Outside
+}
+
+// Report reads every page, snippet and menu item of one website for value
+// markers. Pages in the wastebasket are not read.
+func (s *Store) Report(ctx context.Context, websiteID int64) (Report, error) {
+	used, err := s.usage(ctx, websiteID)
+	if err != nil {
+		return Report{}, err
+	}
+	texts, _, err := s.Texts(ctx, websiteID)
+	if err != nil {
+		return Report{}, err
+	}
+	rep := Report{Used: used}
+	for key := range used {
+		if _, ok := texts[key]; !ok {
+			rep.Undefined = append(rep.Undefined, key)
+		}
+	}
+	sort.Strings(rep.Undefined)
+	if rep.Outside, err = s.outside(ctx, websiteID); err != nil {
+		return Report{}, err
+	}
+	return rep, nil
+}
+
+// usage maps every key named in a website's page sources and snippets to the
+// pages and snippets naming it.
+//
+// The page source is read and not the stored HTML: content_markdown and the
+// blocks document both carry the literal marker (JSON does not escape a
+// bracket), where the HTML of a Markdown link carried the encoded one before
+// RenderMarkdown restored it. The rows are narrowed with instr on the prefix
+// and the keys taken out in Go by Keys, so no SQL wildcard ever meets a key.
+//
+// Pages are ordered by language — the main language first — then by title;
+// snippets by name. That is the order a refusal names them in.
+func (s *Store) usage(ctx context.Context, websiteID int64) (map[string][]Use, error) {
+	used := map[string][]Use{}
+	rows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT id, title, slug, locale, status, content_markdown, COALESCE(blocks, '') FROM pages
+		  WHERE website_id = $1 AND deleted_at IS NULL
+		    AND (instr(content_markdown, '[[wert:') > 0 OR instr(COALESCE(blocks, ''), '[[wert:') > 0)
+		  ORDER BY locale, title, id`, websiteID)
+	if err != nil {
+		return nil, fmt.Errorf("value usage in pages: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var u Use
+		var markdown, blocks string
+		if err := rows.Scan(&u.ID, &u.Title, &u.Slug, &u.Locale, &u.Status, &markdown, &blocks); err != nil {
+			return nil, fmt.Errorf("scan page: %w", err)
+		}
+		u.Kind = "page"
+		for _, key := range Keys(markdown + "\n" + blocks) {
+			used[key] = append(used[key], u)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	srows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT id, name, key, content_markdown FROM snippets
+		  WHERE website_id = $1 AND instr(content_markdown, '[[wert:') > 0
+		  ORDER BY name, id`, websiteID)
+	if err != nil {
+		return nil, fmt.Errorf("value usage in snippets: %w", err)
+	}
+	defer srows.Close()
+	for srows.Next() {
+		u := Use{Kind: "snippet"}
+		var markdown string
+		if err := srows.Scan(&u.ID, &u.Title, &u.Slug, &markdown); err != nil {
+			return nil, fmt.Errorf("scan snippet: %w", err)
+		}
+		for _, key := range Keys(markdown) {
+			used[key] = append(used[key], u)
+		}
+	}
+	return used, srows.Err()
+}
+
+// outside finds markers in page titles, meta descriptions and menu items of one
+// website — the places D-11 leaves unresolved.
+func (s *Store) outside(ctx context.Context, websiteID int64) ([]Outside, error) {
+	var out []Outside
+	rows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT id, title, locale, meta_description FROM pages
+		  WHERE website_id = $1 AND deleted_at IS NULL
+		    AND (instr(title, '[[wert:') > 0 OR instr(meta_description, '[[wert:') > 0)
+		  ORDER BY locale, title, id`, websiteID)
+	if err != nil {
+		return nil, fmt.Errorf("values outside page text: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var title, locale, description string
+		if err := rows.Scan(&id, &title, &locale, &description); err != nil {
+			return nil, fmt.Errorf("scan page: %w", err)
+		}
+		for _, key := range Keys(title) {
+			out = append(out, Outside{Key: key, Where: "title", ID: id, Title: title, Locale: locale})
+		}
+		for _, key := range Keys(description) {
+			out = append(out, Outside{Key: key, Where: "description", ID: id, Title: title, Locale: locale})
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	mrows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT i.id, i.title, i.url, m.locale FROM menu_items i
+		   JOIN menus m ON m.id = i.menu_id
+		  WHERE m.website_id = $1
+		    AND (instr(i.title, '[[wert:') > 0 OR instr(i.url, '[[wert:') > 0)
+		  ORDER BY m.locale, i.title, i.id`, websiteID)
+	if err != nil {
+		return nil, fmt.Errorf("values in menus: %w", err)
+	}
+	defer mrows.Close()
+	for mrows.Next() {
+		var id int64
+		var title, link, locale string
+		if err := mrows.Scan(&id, &title, &link, &locale); err != nil {
+			return nil, fmt.Errorf("scan menu item: %w", err)
+		}
+		for _, key := range Keys(title + "\n" + link) {
+			out = append(out, Outside{Key: key, Where: "menu", ID: id, Title: title, Locale: locale})
+		}
+	}
+	return out, mrows.Err()
+}
+
+// isUniqueViolation reports a broken UNIQUE constraint, the way
+// internal/snippet recognises it.
+func isUniqueViolation(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique constraint")
 }
 
 // Set creates the value of a key or changes its text, and reports whether it

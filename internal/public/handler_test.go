@@ -18,6 +18,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // testFS is a minimal public template with the structure every shipped theme
@@ -67,6 +68,8 @@ func newTestHandler(t *testing.T) (*Handler, *db.DB) {
 	fsys := testFS()
 	loader := tmpl.NewLoader(dir, fsys, nil, nil)
 	h := NewHandler(page.NewStore(database), menu.NewStore(database), media.NewStore(database), snippet.NewStore(database), loader, nil, dir, fsys, false)
+	// The real wiring, as main.go has it: a page naming a value reads it.
+	h.SetValueStore(value.NewStore(database))
 	return h, database
 }
 

@@ -289,6 +289,7 @@ func main() {
 	// and already eighteen long, and a new one would edit every call site
 	// including cmd/holzcloud/main_test.go.
 	adminHandler.SetAlbumStore(albumStore)
+	adminHandler.SetValueStore(valueStore)
 	adminHandler.SetWording(wordingStore)
 	adminHandler.SetProductStore(productStore)
 	adminHandler.SetOrderStore(orderStore)

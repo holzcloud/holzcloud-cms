@@ -36,6 +36,7 @@ import (
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -139,6 +140,10 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 	// nil-store guard: without this the authorization table below would pass
 	// on a 404 that has nothing to do with who may enter.
 	adminHandler.SetAlbumStore(album.NewStore(database))
+	// The values screen and tools reach their store, as in main.go, so a route
+	// added for them later is classified against the real handler.
+	valueStore := value.NewStore(database)
+	adminHandler.SetValueStore(valueStore)
 
 	var tokens *ai.Store
 	if tw.oauth || tw.mcp {
@@ -200,6 +205,7 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 		domainResolver:  domain.NewResolver(domainStore),
 		pageStore:       page.NewStore(database),
 		menuStore:       menu.NewStore(database),
+		valueStore:      valueStore,
 		termStore:       term.NewStore(database),
 		shareSigner:     sharelink.New([]byte("share")),
 		unlockSigner:    sharelink.New([]byte("unlock")),
