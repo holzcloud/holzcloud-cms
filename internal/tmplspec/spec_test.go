@@ -288,3 +288,14 @@ func TestEveryShippedThemeLinksTheBlockStylesheet(t *testing.T) {
 		}
 	}
 }
+
+// The document names the contract it is, from the one constant the check also
+// prints. An author who reads "Template contract 1.0" here and the same words
+// from `holzcloud template check` knows the two describe the same thing.
+func TestSpecNamesTheContractVersion(t *testing.T) {
+	want := "Template contract " + tmpl.ContractVersion
+	if !strings.Contains(Markdown(), want) {
+		t.Errorf("the specification never says %q, so an author cannot tell which "+
+			"contract it documents", want)
+	}
+}

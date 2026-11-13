@@ -4,6 +4,10 @@ This document is the complete contract for a public site template. It is
 written to be handed to an AI agent as-is: everything needed to produce a
 working template is here, and nothing here needs to be looked up elsewhere.
 
+This document is **Template contract 1.0**. `holzcloud template check` prints
+the contract it checks against, and a theme may say which contract it was
+written for (§2.4).
+
 Print the current copy from the running binary at any time:
 
     holzcloud template spec
