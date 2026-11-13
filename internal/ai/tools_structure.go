@@ -130,6 +130,7 @@ func structureTools(d Deps) []Tool {
 		listMenus(d), getMenu(d), createMenu(d), updateMenu(d), deleteMenu(d),
 		listTerms(d), renameTerm(d), deleteTerm(d),
 		listSnippets(d), getSnippet(d), createSnippet(d), updateSnippet(d), deleteSnippet(d),
+		listValues(d), setValue(d),
 		listRedirects(d), createRedirect(d), deleteRedirect(d), checkLinks(d),
 		listKinds(d), createKind(d), updateKind(d), deleteKind(d), moveKind(d),
 		createField(d), updateField(d), deleteField(d), moveField(d),

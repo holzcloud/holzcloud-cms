@@ -29,7 +29,7 @@ func TestStructureToolsFollowTheScreensPermissionSplit(t *testing.T) {
 	}
 	reads := map[string]bool{
 		"list_menus": true, "get_menu": true, "list_terms": true, "list_snippets": true,
-		"get_snippet": true, "list_redirects": true, "check_links": true,
+		"get_snippet": true, "list_redirects": true, "check_links": true, "list_values": true,
 		"list_kinds": true, "manage_block_kinds": true,
 	}
 	seen := 0
