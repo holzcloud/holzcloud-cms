@@ -377,6 +377,15 @@ heading twice — the single most visible defect a new template ships with:
 {{if not .Page.HasOwnHeading}}<h1>{{.Page.Title}}</h1>{{end}}
 ```
 
+**Values (`[[wert:key]]`) are already replaced in `.Page.ContentHTML`.** The
+operator keeps short texts per website — a version number, a phone number —
+and writes them into the text of a page as `[[wert:key]]`; the program puts
+the text in, escaped, before your template sees the body, inside sentences,
+headings, lists and link addresses alike. A theme does nothing for them.
+`.Page.Title`, `.Meta.Description` and the labels in `.Menus` are printed as
+the operator wrote them: a placeholder there is not replaced, and the Values
+screen tells the operator so.
+
 ### `.Meta` — for `<head>`
 
 | Field | Type | Notes |
@@ -894,6 +903,10 @@ key. Useful for putting an address in the footer without hard-coding it:
 ```html
 {{with index .Site.Snippets "footer-kontakt"}}<div>{{.}}</div>{{end}}
 ```
+
+A value (`[[wert:key]]`) inside a snippet is already replaced in
+`.Site.Snippets`, exactly as in `.Page.ContentHTML`; print the snippet and the
+text stands in it.
 
 **A snippet is a body plus optional fields**, exactly as a page is content plus
 optional fields. `.Site.Snippets` still carries the body and has not changed;

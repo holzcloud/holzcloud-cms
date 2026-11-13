@@ -11,6 +11,7 @@ build of the program.
 - [Content kinds](#content-kinds)
 - [Block kinds](#block-kinds)
 - [Snippets](#snippets)
+- [Values](#values)
 
 ## Fields
 
@@ -233,3 +234,57 @@ Snippets are reusable blocks — an address, opening hours. A
 `[[snippet:key]]` in the page text is replaced at serving time, not at saving
 time, so a change happens in exactly one place. A theme can place a snippet
 itself with `{{index .Site.Snippets "key"}}`.
+
+## Values
+
+A value is a short text a website keeps once and its pages name inside a
+sentence: a version number, a phone number, a price. It is kept on the Values
+screen (Settings → Values, beside Snippets) and written into the text of a page
+as `[[wert:key]]`:
+
+```text
+Alpha [[wert:version-holzcloud-cms]]: what is new
+[Release notes](https://github.com/holzcloud/holzcloud-cms/releases/tag/v[[wert:version-holzcloud-cms]])
+```
+
+**What a value is.** A key — lower-case letters, digits, `-` and `_`, at most
+60 bytes, not starting or ending with `-` or `_` — and one line of plain text,
+at most 400 bytes. The text is never Markdown and never HTML: it is escaped
+wherever it is put, so an angle bracket stays an angle bracket. It is the same
+in every language of the website; words that differ by language belong in the
+page text or in the wording catalogue. A key cannot be renamed once the value
+exists, because every sentence naming the old key would go empty.
+
+**Where it works.** In the text of a page: prose, headings, list items, inline
+code, link addresses (percent-encoded there, and unable to change the address's
+scheme or host), raw HTML in blocks, and inside a snippet that the page places.
+
+**Where it does not.** Page titles, descriptions for search engines and menu
+entries show the placeholder as it is written. The Values screen lists every
+such place in its card "Not replaced here", and the SEO check reports it.
+
+**When it changes.** The text is put in when the page is delivered, not when
+it is saved. Changing a value changes the next response of every page that
+names it, without saving any of them, and moves the page's Last-Modified so a
+browser holding an old copy fetches the new one.
+
+**An unknown key** shows nothing — never the raw marker. The Values screen lists
+it in its card "Used but not defined" with the pages that name it, linked to
+their editor; the SEO check reports it as well.
+
+**Deleting.** A value that any page (draft or published, any language, not the
+wastebasket) or snippet still names is not deleted. The refusal names them;
+remove the placeholders first, then delete.
+
+**Who may change it.** Creating, changing and deleting a value needs the
+publishing right, because a value is online the moment it is stored. Without
+it the Values screen is read-only. Over the assistant connection the tools
+`list_values`, `get_value`, `set_value` and `delete_value` follow the key's
+level, as the snippet tools do.
+
+**A bracket after a placeholder.** `[[wert:v]](beta)` is read as a Markdown
+link. Put a space after the placeholder when a bracket follows it:
+`[[wert:v]] (beta)`. The page editor says so under "Insert a value".
+
+**Search.** The site search finds a page by the words its author wrote, not by
+a value's text: the index holds the page source, where the placeholder stands.

@@ -20,6 +20,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -92,6 +93,9 @@ type pageFormData struct {
 	// Snippets lists the reusable blocks, so an editor can see which markers
 	// exist without leaving the page.
 	Snippets []snippet.Snippet
+	// SiteValues lists the website's values with their texts, so an editor sees
+	// which [[wert:key]] exist and what each one shows.
+	SiteValues []value.Value
 	// ReviewPending flips the review button between submit and withdraw.
 	ReviewPending bool
 
@@ -334,12 +338,17 @@ func (h *Handler) newPageFormData(r *http.Request, websiteID int64, title string
 		FormState:   web.NewFormState(),
 		WebsiteID:   websiteID,
 		Values:      values,
-		PreviewHTML: renderPreview(values.Markdown),
+		PreviewHTML: h.renderPreview(r.Context(), websiteID, values.Markdown),
 	}
 	data.ActiveNav = "pages"
 	if h.snippets != nil {
 		if list, err := h.snippets.List(r.Context(), websiteID); err == nil {
 			data.Snippets = list
+		}
+	}
+	if h.valueStore != nil {
+		if list, err := h.valueStore.List(r.Context(), websiteID); err == nil {
+			data.SiteValues = list
 		}
 	}
 	if h.mediaStore != nil {
@@ -379,17 +388,34 @@ func (h *Handler) newPageFormData(r *http.Request, websiteID int64, title string
 	return data, nil
 }
 
-// renderPreview turns Markdown into the HTML shown in the preview pane.
+// renderPreview turns Markdown into the HTML shown in the preview pane, with
+// the website's values in place of their markers, as the public page shows
+// them — a pane that showed [[wert:key]] would show something no visitor
+// ever reads.
 //
-// The cast is only safe because RenderMarkdown ends in bluemonday; a render
-// failure yields no HTML at all rather than the unsanitised source.
-func renderPreview(markdown string) template.HTML {
+// The cast is only safe because RenderMarkdown ends in bluemonday and
+// value.Resolve escapes everything it puts in; a render failure yields no
+// HTML at all rather than the unsanitised source. The texts are loaded only
+// when the Markdown names a value, and a failed load resolves against none,
+// so every marker shows as nothing, the way the public page answers it.
+func (h *Handler) renderPreview(ctx context.Context, websiteID int64, markdown string) template.HTML {
 	if strings.TrimSpace(markdown) == "" {
 		return ""
 	}
 	out, err := page.RenderMarkdown(markdown)
 	if err != nil {
 		return ""
+	}
+	if value.Has(out) {
+		var texts map[string]string
+		if h.valueStore != nil {
+			texts, _, err = h.valueStore.Texts(ctx, websiteID)
+			if err != nil {
+				slog.Error("preview: loading the values failed", "website_id", websiteID, "err", err)
+				texts = nil
+			}
+		}
+		out = value.Resolve(out, texts)
 	}
 	return template.HTML(out)
 }
@@ -415,7 +441,7 @@ func (h *Handler) HandlePagePreview(w http.ResponseWriter, r *http.Request) erro
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
-	return web.RenderPartial(w, h.templates, r, "preview_pane", renderPreview(r.FormValue("content_markdown")))
+	return web.RenderPartial(w, h.templates, r, "preview_pane", h.renderPreview(r.Context(), websiteID, r.FormValue("content_markdown")))
 }
 
 func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, websiteID int64, websiteName string) error {

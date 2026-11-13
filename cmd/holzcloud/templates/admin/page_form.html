@@ -122,6 +122,21 @@
                 </p>
             </details>
             {{end}}
+            {{if .SiteValues}}
+            <details class="snippet-help">
+                <summary>{{t "Insert a value"}}</summary>
+                <ul class="snippet-help__list">
+                    {{range .SiteValues}}
+                    <li><code>[[wert:{{.Key}}]]</code> — {{.Text}}</li>
+                    {{end}}
+                </ul>
+                <p class="form-hint text-muted">{{t "Values work in the text of a page: in a sentence, a heading, a list or a link address. Page titles, descriptions for search engines and menu entries show the placeholder as it is written."}}</p>
+                <p class="form-hint text-muted">{{t "Put a space after a placeholder when a bracket follows it, otherwise the text becomes a link."}}</p>
+                <p class="form-hint text-muted">
+                    <a href="/admin/websites/{{.WebsiteID}}/werte">{{t "Manage values"}}</a>
+                </p>
+            </details>
+            {{end}}
         </div>
         {{end}}
         {{if .FieldViews}}

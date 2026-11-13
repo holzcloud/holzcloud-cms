@@ -402,3 +402,62 @@ func screenValueRowOf(t *testing.T, body, key string) string {
 	}
 	return rest
 }
+
+func TestThePageEditorListsTheValues(t *testing.T) {
+	h, sm, _, ws := newTestAdmin(t)
+	ctx := context.Background()
+	other, err := h.domains.CreateWebsite(ctx, "Andere", "")
+	if err != nil {
+		t.Fatalf("CreateWebsite: %v", err)
+	}
+	screenValueSeed(t, h.valueStore, ws.ID, "version-holzcloud-cms", "0.1.5")
+	screenValueSeed(t, h.valueStore, other.ID, "fremd", "Nicht deins")
+	p := screenValueSeedPage(t, h, ws.ID, "Stand", "stand", "", "draft", "Alpha [[wert:version-holzcloud-cms]]: neu")
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/admin/websites/%d/pages/%d/edit", ws.ID, p.ID), nil)
+	req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
+	req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
+	body := serve(t, h, sm, h.HandlePageEdit, req).Body.String()
+
+	i := strings.Index(body, "<summary>Insert a value</summary>")
+	if i < 0 {
+		t.Fatal("the page editor offers no Insert a value")
+	}
+	help := body[i:]
+	if j := strings.Index(help, "</details>"); j > 0 {
+		help = help[:j]
+	}
+	if !strings.Contains(help, "<code>[[wert:version-holzcloud-cms]]</code> — 0.1.5") {
+		t.Error("Insert a value does not list the marker with its text")
+	}
+	if !strings.Contains(help, fmt.Sprintf(`href="/admin/websites/%d/werte"`, ws.ID)) {
+		t.Error("Insert a value does not link to the Values screen")
+	}
+	if strings.Contains(body, "fremd") || strings.Contains(body, "Nicht deins") {
+		t.Error("another website's value is listed in the page editor")
+	}
+	if !strings.Contains(body, "Alpha 0.1.5: neu") {
+		t.Error("the preview pane of the opened page does not show the value")
+	}
+}
+
+func TestTheLivePreviewShowsTheValue(t *testing.T) {
+	h, sm, _, ws := newTestAdmin(t)
+	screenValueSeed(t, h.valueStore, ws.ID, "v", "0.1.5")
+	target := fmt.Sprintf("/admin/websites/%d/pages/preview", ws.ID)
+
+	for _, c := range []struct{ markdown, want string }{
+		{"Alpha [[wert:v]]: neu", "Alpha 0.1.5: neu"},
+		{"Alpha [[wert:fehlt]]: neu", "Alpha : neu"},
+	} {
+		rec := serve(t, h, sm, h.HandlePagePreview, postForm(target,
+			url.Values{"content_markdown": {c.markdown}}, websiteRoute(ws.ID)))
+		body := rec.Body.String()
+		if !strings.Contains(body, c.want) {
+			t.Errorf("preview of %q lacks %q: %s", c.markdown, c.want, body)
+		}
+		if strings.Contains(body, "[[wert:") {
+			t.Errorf("preview of %q shows the raw marker", c.markdown)
+		}
+	}
+}
