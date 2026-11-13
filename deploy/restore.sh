@@ -34,6 +34,13 @@ set -euo pipefail
 # Usage:
 #   sudo ./restore.sh /opt/holzcloud/backups/20260802-031500
 #
+# Exit status:
+#   0  restored (checksums verified, or a backup made before 0.1.5, with a notice)
+#   1  refused or failed: nothing stopped when the backup was refused; when the
+#      site did not report ready after the restore, see the journal
+#   3  restored, but files that database rows name are missing from the backup;
+#      they are listed before the question and again at the end
+#
 # Environment:
 #   DATA_DIR       default /opt/holzcloud/data
 #   SERVICE        default holzcloud
@@ -149,8 +156,36 @@ fi
 echo "Verifying snapshot..."
 VERIFY_DIR=$(mktemp -d)
 cp "${BACKUP_DIR}/holzcloud.sqlite" "${VERIFY_DIR}/holzcloud.sqlite"
-if ! HOLZCLOUD_DATA_DIR="${VERIFY_DIR}" "${HOLZCLOUD_BIN}" check; then
-    echo "ERROR: the snapshot fails its integrity check — do not restore it" >&2
+# `check -files DIR` checks the snapshot and then names every media row whose
+# file DIR lacks: status 0 none missing, 3 missing (integrity ok), 1 any
+# refusal. A missing file is reported, never refused: the database is restored
+# and the operator decides about the files (status 3 at the end). A binary
+# older than 0.1.5 ignores the flag and prints no files line, so the line is
+# required before "nothing missing" is believed.
+MISSING_COUNT=0
+MISSING_LINES=""
+if check_out=$(HOLZCLOUD_DATA_DIR="${VERIFY_DIR}" "${HOLZCLOUD_BIN}" check -files "${BACKUP_DIR}" 2>&1); then
+    check_rc=0
+else
+    check_rc=$?
+fi
+if [ -n "${check_out}" ]; then
+    printf '%s\n' "${check_out}"
+fi
+files_line=$(printf '%s\n' "${check_out}" | grep -E '^files: [0-9]+ rows checked, [0-9]+ missing$' || true)
+if [ "${check_rc}" -eq 0 ] && [ -n "${files_line}" ]; then
+    :
+elif [ "${check_rc}" -eq 0 ]; then
+    echo "NOTICE: this holzcloud does not check media rows (older than 0.1.5); a missing media file is not reported"
+elif [ "${check_rc}" -eq 3 ] && [ -n "${files_line}" ]; then
+    MISSING_COUNT=$(printf '%s\n' "${files_line}" | sed -n 's/^files: [0-9]* rows checked, \([0-9]*\) missing$/\1/p')
+    MISSING_LINES=$(printf '%s\n' "${check_out}" | grep '^MISSING ' || true)
+else
+    if printf '%s\n' "${check_out}" | grep '^integrity: ' | grep -qvx 'integrity: ok'; then
+        echo "ERROR: the snapshot fails its integrity check — do not restore it" >&2
+    else
+        echo "ERROR: the installed holzcloud refused the snapshot (see above) — do not restore it" >&2
+    fi
     exit 1
 fi
 
@@ -195,6 +230,11 @@ for _ in $(seq 1 30); do
         echo "=== Restore complete ==="
         curl -fsS http://127.0.0.1:8080/readyz
         echo
+        if [ "${MISSING_COUNT}" -gt 0 ]; then
+            echo "WARNING: restored, but ${MISSING_COUNT} files that the database names are missing from the backup:" >&2
+            printf '%s\n' "${MISSING_LINES}" >&2
+            exit 3
+        fi
         exit 0
     fi
     sleep 1

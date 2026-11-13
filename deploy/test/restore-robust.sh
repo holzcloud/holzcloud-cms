@@ -323,6 +323,130 @@ bt_not "first-of-two: the second file is not named" "$T/err" "./templates/t.html
 bt_eq "first-of-two: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
 
 # ---------------------------------------------------------------------------
+section "Case pre-015: a backup made before 0.1.5 restores with a notice"
+reset_case
+grep -vx 'checksums=SHA256SUMS' "$B/MANIFEST" > "$T/manifest.old"
+cp "$T/manifest.old" "$B/MANIFEST"
+rm -f "$B/SHA256SUMS"
+run_restore
+bt_eq "pre-015: exit status 0" 0 "$RC"
+bt_has "pre-015: the notice" "$T/out" "NOTICE: $B has no checksum file (made before 0.1.5); its files were not verified"
+bt_not "pre-015: nothing claims to be verified" "$T/out" "files verified"
+bt_eq "pre-015: the data directory is the backup's" yes "$(restored)"
+
+# ---------------------------------------------------------------------------
+section "Case manifest-names-missing-file: the MANIFEST names SHA256SUMS, the file is gone"
+reset_case
+rm -f "$B/SHA256SUMS"
+run_restore
+bt_eq "manifest-names-missing-file: exit status 1" 1 "$RC"
+bt_has "manifest-names-missing-file: the message" "$T/err" "ERROR: $B/MANIFEST names SHA256SUMS but the file is missing — do not restore it"
+bt_eq "manifest-names-missing-file: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+bt_eq "manifest-names-missing-file: the live data is untouched" yes "$(live_untouched)"
+
+# ---------------------------------------------------------------------------
+HEX=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+section "Case dotdot: a line naming ../ is refused before anything is hashed"
+reset_case
+echo "$HEX  ./media/../../etc/hosts" >> "$B/SHA256SUMS"
+BADNO=$(wc -l < "$B/SHA256SUMS" | tr -d ' ')
+PATH_PREFIX="$T/count:" run_restore
+bt_eq "dotdot: exit status 1" 1 "$RC"
+bt_has "dotdot: the line is named" "$T/err" "ERROR: line $BADNO of SHA256SUMS is not in the format backup.sh writes or names a path outside the backup — do not restore it"
+bt_eq "dotdot: nothing was hashed" 0 "$(wc -l < "$T/sha.log" | tr -d ' ')"
+bt_eq "dotdot: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+bt_eq "dotdot: the live data is untouched" yes "$(live_untouched)"
+
+# ---------------------------------------------------------------------------
+section "Case not-dot-slash: a line naming an absolute path is refused the same way"
+reset_case
+# The bad line goes first, so the number is 1.
+{ echo "$HEX  /etc/hosts"; cat "$B/SHA256SUMS"; } > "$T/sums.new"
+cp "$T/sums.new" "$B/SHA256SUMS"
+PATH_PREFIX="$T/count:" run_restore
+bt_eq "not-dot-slash: exit status 1" 1 "$RC"
+bt_has "not-dot-slash: the line is named" "$T/err" "ERROR: line 1 of SHA256SUMS is not in the format backup.sh writes or names a path outside the backup — do not restore it"
+bt_eq "not-dot-slash: nothing was hashed" 0 "$(wc -l < "$T/sha.log" | tr -d ' ')"
+bt_eq "not-dot-slash: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+
+# ---------------------------------------------------------------------------
+section "Case escaped-line: a backslash line is counted, not followed"
+reset_case
+LISTED=$(wc -l < "$B/SHA256SUMS" | tr -d ' ')
+printf '\\%s  ./media/odd\\\\name.jpg\n' "$HEX" >> "$B/SHA256SUMS"
+run_restore
+bt_eq "escaped-line: exit status 0" 0 "$RC"
+bt_has "escaped-line: the other lines are verified" "$T/out" "Checksums: $LISTED files verified"
+bt_has "escaped-line: the notice counts one line" "$T/out" "NOTICE: 1 lines of SHA256SUMS name a file with a backslash or a newline in its name; those files were not verified"
+bt_eq "escaped-line: the data directory is the backup's" yes "$(restored)"
+
+# ---------------------------------------------------------------------------
+section "Case listed-missing: a listed file that is gone is refused by name"
+reset_case
+rm -f "$B/media/a.jpg"
+run_restore
+bt_eq "listed-missing: exit status 1" 1 "$RC"
+bt_has "listed-missing: the file is named" "$T/err" "ERROR: ./media/a.jpg is listed in SHA256SUMS and missing — $DAMAGED"
+bt_eq "listed-missing: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+bt_eq "listed-missing: the live data is untouched" yes "$(live_untouched)"
+
+# ---------------------------------------------------------------------------
+MISS1='MISSING media/1/gone.jpg (media row 4, website 1, "Sommerfest.jpg")'
+MISS2='MISSING media/1/gone-thumb.webp (media_variants row 9, label thumb, of media row 4)'
+
+section "Case missing-media: rows without a file are reported, restored anyway, status 3"
+reset_case
+run_restore FAKE_CHECK_MODE=missing
+bt_eq "missing-media: exit status 3" 3 "$RC"
+bt_eq "missing-media: the binary was asked with -files and the backup" 1 "$(grep -cxF "check check -files $B" "$T/hc.log")"
+# The question is read from a pipe here, so bash does not print it; the first
+# line after it is "Stopping holzcloud...".
+STOPPING=$(line_of "$T/out" "Stopping holzcloud...")
+bt_eq "missing-media: the restore went on" yes "$(if [ "$STOPPING" -gt 0 ]; then echo yes; else echo no; fi)"
+bt_eq "missing-media: the first MISSING line comes before the question" yes \
+    "$(if [ "$(line_of "$T/out" "$MISS1")" -gt 0 ] && [ "$(line_of "$T/out" "$MISS1")" -lt "$STOPPING" ]; then echo yes; else echo no; fi)"
+bt_eq "missing-media: the second MISSING line comes before the question" yes \
+    "$(if [ "$(line_of "$T/out" "$MISS2")" -gt 0 ] && [ "$(line_of "$T/out" "$MISS2")" -lt "$STOPPING" ]; then echo yes; else echo no; fi)"
+bt_eq "missing-media: the service was stopped and started" "stop holzcloud,start holzcloud," "$(tr '\n' ',' < "$T/systemctl.log")"
+bt_eq "missing-media: the data directory is the backup's" yes "$(restored)"
+bt_has "missing-media: the closing warning counts two" "$T/err" "WARNING: restored, but 2 files that the database names are missing from the backup:"
+WARNAT=$(line_of "$T/err" "WARNING: restored, but")
+bt_eq "missing-media: the first MISSING line again after the warning" yes \
+    "$(if [ "$(line_of "$T/err" "$MISS1")" -gt "$WARNAT" ]; then echo yes; else echo no; fi)"
+bt_eq "missing-media: the second MISSING line again after the warning" yes \
+    "$(if [ "$(line_of "$T/err" "$MISS2")" -gt "$WARNAT" ]; then echo yes; else echo no; fi)"
+
+# ---------------------------------------------------------------------------
+section "Case old-binary: a binary without the files marker gets a notice"
+reset_case
+run_restore FAKE_CHECK_MODE=old
+bt_eq "old-binary: exit status 0" 0 "$RC"
+bt_has "old-binary: the notice" "$T/out" "NOTICE: this holzcloud does not check media rows (older than 0.1.5); a missing media file is not reported"
+bt_eq "old-binary: the data directory is the backup's" yes "$(restored)"
+
+# ---------------------------------------------------------------------------
+section "Case corrupt: an integrity failure keeps its sentence"
+reset_case
+run_restore FAKE_CHECK_MODE=corrupt
+bt_eq "corrupt: exit status 1" 1 "$RC"
+bt_has "corrupt: the integrity sentence" "$T/err" "ERROR: the snapshot fails its integrity check — do not restore it"
+bt_not "corrupt: not the neutral sentence" "$T/err" "refused the snapshot"
+bt_eq "corrupt: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+bt_eq "corrupt: the live data is untouched" yes "$(live_untouched)"
+
+# ---------------------------------------------------------------------------
+section "Case binary-refuses: any other refusal is shown and named neutrally"
+reset_case
+run_restore FAKE_CHECK_MODE=newer
+bt_eq "binary-refuses: exit status 1" 1 "$RC"
+bt_has "binary-refuses: the binary's own line is shown" "$T/out" "error: the database is at migration level 62"
+bt_has "binary-refuses: the neutral sentence" "$T/err" "ERROR: the installed holzcloud refused the snapshot (see above) — do not restore it"
+bt_not "binary-refuses: not the integrity sentence" "$T/err" "fails its integrity check"
+bt_eq "binary-refuses: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+bt_eq "binary-refuses: the live data is untouched" yes "$(live_untouched)"
+
+# ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then
     echo "RESTORE-ROBUST OK ($N cases)"
     exit 0
