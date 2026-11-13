@@ -50,6 +50,14 @@ func seedProduct(t *testing.T, s *Store, websiteID int64, slug string) int64 {
 		 VALUES ($1, $2, $2, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`, websiteID, slug)
 }
 
+// seedField defines a field of the website: key and kind are what decide
+// whether a stored value is an image.
+func seedField(t *testing.T, s *Store, websiteID int64, key, kind string) {
+	t.Helper()
+	mustExec(t, s, `INSERT INTO page_field_defs (website_id, key, label, kind) VALUES ($1, $2, $2, $3)`,
+		websiteID, key, kind)
+}
+
 func TestInUseSeesEveryPlaceAFileIsShown(t *testing.T) {
 	path := func(ws int64) string { return fmt.Sprintf("/media/%d/a.jpg", ws) }
 
@@ -72,11 +80,13 @@ func TestInUseSeesEveryPlaceAFileIsShown(t *testing.T) {
 			mustExec(t, s, `UPDATE pages SET featured_media_id = $1 WHERE id = $2`, m.ID, page)
 		}},
 		{"a page's image field", func(t *testing.T, s *Store, ws int64, m *Media) {
+			seedField(t, s, ws, "ansicht", "bild")
 			page := seedPage(t, s, ws, "Feld", "feld")
 			mustExec(t, s, `UPDATE pages SET fields = $1 WHERE id = $2`,
 				fmt.Sprintf(`{"werte":{"ansicht":"%d"}}`, m.ID), page)
 		}},
 		{"an image field in a group row", func(t *testing.T, s *Store, ws int64, m *Media) {
+			seedField(t, s, ws, "foto", "bild")
 			page := seedPage(t, s, ws, "Gruppe", "gruppe")
 			mustExec(t, s, `UPDATE pages SET fields = $1 WHERE id = $2`,
 				fmt.Sprintf(`{"gruppen":{"team":[{"name":"Anna"},{"name":"Ben","foto":"%d"}]}}`, m.ID), page)
@@ -97,6 +107,7 @@ func TestInUseSeesEveryPlaceAFileIsShown(t *testing.T) {
 				fmt.Sprintf(`[{"typ":"video","vorschaubild":%d}]`, m.ID), page)
 		}},
 		{"an image field of an own block kind", func(t *testing.T, s *Store, ws int64, m *Media) {
+			seedField(t, s, ws, "bild", "bild")
 			page := seedPage(t, s, ws, "Eigen", "eigen")
 			mustExec(t, s, `UPDATE pages SET blocks = $1 WHERE id = $2`,
 				fmt.Sprintf(`[{"typ":"angebot","felder":{"titel":"Tisch","bild":"%d"}}]`, m.ID), page)
@@ -106,6 +117,7 @@ func TestInUseSeesEveryPlaceAFileIsShown(t *testing.T) {
 				ws, `<img src="`+path(ws)+`">`)
 		}},
 		{"a text snippet's image field", func(t *testing.T, s *Store, ws int64, m *Media) {
+			seedField(t, s, ws, "logo", "bild")
 			mustExec(t, s, `INSERT INTO snippets (website_id, key, name, fields) VALUES ($1, 'kopf', 'Kopf', $2)`,
 				ws, fmt.Sprintf(`{"werte":{"logo":"%d"}}`, m.ID))
 		}},
@@ -222,6 +234,22 @@ func TestInUseIgnoresTheWastebasketOtherWebsitesAndMalformedFields(t *testing.T)
 		}
 	})
 
+	t.Run("a value equal to the id in a field that is no image field", func(t *testing.T) {
+		s, ws, m := inUseCase(t)
+		seedField(t, s, ws, "jahr", "zahl")
+		seedField(t, s, ws, "ansicht", "bild")
+		page := seedPage(t, s, ws, "Zahl", "zahl")
+		id := fmt.Sprintf("%d", m.ID)
+		mustExec(t, s, `UPDATE pages SET fields = $1, blocks = $2 WHERE id = $3`,
+			`{"werte":{"jahr":"`+id+`","ohne":"`+id+`"},"gruppen":{"team":[{"jahr":"`+id+`"}]}}`,
+			`[{"typ":"angebot","felder":{"jahr":"`+id+`"}}]`, page)
+		mustExec(t, s, `INSERT INTO snippets (website_id, key, name, fields) VALUES ($1, 'zahl', 'Zahl', $2)`,
+			ws, `{"werte":{"jahr":"`+id+`"}}`)
+		if inUse(t, s, m) {
+			t.Error("a number field holding the file's id makes the file in use")
+		}
+	})
+
 	t.Run("no wildcards in a file name", func(t *testing.T) {
 		s, ws := newTestStore(t)
 		m, err := s.Create(context.Background(), ws, "a_b.jpg", "a_b.jpg", "image/jpeg", 10, "hash")
@@ -298,6 +326,7 @@ func TestInUseAmongAnswersAWholeListLikeInUse(t *testing.T) {
 		}
 		files = append(files, *m)
 	}
+	seedField(t, s, ws, "ansicht", "bild")
 	page := seedPage(t, s, ws, "Alles", "alles")
 	mustExec(t, s, `UPDATE pages SET blocks = $1, fields = $2 WHERE id = $3`,
 		fmt.Sprintf(`[{"typ":"bild","medium":%d}]`, files[0].ID),

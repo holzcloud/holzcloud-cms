@@ -35,10 +35,14 @@ import (
 // page shows axb.jpg.
 //
 // Image field values are the id as text inside the fields JSON ("werte" and
-// the rows of "gruppen"). The field branches match any text value equal to the
-// id, not only those of image fields, because the field definitions live in Go
-// and not in the row; such a false positive only makes the lock stricter, which
-// is the safe direction. Block pictures are the JSON integer under "medium"
+// the rows of "gruppen"). Only a value whose key is that of an image field of
+// the website counts: a number field "3", a page reference "3" or a choice "1"
+// would otherwise lock file 3 or file 1 — usually the logo and the first
+// uploads — for everybody without the publishing right, and the badge "In use"
+// would mislead. The keys are those of every image field definition of the
+// website, of pages, groups, snippets and block kinds alike: a key of one
+// namespace counting in another only makes the lock stricter, which is the
+// safe direction. Block pictures are the JSON integer under "medium"
 // (also inside a gallery's items) or "vorschaubild" (a video's poster), and an
 // own block kind's image field is the id as text under "felder".
 //
@@ -114,6 +118,9 @@ func (s *Store) usedAmong(ctx context.Context, websiteID int64, files []Media) (
 	}
 	query := `
 		WITH ids(id, path, idtext) AS (VALUES ` + strings.Join(values, ", ") + `),
+		imagekeys(k) AS MATERIALIZED (
+		    SELECT key FROM page_field_defs WHERE website_id = $1 AND kind = 'bild'
+		),
 		nums(n) AS MATERIALIZED (
 		    SELECT u.media_id FROM media_usage u JOIN pages p ON p.id = u.page_id
 		     WHERE u.media_id IN (SELECT id FROM ids) AND p.deleted_at IS NULL
@@ -142,17 +149,17 @@ func (s *Store) usedAmong(ctx context.Context, websiteID int64, files []Media) (
 		    SELECT p.content_html, 0 FROM pages p
 		     WHERE p.website_id = $1 AND p.deleted_at IS NULL
 		    UNION ALL
-		    SELECT j.atom, 1 FROM pages p,
+		    SELECT j.atom, j.key IN (SELECT k FROM imagekeys) FROM pages p,
 		           json_tree(CASE WHEN json_valid(p.fields) THEN p.fields ELSE '{}' END) j
 		     WHERE p.website_id = $1 AND p.deleted_at IS NULL AND j.type = 'text'
 		    UNION ALL
-		    SELECT j.atom, j.path GLOB '*.felder' FROM pages p,
+		    SELECT j.atom, j.path GLOB '*.felder' AND j.key IN (SELECT k FROM imagekeys) FROM pages p,
 		           json_tree(CASE WHEN json_valid(p.blocks) THEN p.blocks ELSE '[]' END) j
 		     WHERE p.website_id = $1 AND p.deleted_at IS NULL AND j.type = 'text'
 		    UNION ALL
 		    SELECT sn.content_html, 0 FROM snippets sn WHERE sn.website_id = $1
 		    UNION ALL
-		    SELECT j.atom, 1 FROM snippets sn,
+		    SELECT j.atom, j.key IN (SELECT k FROM imagekeys) FROM snippets sn,
 		           json_tree(CASE WHEN json_valid(sn.fields) THEN sn.fields ELSE '{}' END) j
 		     WHERE sn.website_id = $1 AND j.type = 'text'
 		    UNION ALL
