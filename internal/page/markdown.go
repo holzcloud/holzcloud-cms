@@ -8,6 +8,8 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/renderer/html"
+
+	"github.com/holzcloud/holzcloud-cms/internal/marker"
 )
 
 // md is the package-level goldmark Markdown renderer with common extensions.
@@ -81,5 +83,12 @@ func RenderMarkdown(source string) (string, error) {
 	if err := md.Convert([]byte(source), &buf); err != nil {
 		return "", err
 	}
-	return sanitizer.Sanitize(buf.String()), nil
+	// A value marker in a link destination comes out of goldmark with its
+	// brackets percent-encoded. It is put back in its literal spelling here
+	// because this is the one funnel every producer of stored HTML goes through
+	// — page editor, snippets, block prose, imports, the assistant — and after
+	// the sanitiser because bluemonday is the boundary: what it let through is
+	// what is stored, and restoring brackets inside an attribute it already
+	// accepted adds no markup.
+	return marker.RestoreEncodedValueMarkers(sanitizer.Sanitize(buf.String())), nil
 }

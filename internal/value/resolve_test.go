@@ -3,8 +3,11 @@ package value
 import (
 	"fmt"
 	"html"
+	"net/url"
 	"strings"
 	"testing"
+
+	xhtml "golang.org/x/net/html"
 )
 
 // v is the one website's texts most tests resolve against.
@@ -70,6 +73,148 @@ func TestResolveLeavesADocumentWithoutAMarkerAlone(t *testing.T) {
 	in := `<p>Alpha <a href="/x%20y">x</a> [[w:next]] [[snippet:a]]</p>`
 	if got := Resolve(in, v); got != in {
 		t.Errorf("Resolve changed a marker-free document:\n got %q\nwant %q", got, in)
+	}
+}
+
+func TestResolveInsideAnHref(t *testing.T) {
+	in := `<a href="https://x.ch/tag/v[[wert:v]]" rel="nofollow">Release</a>`
+	want := `<a href="https://x.ch/tag/v0.1.5" rel="nofollow">Release</a>`
+	if got := Resolve(in, v); got != want {
+		t.Errorf("Resolve = %q; want %q", got, want)
+	}
+}
+
+// hrefsOf parses a document and returns, per <a> start tag, its href values.
+func hrefsOf(t *testing.T, doc string) [][]string {
+	t.Helper()
+	var out [][]string
+	z := xhtml.NewTokenizer(strings.NewReader(doc))
+	for {
+		tt := z.Next()
+		if tt == xhtml.ErrorToken {
+			return out
+		}
+		if tt != xhtml.StartTagToken && tt != xhtml.SelfClosingTagToken {
+			continue
+		}
+		tok := z.Token()
+		if tok.Data != "a" {
+			continue
+		}
+		var hrefs []string
+		for _, a := range tok.Attr {
+			if a.Key == "href" {
+				hrefs = append(hrefs, a.Val)
+			}
+		}
+		out = append(out, hrefs)
+	}
+}
+
+func TestAValueCannotChangeALinksSchemeOrHost(t *testing.T) {
+	cases := []struct {
+		name, href, text string
+		check            func(t *testing.T, href string)
+	}{
+		{"javascript after a path", "https://x.ch/v[[wert:k]]", "javascript:alert(1)", func(t *testing.T, href string) {
+			u, err := url.Parse(href)
+			if err != nil || u.Scheme != "https" || u.Host != "x.ch" {
+				t.Errorf("href %q: scheme or host moved", href)
+			}
+		}},
+		{"protocol-relative", "/[[wert:k]]", "/evil.example", func(t *testing.T, href string) {
+			if href != "/" {
+				t.Errorf("href %q; want the value dropped and \"/\" left", href)
+			}
+		}},
+		{"backslash", "/[[wert:k]]", `\evil.example`, func(t *testing.T, href string) {
+			if href != "/" {
+				t.Errorf("href %q; want the value dropped and \"/\" left", href)
+			}
+		}},
+		{"host", "https://[[wert:k]]/", "evil.example", func(t *testing.T, href string) {
+			if strings.Contains(href, "evil.example") {
+				t.Errorf("href %q: the value became the host", href)
+			}
+		}},
+		{"whole address", "[[wert:k]]", "javascript:alert(1)", func(t *testing.T, href string) {
+			if href != "" {
+				t.Errorf("href %q; want the value dropped", href)
+			}
+		}},
+		{"space and umlaut", "/suche/[[wert:k]]", "zwei wörter", func(t *testing.T, href string) {
+			if href != "/suche/zwei%20w%C3%B6rter" {
+				t.Errorf("href %q; want %q", href, "/suche/zwei%20w%C3%B6rter")
+			}
+		}},
+		{"markup", "https://x.ch/v[[wert:k]]", `"><script>alert(1)</script>`, func(t *testing.T, href string) {
+			u, err := url.Parse(href)
+			if err != nil || u.Scheme != "https" || u.Host != "x.ch" {
+				t.Errorf("href %q: scheme or host moved", href)
+			}
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			out := Resolve(`<p><a href="`+c.href+`" rel="nofollow">L</a></p>`, map[string]string{"k": c.text})
+			if strings.Contains(strings.ToLower(out), "<script") {
+				t.Fatalf("the value added an element: %s", out)
+			}
+			links := hrefsOf(t, out)
+			if len(links) != 1 || len(links[0]) != 1 {
+				t.Fatalf("want exactly one <a> with exactly one href, got %v in %s", links, out)
+			}
+			if strings.HasPrefix(strings.ToLower(links[0][0]), "javascript:") {
+				t.Fatalf("href %q starts with javascript:", links[0][0])
+			}
+			c.check(t, links[0][0])
+		})
+	}
+}
+
+func TestResolveInATextAttribute(t *testing.T) {
+	texts := map[string]string{"k": `Version "1" & <2>`}
+	for _, attr := range []string{"aria-label", "alt", "title"} {
+		in := `<img src="/a.png" ` + attr + `="Bild [[wert:k]]">`
+		out := Resolve(in, texts)
+		z := xhtml.NewTokenizer(strings.NewReader(out))
+		z.Next()
+		tok := z.Token()
+		got := ""
+		for _, a := range tok.Attr {
+			if a.Key == attr {
+				got = a.Val
+			}
+		}
+		if got != `Bild Version "1" & <2>` {
+			t.Errorf("%s: read back %q from %s", attr, got, out)
+		}
+		if strings.Contains(out, "<2>") {
+			t.Errorf("%s: the text was not escaped: %s", attr, out)
+		}
+	}
+	for _, attr := range []string{"class", "id", "style", "data-x"} {
+		in := `<span ` + attr + `="a[[wert:k]]b">x</span>`
+		out := Resolve(in, texts)
+		if strings.Contains(out, "Version") || strings.Contains(out, "[[wert:") {
+			t.Errorf("%s: the marker must be removed, got %s", attr, out)
+		}
+	}
+}
+
+func TestOnlyTheMarkedTagChanges(t *testing.T) {
+	before := markerFreeBody(8 << 10)
+	after := `<p>Ende &amp; Schluss <a title="x" href="/a%20b">x</a></p>` + markerFreeBody(4<<10)
+	in := before + `<a class="k" href="https://x.ch/tag/v[[wert:v]]" rel="nofollow">R</a>` + after
+	out := Resolve(in, v)
+	if !strings.HasPrefix(out, before) {
+		t.Errorf("bytes before the marked tag changed")
+	}
+	if !strings.HasSuffix(out, after) {
+		t.Errorf("bytes after the marked tag changed")
+	}
+	if !strings.Contains(out, `href="https://x.ch/tag/v0.1.5"`) {
+		t.Errorf("the marked href was not resolved")
 	}
 }
 

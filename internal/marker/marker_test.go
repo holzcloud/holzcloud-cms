@@ -119,3 +119,28 @@ func TestNoPatternsAndNoMatchesAreBothTheDocument(t *testing.T) {
 		t.Errorf("a pattern that does not match changed the document: %q", got)
 	}
 }
+
+// goldmark percent-encodes the brackets of a marker in a link destination, and
+// bluemonday keeps them. The save path puts the literal spelling back, so that
+// delivery has one prefix to look for.
+func TestRestoreEncodedValueMarkers(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{`<a href="https://x/v%5B%5Bwert:version-holzcloud-cms%5D%5D">R</a>`,
+			`<a href="https://x/v[[wert:version-holzcloud-cms]]">R</a>`},
+		{`<a href="https://x/v%5b%5bwert:a_b%5d%5d">R</a>`,
+			`<a href="https://x/v[[wert:a_b]]">R</a>`},
+	}
+	for _, c := range cases {
+		if got := RestoreEncodedValueMarkers(c.in); got != c.want {
+			t.Errorf("RestoreEncodedValueMarkers(%q) = %q; want %q", c.in, got, c.want)
+		}
+	}
+	for _, doc := range []string{
+		`<p>Kein Wert hier, nur <a href="/a%20b">ein Link</a>.</p>`,
+		`<a href="https://x/%5B%5Bsnippet:x%5D%5D">s</a>`,
+	} {
+		if got := RestoreEncodedValueMarkers(doc); got != doc {
+			t.Errorf("RestoreEncodedValueMarkers changed %q into %q", doc, got)
+		}
+	}
+}

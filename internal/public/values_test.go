@@ -7,8 +7,12 @@ import (
 	"testing"
 	"time"
 
+	xhtml "golang.org/x/net/html"
+
+	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
@@ -142,6 +146,108 @@ func TestAValueOfAnotherWebsiteIsNeverUsed(t *testing.T) {
 	}
 	if !strings.Contains(body, `<p>Nur A: .</p>`) {
 		t.Errorf("a key only A defines must render as nothing on B:\n%s", body)
+	}
+}
+
+// linkPages are one Markdown page with a Markdown link, a bare autolink and a
+// raw <a>, and one block page whose call to action links to the same kind of
+// address — every way an editor can put a value into a link address.
+const linkMarkdown = "[Release](https://x.ch/tag/v[[wert:v]])\n\n" +
+	"Auto https://x.ch/auto/v[[wert:v]] dort.\n\n" +
+	"Roh <a href=\"https://x.ch/raw/v[[wert:v]]\">hier</a>.\n"
+
+func seedLinkPages(t *testing.T, database *db.DB, websiteID int64) {
+	t.Helper()
+	seedPage(t, database, websiteID, "Links", "links", linkMarkdown, "published")
+
+	blocks := []block.Block{{
+		Type: block.TypeCallout, Title: "Neu",
+		LinkText: "Herunterladen", LinkURL: "https://x.ch/block/v[[wert:v]]",
+	}}
+	encoded, err := block.Encode(blocks, block.Builtin)
+	if err != nil {
+		t.Fatalf("block.Encode: %v", err)
+	}
+	if _, err := page.NewStore(database).CreatePage(context.Background(), page.PageCreate{
+		WebsiteID: websiteID, Title: "Block", Slug: "block", Status: "published",
+		Blocks: encoded,
+		HTML:   block.Render(blocks, block.Builtin, nil, page.RenderMarkdown),
+	}); err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+}
+
+// addressesOn returns every href on a served page that points at x.ch.
+func addressesOn(t *testing.T, body string) []string {
+	t.Helper()
+	var out []string
+	z := xhtml.NewTokenizer(strings.NewReader(body))
+	for {
+		tt := z.Next()
+		if tt == xhtml.ErrorToken {
+			return out
+		}
+		if tt != xhtml.StartTagToken {
+			continue
+		}
+		for _, a := range z.Token().Attr {
+			if a.Key == "href" && strings.Contains(a.Val, "x.ch") {
+				out = append(out, a.Val)
+			}
+		}
+	}
+}
+
+func TestAValueReachesEveryKindOfLinkAddress(t *testing.T) {
+	h, database := newTestHandler(t)
+	store := value.NewStore(database)
+	h.SetValueStore(store)
+	ws := seedWebsite(t, database, "Links")
+	seedLinkPages(t, database, ws.ID)
+	setValue(t, store, ws.ID, "v", "0.1.5")
+
+	for slug, want := range map[string]int{"links": 3, "block": 1} {
+		body := servedBody(t, h, ws, slug)
+		hrefs := addressesOn(t, body)
+		if len(hrefs) != want {
+			t.Errorf("/%s: %d addresses %v; want %d", slug, len(hrefs), hrefs, want)
+		}
+		for _, href := range hrefs {
+			if !strings.HasSuffix(href, "/v0.1.5") {
+				t.Errorf("/%s: href %q does not carry the value", slug, href)
+			}
+		}
+		if strings.Contains(body, "[[wert:") || strings.Contains(body, "%5B%5Bwert:") {
+			t.Errorf("/%s: a marker reached the visitor:\n%s", slug, body)
+		}
+	}
+}
+
+func TestAJavascriptValueStaysInert(t *testing.T) {
+	h, database := newTestHandler(t)
+	store := value.NewStore(database)
+	h.SetValueStore(store)
+	ws := seedWebsite(t, database, "Links")
+	seedLinkPages(t, database, ws.ID)
+	setValue(t, store, ws.ID, "v", "javascript:alert(1)")
+
+	for _, slug := range []string{"links", "block"} {
+		body := servedBody(t, h, ws, slug)
+		z := xhtml.NewTokenizer(strings.NewReader(body))
+		for {
+			tt := z.Next()
+			if tt == xhtml.ErrorToken {
+				break
+			}
+			if tt != xhtml.StartTagToken {
+				continue
+			}
+			for _, a := range z.Token().Attr {
+				if a.Key == "href" && strings.HasPrefix(strings.ToLower(strings.TrimSpace(a.Val)), "javascript:") {
+					t.Errorf("/%s: href %q starts with javascript:", slug, a.Val)
+				}
+			}
+		}
 	}
 }
 
