@@ -101,6 +101,8 @@ deploy/test/restore-robust.sh
 deploy/test/run.sh
 docs/beta.md
 internal/db/db.go
+internal/db/maintain.go
+internal/db/maintain_test.go
 internal/db/schema_guard.go
 internal/db/schema_guard_test.go
 internal/media/missing.go
