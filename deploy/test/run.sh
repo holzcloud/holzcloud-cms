@@ -309,7 +309,10 @@ doc_cmd() {
       # has ended, so the answer has to come from somewhere else.
       case "$line" in *" -y"*) kind=run ;; *) kind=prompt ;; esac
       ;;
-    *"/restore.sh "*) kind=restore ;;
+    # Only a line that runs restore.sh is the restore: restore.sh is its command
+    # (after sudo). The Updating line that installs the script names it as an
+    # argument of install and is an ordinary line.
+    "sudo /"*"/restore.sh "* | "/"*"/restore.sh "*) kind=restore ;;
     *) kind=run ;;
   esac
 
