@@ -45,12 +45,12 @@ set -euo pipefail
 #
 # Retention removes old backup directories one by one, and only directories
 # named like a night (YYYYMMDD-HHMMSS): a lost+found of the backup disk or a
-# copy kept there on purpose is never touched. One it cannot remove,
-# or a listing of the backup root that fails, is named in an ERROR line on
-# stderr; the night still makes its off-site copy, prints its complete line and
-# ends with status 40, so the timer unit shows the failure instead of a full
-# disk weeks later. A failed off-site copy ends the night first, with rsync's
-# status.
+# copy kept there on purpose is never touched. It runs after the off-site copy
+# (D-01). One directory it cannot remove, or a listing of the backup root that
+# fails, is named in an ERROR line on stderr; the night prints its complete
+# line and ends with status 40, so the timer unit shows the failure instead of
+# a full disk weeks later. A failed off-site copy does not skip retention; the
+# night then ends with rsync's status of the copy instead.
 #
 # Exit status: 0 complete; 40 complete, but retention could not list or remove
 # old backups; any other non-zero status: the night failed (rsync's own status
@@ -260,11 +260,25 @@ flush "${BACKUP_DIR}/MANIFEST.partial"
 mv "${BACKUP_DIR}/MANIFEST.partial" "${BACKUP_DIR}/MANIFEST"
 flush "${BACKUP_DIR}"
 
-# 6. Retention. Without this the disk fills up and takes the site with it, so
+# 6. Off-box copy. A backup on the same disk does not survive the failure it is
+#    meant to protect against — which DEPLOY.md itself calls likely. It runs
+#    before retention (D-01): it mirrors the root as the night left it, so a
+#    directory that rm -rf left half removed is not mirrored off the box that
+#    night. A failed copy is remembered rather than ending the night here:
+#    retention still runs, so a copy that fails night after night does not
+#    also fill the disk, and the night ends with the copy's status below.
+OFFSITE_RC=0
+if [ -n "${REMOTE_TARGET:-}" ]; then
+    echo "Copying to ${REMOTE_TARGET}..."
+    # run_rsync ends the shell it runs in; the subshell keeps that to the copy.
+    ( run_rsync "the off-site copy" -a --delete "${BACKUP_ROOT}/" "${REMOTE_TARGET}/" ) || OFFSITE_RC=$?
+fi
+
+# 7. Retention. Without this the disk fills up and takes the site with it, so
 #    a failure here is never silent: the directories are listed first and
 #    removed one by one, and each one that cannot be removed is named on stderr
 #    (the journal of holzcloud-backup.service), next to rm's own lines. The
-#    night still goes on to the off-site copy and ends with status 40 below.
+#    night then ends with status 40 below.
 #    Only direct children of the backup root named like a night
 #    (YYYYMMDD-HHMMSS) are touched, never the directory of this night.
 RETENTION_FAILED=""
@@ -299,11 +313,12 @@ if [ "${RETENTION_DAYS}" -gt 0 ]; then
     fi
 fi
 
-# 7. Off-box copy. A backup on the same disk does not survive the failure it is
-#    meant to protect against — which DEPLOY.md itself calls likely.
-if [ -n "${REMOTE_TARGET:-}" ]; then
-    echo "Copying to ${REMOTE_TARGET}..."
-    run_rsync "the off-site copy" -a --delete "${BACKUP_ROOT}/" "${REMOTE_TARGET}/"
+# A failed off-site copy ends the night with rsync's own status, which takes
+# precedence over 40; a retention ERROR line is in the journal either way. The
+# backup itself is whole, its MANIFEST exists, so the trap removes nothing.
+if [ "${OFFSITE_RC}" -ne 0 ]; then
+    echo "ERROR: the off-site copy to ${REMOTE_TARGET} failed with status ${OFFSITE_RC}; the backup itself is complete at ${BACKUP_DIR}" >&2
+    exit "${OFFSITE_RC}"
 fi
 
 echo "=== Backup complete: ${BACKUP_DIR} ==="
@@ -311,10 +326,7 @@ du -sh "${BACKUP_DIR}"
 
 # A retention failure ends the night with status 40, a status of its own:
 # rsync's statuses end at 35, and the script already ends with rsync's own
-# status elsewhere (24, 11, 255, ...). The backup itself is whole, its MANIFEST
-# exists, so the trap removes nothing. A failed off-site copy ends the night
-# before this line with its own status; the retention ERROR line is in the
-# journal either way.
+# status elsewhere (24, 11, 255, ...).
 if [ -n "${RETENTION_FAILED}" ]; then
     echo "ERROR: the backup is complete, but retention failed (see above); ending with status 40" >&2
     exit 40

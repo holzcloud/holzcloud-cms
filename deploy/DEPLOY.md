@@ -663,11 +663,13 @@ the journal says so and names the directory to remove by hand. When the retentio
 step cannot remove an old directory, the journal of `holzcloud-backup.service`
 shows `ERROR: retention could not remove` with the directory (or
 `ERROR: retention could not list` the backup root). The new backup is complete
-then and is still copied off the box, and the night ends with status 40:
+then and has already been copied off the box (the off-site copy runs before
+retention), and the night ends with status 40:
 `systemctl show holzcloud-backup.service -p Result -p ExecMainStatus` gives
-`exit-code` and `40`. Remove the old directory by hand. A failed off-site copy ends
-the night earlier, with the status of the copy; the retention line is in the
-journal either way.
+`exit-code` and `40`. Remove the old directory by hand. A failed off-site copy
+does not skip retention; the night then ends with the status of the copy and the
+line `ERROR: the off-site copy to … failed`, and a retention line, if any, is in
+the journal as well.
 
 `backup.sh` refuses to start when less than `MIN_FREE_MB` (default 1024) is free
 at the backup directory. That floor does not grow with your data: set

@@ -690,6 +690,40 @@ done
 bt_eq "23 the earlier night is intact" yes "$(earlier_intact)"
 
 # ---------------------------------------------------------------------------
+# D-01: the backup and the off-site copy run first, retention after them. So
+# the copy sees the root before anything was pruned, and a directory rm -rf
+# left half removed is not mirrored off the box the same night.
+section "Test 24: the off-site copy runs before retention"
+reset_case
+OLD_PRUNE="$T/root/20200106-031500"
+mkdir -p "$OLD_PRUNE"
+echo "old" > "$OLD_PRUNE/MANIFEST"
+touch -t 202001010000 "$OLD_PRUNE"
+run_backup REMOTE_TARGET="$T/remote"
+bt_eq "24 exit status 0" 0 "$RC"
+bt_eq "24 the old night was pruned here" no "$(exists "$OLD_PRUNE")"
+bt_eq "24 the copy was made before the pruning" yes "$(exists "$T/remote/20200106-031500/MANIFEST")"
+COPY_AT=$(awk '/^Copying to / { print NR; exit }' "$T/out")
+PRUNE_AT=$(awk '/^Pruning backups older than / { print NR; exit }' "$T/out")
+bt_eq "24 the copy line comes before the pruning line" yes \
+    "$(if [ -n "$COPY_AT" ] && [ -n "$PRUNE_AT" ] && [ "$COPY_AT" -lt "$PRUNE_AT" ]; then echo yes; else echo no; fi)"
+
+# ---------------------------------------------------------------------------
+section "Test 25: a failed off-site copy does not skip retention, and its status wins"
+reset_case
+OLD_PRUNE="$T/root/20200107-031500"
+mkdir -p "$OLD_PRUNE"
+echo "old" > "$OLD_PRUNE/MANIFEST"
+touch -t 202001010000 "$OLD_PRUNE"
+write_plan 0 0 23
+run_backup REMOTE_TARGET="$T/remote"
+bt_eq "25 exit status is the copy's, 23" 23 "$RC"
+bt_has "25 the copy's failure is named" "$T/err" "ERROR: the off-site copy to $T/remote failed with status 23; the backup itself is complete at $NIGHT"
+bt_eq "25 retention still ran" no "$(exists "$OLD_PRUNE")"
+bt_eq "25 the night keeps its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
+bt_not "25 no cleanup line" "$T/err" "backup did not finish"
+
+# ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then
     echo "BACKUP-ROBUST OK ($N cases)"
     exit 0
