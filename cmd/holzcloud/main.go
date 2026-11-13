@@ -1117,6 +1117,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/snippets/{snippetID}/delete", adminHandler.ErrHandler(adminHandler.HandleSnippetDelete))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/werte", adminHandler.ErrHandler(adminHandler.HandleValueList))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/werte", adminHandler.ErrHandler(adminHandler.HandleValueList))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/werte/{valueID}/delete", adminHandler.ErrHandler(adminHandler.HandleValueDelete))
 
 	// Redirects
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/redirects", adminHandler.ErrHandler(adminHandler.HandleRedirectList))

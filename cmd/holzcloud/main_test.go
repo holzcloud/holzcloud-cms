@@ -643,6 +643,7 @@ var editorOpenRoutes = []route{
 	// so with a sentence rather than a 403 (phase 33, D-01), like a snippet.
 	{pattern: "GET /admin/websites/{id}/werte"},
 	{pattern: "POST /admin/websites/{id}/werte"},
+	{pattern: "POST /admin/websites/{id}/werte/{valueID}/delete"},
 	{pattern: "GET /admin/websites/{id}/redirects"},
 	{pattern: "POST /admin/websites/{id}/redirects"},
 	{pattern: "POST /admin/websites/{id}/redirects/{redirectID}/delete"},

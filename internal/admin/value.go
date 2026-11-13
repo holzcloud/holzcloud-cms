@@ -38,6 +38,19 @@ type screenValueListData struct {
 	// MaxText is the longest text in bytes, for the input's maxlength and the
 	// hint beside it.
 	MaxText int
+	// Undefined are the keys pages or snippets name and this website does not
+	// define, each with who names it (VAL-03). Visitors see nothing there.
+	Undefined []screenValueUndefined
+	// Outside are the markers in page titles, descriptions and menu entries,
+	// where values are not replaced and the placeholder prints as written
+	// (D-11).
+	Outside []value.Outside
+}
+
+// screenValueUndefined is one key named somewhere and defined nowhere.
+type screenValueUndefined struct {
+	Key   string
+	Users []value.Use
 }
 
 // screenValueRow is one value with how often it is named.
@@ -217,5 +230,64 @@ func (h *Handler) screenValueListData(r *http.Request, websiteID int64, websiteN
 		}
 		data.Rows = append(data.Rows, row)
 	}
+	for _, key := range report.Undefined {
+		data.Undefined = append(data.Undefined, screenValueUndefined{Key: key, Users: report.Used[key]})
+	}
+	data.Outside = report.Outside
 	return data, nil
+}
+
+// HandleValueDelete removes a value nobody names any more.
+//
+// A value a page or a snippet still names is refused, and the refusal names
+// them (D-02): deleting it would empty every sentence that says it, and the
+// editor would hear of it from a visitor. There is no "delete anyway" — the
+// placeholders go first. The store makes the check and the delete one
+// statement, so a page saved in between cannot slip through.
+//
+// No hx-confirm on its button (D-13, A6): a value in use is refused anyway,
+// and an unused one loses a line nobody reads.
+func (h *Handler) HandleValueDelete(w http.ResponseWriter, r *http.Request) error {
+	websiteID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || h.valueStore == nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	id, err := strconv.ParseInt(r.PathValue("valueID"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	back := screenValueListAddress(websiteID)
+
+	// The website is part of the lookup: another website's id finds nothing
+	// and answers 404 before anybody is asked about rights (D-03).
+	v, err := h.valueStore.Get(r.Context(), websiteID, id)
+	if err != nil {
+		return err
+	}
+	if v == nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	if h.refuseReadOnly(w, r, back) {
+		return nil
+	}
+
+	err = h.valueStore.Delete(r.Context(), websiteID, v.Key)
+	var inUse *value.InUseError
+	switch {
+	case errors.As(err, &inUse):
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r,
+			"The value is still used on: %s. Remove the placeholders from those pages first.",
+			strings.Join(inUse.Users, ", ")))
+		return h.redirect(w, r, back)
+	case errors.Is(err, value.ErrNotFound):
+		http.NotFound(w, r)
+		return nil
+	case err != nil:
+		return err
+	}
+	web.SetFlashSuccess(h.sm, r.Context(), "Value deleted")
+	return h.redirect(w, r, back)
 }

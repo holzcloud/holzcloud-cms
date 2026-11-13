@@ -88,6 +88,16 @@
                 <td class="text-muted">{{.UpdatedAt.Format "02.01.2006 15:04"}}</td>
                 <td class="table-actions">
                     <a href="/admin/websites/{{$.WebsiteID}}/werte?edit={{.ID}}" class="btn btn--sm">{{if $.ReadOnly}}{{t "View"}}{{else}}{{t "Edit"}}{{end}}</a>
+                    {{/* No confirmation step (phase 33, D-13 A6): a value still in use
+                         is refused with the pages named, and an unused one
+                         loses a line nobody reads. */}}
+                    {{if not $.ReadOnly}}
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/werte/{{.ID}}/delete"
+                          hx-post="/admin/websites/{{$.WebsiteID}}/werte/{{.ID}}/delete">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete"}}</button>
+                    </form>
+                    {{end}}
                 </td>
             </tr>
             {{end}}
@@ -97,4 +107,61 @@
     <p class="text-muted">{{t "No values yet."}}</p>
     {{end}}
 </div>
+
+{{if .Undefined}}
+<div class="card" style="margin-top: var(--space-3);">
+    <h2>{{t "Used but not defined"}}</h2>
+    <p class="text-muted">{{t "These pages name a value this website does not have. Visitors see nothing in its place."}}</p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Placeholder"}}</th>
+                <th scope="col">{{t "Named on"}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Undefined}}
+            <tr>
+                <td><code>[[wert:{{.Key}}]]</code></td>
+                <td>
+                    {{- range $i, $u := .Users}}{{if $i}}, {{end}}
+                    {{- if eq $u.Kind "snippet"}}<a href="/admin/websites/{{$.WebsiteID}}/snippets?edit={{$u.ID}}">{{$u.Name}}</a>
+                    {{- else}}<a href="/admin/websites/{{$.WebsiteID}}/pages/{{$u.ID}}/edit">{{$u.Name}}</a>{{end}}
+                    {{- end -}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}
+
+{{if .Outside}}
+<div class="card" style="margin-top: var(--space-3);">
+    <h2>{{t "Not replaced here"}}</h2>
+    <p class="text-muted">{{t "Values are replaced in the text of a page only. Here the placeholder is shown as it is written:"}}</p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Placeholder"}}</th>
+                <th scope="col">{{t "Where"}}</th>
+                <th scope="col">{{t "Page or menu entry"}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Outside}}
+            <tr>
+                <td><code>[[wert:{{.Key}}]]</code></td>
+                <td class="text-muted">{{if eq .Where "title"}}{{t "Page title"}}{{else if eq .Where "description"}}{{t "Description for search engines"}}{{else}}{{t "Menu entry"}}{{end}}</td>
+                <td>
+                    {{- if eq .Where "menu"}}<a href="/admin/websites/{{$.WebsiteID}}/menus">{{.Title}}</a>
+                    {{- else}}<a href="/admin/websites/{{$.WebsiteID}}/pages/{{.ID}}/edit">{{.Title}}</a>{{end}}
+                    {{- if .Locale}} ({{.Locale}}){{end -}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}
 {{end}}
