@@ -1,6 +1,7 @@
 package public
 
 import (
+	"context"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -130,16 +131,7 @@ func (h *Handler) resolveValues(r *http.Request, websiteID int64, body string) (
 	if !value.Has(body) {
 		return body, time.Time{}
 	}
-	var texts map[string]string
-	var latest time.Time
-	if h.valueStore != nil {
-		var err error
-		texts, latest, err = h.valueStore.Texts(r.Context(), websiteID)
-		if err != nil {
-			slog.Error("load values", "err", err, "website", websiteID)
-			texts, latest = nil, time.Time{}
-		}
-	}
+	texts, latest := h.valueTexts(r.Context(), websiteID)
 	return value.Resolve(body, texts), latest
 }
 
@@ -407,7 +399,67 @@ func (h *Handler) loadSnippets(r *http.Request, websiteID int64) snippet.Rendere
 		slog.Error("load snippets", "err", err, "website", websiteID)
 		return emptyBlocks()
 	}
+	h.resolveSnippetValues(r, websiteID, &rendered)
 	return rendered
+}
+
+// resolveSnippetValues puts the website's values into every snippet that names
+// one, and folds their newest time into the snippets' own.
+//
+// Here and not only in pageContent, because a theme prints snippets on every
+// route through .Site.Snippets — a footer that names the version is the
+// realistic case, and it stands on the 404 page and the maintenance page as
+// much as on an article. pageContent's snippet.Expand then inserts snippets
+// whose values are already resolved, and its own value pass finds nothing left
+// in them.
+//
+// The time goes into LatestUpdate because that is what every validator built
+// from the snippets already reads: contentModTime on the page path, the feed's
+// newest. A value change that moved only the text would leave a browser holding
+// a date with the old footer.
+//
+// The same rules as resolveValues: no query when no snippet carries the prefix,
+// and without a store or on a load error every marker renders as nothing.
+func (h *Handler) resolveSnippetValues(r *http.Request, websiteID int64, rendered *snippet.Rendered) {
+	named := false
+	for _, html := range rendered.HTML {
+		if value.Has(string(html)) {
+			named = true
+			break
+		}
+	}
+	if !named {
+		return
+	}
+	texts, latest := h.valueTexts(r.Context(), websiteID)
+	for key, html := range rendered.HTML {
+		if value.Has(string(html)) {
+			// The cast keeps the promise LoadRendered's own makes: the input
+			// went through goldmark and bluemonday, and value.Resolve escapes
+			// every text it puts in.
+			rendered.HTML[key] = template.HTML(value.Resolve(string(html), texts))
+		}
+	}
+	if latest.After(rendered.LatestUpdate) {
+		rendered.LatestUpdate = latest
+	}
+}
+
+// valueTexts loads the website's values for one resolution, and never fails.
+//
+// Without a store, or when the texts cannot be read, it answers the empty map
+// and the zero time: every marker then renders as nothing, which is what a key
+// nobody defined does, and is better than printing [[wert:…]] to a reader.
+func (h *Handler) valueTexts(ctx context.Context, websiteID int64) (map[string]string, time.Time) {
+	if h.valueStore == nil {
+		return nil, time.Time{}
+	}
+	texts, latest, err := h.valueStore.Texts(ctx, websiteID)
+	if err != nil {
+		slog.Error("load values", "err", err, "website", websiteID)
+		return nil, time.Time{}
+	}
+	return texts, latest
 }
 
 func emptyBlocks() snippet.Rendered {
@@ -485,8 +537,13 @@ func (h *Handler) albumsFor(r *http.Request, websiteID int64, body string) album
 // words is the feed's language, and a feed has exactly one: HandleFeed lists
 // only the pages published in it, because "a reader who subscribed to the
 // French feed did not ask for German articles in among them".
-func expandForFeed(html string, snippets snippet.Rendered, albums album.Set, words func(string) string) string {
-	return block.ResolveWords(album.Expand(snippet.Expand(html, snippets.HTML), albums), words)
+//
+// texts are the website's values, last and for the page's reason: a subscriber
+// reads the version number where a visitor reads it, and the snippets arrive
+// here with theirs already resolved by loadSnippets. A nil map renders every
+// marker as nothing, never as the marker.
+func expandForFeed(html string, snippets snippet.Rendered, albums album.Set, words func(string) string, texts map[string]string) string {
+	return value.Resolve(block.ResolveWords(album.Expand(snippet.Expand(html, snippets.HTML), albums), words), texts)
 }
 
 // contentModTime is the validator for conditional requests.

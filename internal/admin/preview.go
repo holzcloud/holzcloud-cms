@@ -18,6 +18,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -284,9 +285,14 @@ func previewSiteData(ws *domain.Website) tmpl.SiteData {
 // leaves anything unreadable behind.
 func (h *Handler) previewPageContent(r *http.Request, ws *domain.Website, pg *page.Page) tmpl.PageContent {
 	updated := pg.UpdatedAt
+	body := block.ResolveWords(album.Expand(pg.ContentHTML, h.previewAlbums(r, ws, pg.ContentHTML)), previewWords(ws, pg))
+	// The website's values last, as on the public page: a preview shows what a
+	// visitor would read, and a visitor reads the version number, not the
+	// marker that stands for it.
+	body = value.Resolve(body, h.previewValueTexts(r, ws, body))
 	return tmpl.PageContent{
 		Title:         pg.Title,
-		ContentHTML:   template.HTML(block.ResolveWords(album.Expand(pg.ContentHTML, h.previewAlbums(r, ws, pg.ContentHTML)), previewWords(ws, pg))),
+		ContentHTML:   template.HTML(body),
 		Slug:          pg.Slug,
 		PublishedAt:   pg.PublishedAt,
 		UpdatedAt:     &updated,
@@ -339,6 +345,25 @@ func (h *Handler) previewAlbums(r *http.Request, ws *domain.Website, html string
 		return album.Set{}
 	}
 	return set
+}
+
+// previewValueTexts loads the previewed website's values, only when the body
+// names one, and never fails.
+//
+// Without a store, or when the texts cannot be read, it answers nil, and
+// value.Resolve renders every marker as nothing — what the public page does in
+// the same case, so the preview does not promise a text the visitor would not
+// get. Not shared with internal/public for the reason previewAlbums gives.
+func (h *Handler) previewValueTexts(r *http.Request, ws *domain.Website, body string) map[string]string {
+	if h.valueStore == nil || ws == nil || !value.Has(body) {
+		return nil
+	}
+	texts, _, err := h.valueStore.Texts(r.Context(), ws.ID)
+	if err != nil {
+		slog.Error("load values for preview", "err", err, "website", ws.ID)
+		return nil
+	}
+	return texts
 }
 
 // startsWithHeading mirrors the public handler: a page whose content already
