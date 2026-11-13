@@ -299,3 +299,35 @@ func TestSpecNamesTheContractVersion(t *testing.T) {
 			"contract it documents", want)
 	}
 }
+
+// Every theme we ship declares the contract this build documents. The shipped
+// themes are the examples an author copies, and raising ContractVersion without
+// bringing them along would teach the old number; this test makes that a
+// failure instead of something to remember.
+func TestEveryShippedThemeDeclaresTheContract(t *testing.T) {
+	const themes = "../../cmd/holzcloud/templates/public"
+
+	entries, err := os.ReadDir(themes)
+	if err != nil {
+		t.Fatalf("the theme directory could not be read: %v", err)
+	}
+	var found int
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		found++
+		version, declared, err := tmpl.DeclaredContract(os.DirFS(filepath.Join(themes, e.Name())))
+		switch {
+		case err != nil:
+			t.Errorf("the theme %q has a theme.json that cannot be read: %v", e.Name(), err)
+		case !declared || version != tmpl.ContractVersion:
+			t.Errorf("the theme %q declares %q, want template contract %s in its theme.json",
+				e.Name(), version, tmpl.ContractVersion)
+		}
+	}
+	// A directory walk that finds nothing must fail.
+	if found == 0 {
+		t.Fatalf("no theme directory was found under %s — the test proved nothing", themes)
+	}
+}
