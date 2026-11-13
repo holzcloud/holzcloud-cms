@@ -623,6 +623,12 @@ before you rely on it.
   enabled and not running);
 - `sprachen`, the language files you added;
 - `marke`, the logo;
+- `SHA256SUMS`, the SHA-256 checksum of every other regular file of the backup
+  (the database snapshot, `csrf.key` and every file of the five directories). It
+  is written before the `MANIFEST`, which names it in the line
+  `checksums=SHA256SUMS`, and `restore.sh` checks it before it touches anything.
+  A checksum catches rot and accidental damage, not tampering: whoever can write
+  the backup directory can rewrite the files and their checksums alike;
 - a `MANIFEST` naming the version and the host it came from. It is written
   last, so a directory without one is a backup that was interrupted, and
   `restore.sh` refuses it.
@@ -639,7 +645,22 @@ and the proxy's certificate state.
 are copied afterwards, with the site running. A file uploaded in between is in
 the backup although the database does not know it yet, which is harmless. A file
 deleted in between can leave a database row whose file the backup lacks. Back up
-when the site is quiet if that matters.
+when the site is quiet if that matters. `restore.sh` reports such a row: it names
+every file the database expects and the backup lacks (see *Restore from a backup*).
+
+**A night that goes wrong.** A file that vanishes while it is copied (deleted
+in the admin at that moment) is copied once more; if it vanishes again, the night
+ends with status 24 and leaves no backup. A night that fails before its `MANIFEST`
+is written removes the directory it made, and nothing else; if even that fails,
+the journal says so and names the directory to remove by hand. When the retention
+step cannot remove an old directory, the journal of `holzcloud-backup.service`
+shows `ERROR: retention could not remove` with the directory (or
+`ERROR: retention could not list` the backup root). The new backup is complete
+then and is still copied off the box, and the night ends with status 40:
+`systemctl show holzcloud-backup.service -p Result -p ExecMainStatus` gives
+`exit-code` and `40`. Remove the old directory by hand. A failed off-site copy ends
+the night earlier, with the status of the copy; the retention line is in the
+journal either way.
 
 `backup.sh` refuses to start when less than `MIN_FREE_MB` (default 1024) is free
 at the backup directory. That floor does not grow with your data: set
@@ -647,7 +668,9 @@ at the backup directory. That floor does not grow with your data: set
 space halfway.
 
 The timer's hardened service has been run through its timer; what that does and
-does not show is in the record `deploy/BACKUP-RUN.md`.
+does not show is in the record `deploy/BACKUP-RUN.md`. The checksum file, the
+report of a missing file and the retention message are recorded in
+`deploy/BACKUP-VERIFY-RUN.md`.
 
 Enable the timer instead of a cron entry, so `systemctl list-timers` shows
 whether backups are actually running:
@@ -741,16 +764,25 @@ The order matters. Every `holzcloud` subcommand that opens the database (`user l
 no snapshot, so a backup made by the new binary is made after the schema has
 already changed.
 
-**2. Replace: build, transfer, stop, copy, start.** The first two lines run on
-your development machine, the last three on the server:
+**2. Replace: build, transfer, stop, copy, start.** The first three lines run on
+your development machine, the last four on the server:
 
 ```bash
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.Version=$(git describe --tags --always) -X main.Commit=$(git rev-parse --short HEAD)" ./cmd/holzcloud
 scp holzcloud user@your-server:/tmp/holzcloud
+scp -r deploy/ user@your-server:/tmp/deploy/
 sudo systemctl stop holzcloud
 sudo cp /tmp/holzcloud /opt/holzcloud/holzcloud
+sudo install -m 755 /tmp/deploy/backup.sh /tmp/deploy/restore.sh /opt/holzcloud/deploy/
 sudo systemctl start holzcloud
 ```
+
+*Install* copied `backup.sh` and `restore.sh` once, and an update without the
+`install` line keeps the old ones, which write no checksum file and stay silent
+about a failed retention. If `/tmp/deploy` is still on the server from the install
+or an earlier update, remove it there first (`sudo rm -rf /tmp/deploy`): `scp -r`
+puts a directory into an existing one of the same name, as `/tmp/deploy/deploy`,
+and the `install` line would then copy the old scripts again.
 
 **3. Check.** The first line waits for the start by itself and shows the version
 and commit that now run; the second reads the journal since that start:
@@ -997,9 +1029,16 @@ sudo /opt/holzcloud/deploy/restore.sh /opt/holzcloud/backups/20260802-031500
 The first line lists the backups; the sample name in the second is one of them.
 In order, the script:
 
-1. verifies a copy of the snapshot's integrity **before** it touches anything,
-   and refuses a directory without a `holzcloud.sqlite` or a `MANIFEST`, or whose
-   snapshot fails its check, before it stops anything;
+1. checks the backup **before** it touches anything, and before it stops
+   anything. It refuses a directory without a `holzcloud.sqlite` or a `MANIFEST`.
+   It checks every file against `SHA256SUMS` and refuses the backup, naming the
+   first file that differs from its checksum or is missing. A backup made before
+   0.1.5 has no checksum file; it is restored with the notice
+   `has no checksum file (made before 0.1.5); its files were not verified`. Then
+   it verifies a copy of the snapshot's integrity and refuses a snapshot that
+   fails, and, through `holzcloud check -files`, lists every media row whose file
+   the backup lacks (the line `files: N rows checked, M missing` and one `MISSING`
+   line per file);
 2. asks `Stop holzcloud and replace /opt/holzcloud/data? [yes/NO]` and goes on
    only if you type `yes`; anything else prints `aborted` and exits 1;
 3. stops the service;
@@ -1009,6 +1048,20 @@ In order, the script:
    `templates`, `plugins`, `sprachen`, `marke`; a directory the backup lacks is
    skipped), sets owner and mode, starts the service and waits up to 30 seconds
    for `/readyz`.
+
+Files that a database row names and the backup lacks are listed before the
+question and again after the restore, under
+`WARNING: restored, but M files that the database names are missing from the backup:`.
+They do not stop the restore: a backup taken while files were being deleted is
+normal and stays restorable, and you decide about the files. The script then
+ends with status 3. With an installed `holzcloud` older than 0.1.5 it cannot
+check media rows and says so in a `NOTICE` line. How the script ends:
+
+- `0`: restored, every file the database names was in the backup;
+- `1`: refused, aborted at the question, or failed. When it refuses or you abort,
+  nothing was stopped or replaced; when the service does not report ready within
+  30 seconds after the restore, the script says so and names the journal;
+- `3`: restored, and the files listed above are missing.
 
 The set-aside directory is never removed. It holds the replaced site, media
 included, so two restores leave two more copies of it. Delete it by hand, once

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -181,6 +182,84 @@ func TestDeploySaysOlderBinariesLackTheSchemaRefusal(t *testing.T) {
 	for _, stale := range []string{"Nothing in the program enforces", "60 of 60"} {
 		if strings.Contains(doc, stale) {
 			t.Errorf("deploy/DEPLOY.md still says %q", stale)
+		}
+	}
+}
+
+// sectionContains fails the test for every sentence of want the section does
+// not hold.
+func sectionContains(t *testing.T, heading string, want ...string) {
+	t.Helper()
+	section := deploySection(t, readDeploy(t, "DEPLOY.md"), heading)
+	for _, w := range want {
+		if !strings.Contains(section, w) {
+			t.Errorf("%s does not say %q", strings.TrimLeft(heading, "# "), w)
+		}
+	}
+}
+
+// TestDeployNamesTheChecksumFileAndItsRecord: from 0.1.5 every backup carries
+// SHA256SUMS, named by its MANIFEST (BAK-01), and the record that shows it is
+// deploy/BACKUP-VERIFY-RUN.md (BAK-04).
+func TestDeployNamesTheChecksumFileAndItsRecord(t *testing.T) {
+	sectionContains(t, "## Backups", "SHA256SUMS", "checksums=SHA256SUMS", "deploy/BACKUP-VERIFY-RUN.md")
+}
+
+// TestDeployRetentionFailureReachesTheJournal: a retention step that cannot
+// remove an old backup says so and ends the night with status 40 (BAK-03).
+func TestDeployRetentionFailureReachesTheJournal(t *testing.T) {
+	sectionContains(t, "## Backups", "retention could not remove", "status 40")
+}
+
+// TestDeployStatesWhatRestoreEndsWith: restore.sh checks the checksums, reports
+// every row whose file the backup lacks through check -files, and ends with
+// status 3 then (BAK-01, BAK-02).
+func TestDeployStatesWhatRestoreEndsWith(t *testing.T) {
+	sectionContains(t, "### Restore from a backup", "made before 0.1.5", "check -files", "ends with status 3")
+}
+
+// bashBlocks returns the lines inside the ```bash fences of section.
+func bashBlocks(section string) []string {
+	var out []string
+	in := false
+	for _, line := range strings.Split(section, "\n") {
+		switch {
+		case !in && line == "```bash":
+			in = true
+		case in && strings.HasPrefix(line, "```"):
+			in = false
+		case in:
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+// TestDeployUpdatingCopiesTheScripts: Install copies backup.sh and restore.sh
+// once, so an update that replaces only the binary keeps scripts that write no
+// checksum file and say nothing about retention. The two lines are played by
+// deploy/test/run.sh as they stand, which refuses an angle-bracket placeholder
+// (threat T-32-14).
+func TestDeployUpdatingCopiesTheScripts(t *testing.T) {
+	lines := bashBlocks(deploySection(t, readDeploy(t, "DEPLOY.md"), "## Updating"))
+	for _, want := range []string{
+		"scp -r deploy/ user@your-server:/tmp/deploy/",
+		"sudo install -m 755 /tmp/deploy/backup.sh /tmp/deploy/restore.sh /opt/holzcloud/deploy/",
+	} {
+		found := false
+		for _, line := range lines {
+			if line == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("no bash block of Updating holds the line %q", want)
+		}
+	}
+	placeholder := regexp.MustCompile(`<[A-Za-z][A-Za-z0-9_.-]*>`)
+	for _, line := range lines {
+		if placeholder.MatchString(line) {
+			t.Errorf("a bash block of Updating holds a placeholder: %q", line)
 		}
 	}
 }
