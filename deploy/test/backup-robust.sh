@@ -80,7 +80,7 @@ EARLIER=20251231-030000
 NIGHT="$T/root/$STAMP"
 EARLIER_DIR="$T/root/$EARLIER"
 
-mkdir -p "$T/data/media" "$T/data/templates" "$T/bin" "$T/root" "$T/fake-mv" "$T/fake-find"
+mkdir -p "$T/data/media" "$T/data/templates" "$T/bin" "$T/root" "$T/fake-mv" "$T/fake-find" "$T/fake-sha"
 echo "picture" > "$T/data/media/a.jpg"
 echo "template" > "$T/data/templates/t.html"
 echo "key" > "$T/data/csrf.key"
@@ -155,6 +155,13 @@ exec /bin/date "$@"
 FAKE
 chmod +x "$T/bin/date"
 
+# backup.sh hashes with sha256sum. Where the system has none (an older macOS),
+# a shim to `shasum -a 256`, which writes the same "<hex>  ./path" lines.
+if ! command -v sha256sum >/dev/null 2>&1; then
+    printf '#!/bin/bash\nexec shasum -a 256 "$@"\n' > "$T/bin/sha256sum"
+    chmod +x "$T/bin/sha256sum"
+fi
+
 # A fake mv that refuses the rename of the MANIFEST (Test 13), and a fake find
 # that fails (Test 16). They sit in their own directories and are put in front
 # of PATH only for those runs.
@@ -168,11 +175,27 @@ exec /bin/mv "$@"
 FAKE
 chmod +x "$T/fake-mv/mv"
 
-cat > "$T/fake-find/find" <<'FAKE'
+# The fake find fails only for the retention listing (the call with -mtime);
+# the checksum step's find runs the real one.
+REAL_FIND=$(command -v find)
+cat > "$T/fake-find/find" <<FAKE
 #!/bin/bash
-exit 1
+for a in "\$@"; do
+    if [ "\$a" = "-mtime" ]; then
+        exit 1
+    fi
+done
+exec "$REAL_FIND" "\$@"
 FAKE
 chmod +x "$T/fake-find/find"
+
+# A sha256sum that fails (Test 19), in its own directory.
+cat > "$T/fake-sha/sha256sum" <<'FAKE'
+#!/bin/bash
+echo "sha256sum: cannot read" >&2
+exit 1
+FAKE
+chmod +x "$T/fake-sha/sha256sum"
 
 # ---------------------------------------------------------------------------
 # Running the script under test.
@@ -240,11 +263,12 @@ EXPECTED_OUT=$(printf '%s\n' \
     "Backing up CSRF key..." \
     "Backing up media..." \
     "Backing up templates..." \
+    "Writing checksums..." \
     "Pruning backups older than 30 days..." \
     "=== Backup complete: $NIGHT ===")
 bt_eq "1 stdout lines (without the du line)" "$EXPECTED_OUT" "$(sed '$d' "$T/out")"
 bt_eq "1 stderr is empty" "0" "$(wc -c < "$T/err" | tr -d ' ')"
-bt_eq "1 MANIFEST keys in order" "timestamp,version,data_dir,host," "$(cut -d= -f1 "$NIGHT/MANIFEST" | tr '\n' ',')"
+bt_eq "1 MANIFEST keys in order" "timestamp,version,data_dir,host,checksums," "$(cut -d= -f1 "$NIGHT/MANIFEST" | tr '\n' ',')"
 bt_eq "1 no MANIFEST.partial is left" no "$(exists "$NIGHT/MANIFEST.partial")"
 bt_eq "1 the directory mode is 700" "drwx------" "$(ls -ld "$NIGHT" | cut -c1-10)"
 bt_eq "1 the copy holds the media file" yes "$(exists "$NIGHT/media/a.jpg")"
@@ -466,6 +490,50 @@ PATH_PREFIX="$T/fake-find:" run_backup
 bt_eq "16 exit status 0 although find fails" 0 "$RC"
 bt_eq "16 the night has its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
 bt_has "16 the complete line is printed" "$T/out" "=== Backup complete: $NIGHT ==="
+
+# ---------------------------------------------------------------------------
+section "Test 18: the checksum file"
+reset_case
+mkdir -p "$T/data/templates/sub"
+echo "a template manifest" > "$T/data/templates/MANIFEST.json"
+echo "nested" > "$T/data/templates/sub/MANIFEST"
+run_backup
+bt_eq "18 exit status 0" 0 "$RC"
+bt_eq "18 SHA256SUMS exists" yes "$(exists "$NIGHT/SHA256SUMS")"
+bt_eq "18 no SHA256SUMS.partial is left" no "$(exists "$NIGHT/SHA256SUMS.partial")"
+EXPECTED_PATHS=$(cd "$NIGHT" && find . -type f ! -path ./SHA256SUMS ! -path ./MANIFEST -print0 | LC_ALL=C sort -z | tr '\0' '\n')
+bt_eq "18 the paths are every file but SHA256SUMS and MANIFEST, in C order" "$EXPECTED_PATHS" "$(cut -c67- "$NIGHT/SHA256SUMS" 2>/dev/null)"
+bt_eq "18 every line is <64 hex>, two spaces, ./path" 0 "$(grep -cvE '^[0-9a-f]{64}  \./' "$NIGHT/SHA256SUMS" 2>/dev/null || true)"
+BAD_SUMS=0
+if [ -f "$NIGHT/SHA256SUMS" ]; then
+    while IFS= read -r line; do
+        if [ "$(sha "$NIGHT/${line#*  }")" != "${line%% *}" ]; then
+            BAD_SUMS=$((BAD_SUMS + 1))
+        fi
+    done < "$NIGHT/SHA256SUMS"
+else
+    BAD_SUMS=missing
+fi
+bt_eq "18 every hash is the hash of its file" 0 "$BAD_SUMS"
+for p in ./holzcloud.sqlite ./csrf.key ./media/a.jpg ./templates/t.html ./templates/MANIFEST.json ./templates/sub/MANIFEST; do
+    bt_eq "18 listed: $p" 1 "$(cut -c67- "$NIGHT/SHA256SUMS" 2>/dev/null | grep -cxF -- "$p")"
+done
+bt_eq "18 the top-level MANIFEST is not listed" 0 "$(cut -c67- "$NIGHT/SHA256SUMS" 2>/dev/null | grep -cxF -- ./MANIFEST)"
+bt_eq "18 the MANIFEST holds checksums=SHA256SUMS" 1 "$(grep -cx 'checksums=SHA256SUMS' "$NIGHT/MANIFEST")"
+reset_case
+PATH_PREFIX="$T/fake-mv:" run_backup
+bt_eq "18 SHA256SUMS.partial is renamed before MANIFEST.partial" yes \
+    "$(awk '/SHA256SUMS\.partial/ && !s { s = NR } /MANIFEST\.partial/ && !m { m = NR } END { print (s && m && s < m) ? "yes" : "no" }' "$T/mv.log")"
+rm -rf "$T/data/templates/sub" "$T/data/templates/MANIFEST.json"
+
+# ---------------------------------------------------------------------------
+section "Test 19: a failed checksum step ends the night without a backup"
+reset_case
+PATH_PREFIX="$T/fake-sha:" run_backup
+bt_eq "19 exit status is not 0" yes "$(if [ "$RC" -ne 0 ]; then echo yes; else echo no; fi)"
+bt_eq "19 the directory of this run does not exist" no "$(exists "$NIGHT")"
+bt_has "19 stderr names the removal" "$T/err" "backup did not finish"
+bt_eq "19 the earlier night is intact" yes "$(earlier_intact)"
 
 # ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then

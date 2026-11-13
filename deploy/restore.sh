@@ -23,9 +23,10 @@ set -euo pipefail
 # drop-ins, environment files, the secret key (HOLZCLOUD_SECRET_KEY) and the
 # proxy configuration. Those are rebuilt by hand.
 #
-# Order, which a refused backup depends on: verify a copy of the snapshot, ask,
-# stop the service, move the data aside, copy, chown, chmod, start, wait for
-# /readyz. Nothing is stopped or moved before the snapshot has passed.
+# Order, which a refused backup depends on: verify the checksums of SHA256SUMS,
+# verify a copy of the snapshot, ask, stop the service, move the data aside,
+# copy, chown, chmod, start, wait for /readyz. Nothing is stopped or moved
+# before both checks have passed.
 #
 # Another directory joining the data directory has to be added to the list
 # below, here and in backup.sh.
@@ -65,11 +66,88 @@ fi
 echo "=== Restoring from ${BACKUP_DIR} ==="
 cat "${BACKUP_DIR}/MANIFEST"
 
+# Temporary files of the checks below, removed on every way out.
+VERIFY_DIR=""
+ACTUAL_SUMS=""
+remove_temporaries() {
+    if [ -n "${VERIFY_DIR}" ]; then
+        rm -rf "${VERIFY_DIR}"
+    fi
+    if [ -n "${ACTUAL_SUMS}" ]; then
+        rm -f "${ACTUAL_SUMS}"
+    fi
+}
+trap remove_temporaries EXIT
+
+# Verify the checksums BEFORE touching the live data. The MANIFEST decides,
+# never the presence of the file: backup.sh writes the line
+# checksums=SHA256SUMS since 0.1.5, so a backup with the line and without the
+# file is damaged, and one without the line was made earlier and is restored
+# unverified, with a notice.
+#
+# SHA256SUMS is input from the backup to a script that runs as root. Every line
+# is checked before any file is read: "<64 hex>  ./path" with no .. segment, or
+# a line beginning with a backslash, which sha256sum writes for a name holding
+# a backslash or a newline; such a line is counted and never followed. Then the
+# listed paths are hashed from inside the backup directory and compared in the
+# order of SHA256SUMS, so the first file that is missing or differs is named.
+# The output of sha256sum -c is not used: GNU and Darwin word and order it
+# differently, and a missing file goes to stderr.
+if grep -qx 'checksums=SHA256SUMS' "${BACKUP_DIR}/MANIFEST"; then
+    if [ ! -f "${BACKUP_DIR}/SHA256SUMS" ]; then
+        echo "ERROR: ${BACKUP_DIR}/MANIFEST names SHA256SUMS but the file is missing — do not restore it" >&2
+        exit 1
+    fi
+    echo "Verifying checksums..."
+    bad_line=$(LC_ALL=C awk '
+        substr($0, 1, 1) == "\\" { next }
+        length($0) < 69 || substr($0, 1, 64) !~ /^[0-9a-f]+$/ || substr($0, 65, 4) != "  ./" { print NR; exit }
+        substr($0, 67) ~ /(^|\/)\.\.(\/|$)/ { print NR; exit }' "${BACKUP_DIR}/SHA256SUMS")
+    if [ -n "${bad_line}" ]; then
+        echo "ERROR: line ${bad_line} of SHA256SUMS is not in the format backup.sh writes or names a path outside the backup — do not restore it" >&2
+        exit 1
+    fi
+    escaped=$(LC_ALL=C awk 'substr($0, 1, 1) == "\\" { n++ } END { print n + 0 }' "${BACKUP_DIR}/SHA256SUMS")
+    listed=$(LC_ALL=C awk 'substr($0, 1, 1) != "\\" { n++ } END { print n + 0 }' "${BACKUP_DIR}/SHA256SUMS")
+    ACTUAL_SUMS=$(mktemp)
+    # A missing file makes sha256sum end 1; the comparison below decides. A
+    # checked line holds no newline in its path, so newline-separated paths
+    # are exact here.
+    (
+        cd "${BACKUP_DIR}"
+        LC_ALL=C awk 'substr($0, 1, 1) != "\\" { print substr($0, 67) }' SHA256SUMS \
+            | tr '\n' '\0' | xargs -0 -r sha256sum
+    ) > "${ACTUAL_SUMS}" 2>/dev/null || true
+    first=$(LC_ALL=C awk -v fa="${ACTUAL_SUMS}" '
+        FILENAME == fa { A[substr($0, 67)] = substr($0, 1, 64); next }
+        substr($0, 1, 1) == "\\" { next }
+        {
+            p = substr($0, 67)
+            if (!(p in A)) { print "missing " p; exit }
+            if (A[p] != substr($0, 1, 64)) { print "differs " p; exit }
+        }' "${ACTUAL_SUMS}" "${BACKUP_DIR}/SHA256SUMS")
+    case "${first}" in
+        "missing "*)
+            echo "ERROR: ${first#missing } is listed in SHA256SUMS and missing — the backup is damaged, do not restore it" >&2
+            exit 1
+            ;;
+        "differs "*)
+            echo "ERROR: ${first#differs } differs from its checksum in SHA256SUMS — the backup is damaged, do not restore it" >&2
+            exit 1
+            ;;
+    esac
+    echo "Checksums: ${listed} files verified"
+    if [ "${escaped}" -gt 0 ]; then
+        echo "NOTICE: ${escaped} lines of SHA256SUMS name a file with a backslash or a newline in its name; those files were not verified"
+    fi
+else
+    echo "NOTICE: ${BACKUP_DIR} has no checksum file (made before 0.1.5); its files were not verified"
+fi
+
 # Verify the snapshot BEFORE touching the live data. Restoring a corrupt file
 # over a working one turns a recoverable problem into an unrecoverable one.
 echo "Verifying snapshot..."
 VERIFY_DIR=$(mktemp -d)
-trap 'rm -rf "${VERIFY_DIR}"' EXIT
 cp "${BACKUP_DIR}/holzcloud.sqlite" "${VERIFY_DIR}/holzcloud.sqlite"
 if ! HOLZCLOUD_DATA_DIR="${VERIFY_DIR}" "${HOLZCLOUD_BIN}" check; then
     echo "ERROR: the snapshot fails its integrity check — do not restore it" >&2

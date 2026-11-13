@@ -14,7 +14,15 @@ set -euo pipefail
 # the data directory: media, templates, plugins (the installed plugin modules;
 # the database keeps only the manifest and the hash of a plugin, the module
 # files are here), sprachen (the operator's language files) and marke (the
-# logo), plus a MANIFEST that is written last.
+# logo), plus SHA256SUMS and a MANIFEST that is written last.
+#
+# SHA256SUMS holds one line per regular file of the backup directory except
+# itself and the MANIFEST at the top, in sha256sum's own format ("<hex>  ./path",
+# C order). It is written before the MANIFEST, so "MANIFEST present" still means
+# "the night finished, checksums included", and the MANIFEST says so with the
+# line checksums=SHA256SUMS. restore.sh verifies every file against it before
+# anything is stopped. SHA-256 here detects rot and accidental damage, not
+# tampering: whoever can write the backup can rewrite a file and its line alike.
 #
 # What it deliberately does not hold: the pre-upgrade snapshots the service
 # keeps in the data directory (old-schema copies, they would not open under the
@@ -166,26 +174,47 @@ for name in media templates plugins sprachen marke; do
     fi
 done
 
-# 4. A manifest, so a restore can tell what it is looking at. It is written
+# 4. Checksums. One SHA256SUMS line per regular file of the night, in the
+#    format sha256sum writes ("<hex>  ./path"), sorted in C order, so that
+#    restore.sh can tell a damaged file by name before anything is stopped.
+#    The four top-level names are excluded by anchored -path, never by -name:
+#    a template may well carry its own MANIFEST.json, and that is listed. Every
+#    path begins with ./, so no option can be mistaken for a file name. A hash
+#    that fails ends the night here, before the MANIFEST, and the trap removes
+#    the directory.
+echo "Writing checksums..."
+(
+    cd "${BACKUP_DIR}"
+    find . -type f \
+        ! -path ./SHA256SUMS ! -path ./SHA256SUMS.partial \
+        ! -path ./MANIFEST ! -path ./MANIFEST.partial -print0 \
+        | LC_ALL=C sort -z | xargs -0 -r sha256sum
+) > "${BACKUP_DIR}/SHA256SUMS.partial"
+mv "${BACKUP_DIR}/SHA256SUMS.partial" "${BACKUP_DIR}/SHA256SUMS"
+
+# 5. A manifest, so a restore can tell what it is looking at. It is written
 #    last: a restore takes its presence as the proof that every step before it
-#    finished. It is written under another name and renamed, so it is never
-#    there half written.
+#    finished, the checksums included. It is written under another name and
+#    renamed, so it is never there half written. The checksums line is what
+#    tells restore.sh that SHA256SUMS belongs to this backup: a backup without
+#    it was made before 0.1.5, one with it and without the file is damaged.
 {
     echo "timestamp=${TIMESTAMP}"
     echo "version=$(HOLZCLOUD_DATA_DIR=${DATA_DIR} ${HOLZCLOUD_BIN} version 2>/dev/null || echo unknown)"
     echo "data_dir=${DATA_DIR}"
     echo "host=$(hostname)"
+    echo "checksums=SHA256SUMS"
 } > "${BACKUP_DIR}/MANIFEST.partial"
 mv "${BACKUP_DIR}/MANIFEST.partial" "${BACKUP_DIR}/MANIFEST"
 
-# 5. Retention. Without this the disk fills up and takes the site with it.
+# 6. Retention. Without this the disk fills up and takes the site with it.
 if [ "${RETENTION_DAYS}" -gt 0 ]; then
     echo "Pruning backups older than ${RETENTION_DAYS} days..."
     find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d -mtime "+${RETENTION_DAYS}" \
         -exec rm -rf {} + 2>/dev/null || true
 fi
 
-# 6. Off-box copy. A backup on the same disk does not survive the failure it is
+# 7. Off-box copy. A backup on the same disk does not survive the failure it is
 #    meant to protect against — which DEPLOY.md itself calls likely.
 if [ -n "${REMOTE_TARGET:-}" ]; then
     echo "Copying to ${REMOTE_TARGET}..."
