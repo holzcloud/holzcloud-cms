@@ -173,8 +173,15 @@ func (h *Handler) liveLocked(r *http.Request, p *page.Page) bool {
 	return p != nil && p.Status == "published" && !h.mayPublish(r)
 }
 
-// productLocked is liveLocked for products (D-14): this person may not change
-// or delete this product, because it is online and they may not publish.
+// productLockedFor is liveLocked for products (D-14): this person may not
+// change or delete this product, because it is online and they may not
+// publish.
+//
+// It takes the answer of mayPublish instead of asking itself. A product
+// request asks once and lets that answer decide everything: asked twice, a
+// transient failure of one lookup and a success of the other split the
+// request — "not locked" from one, "store it as a draft" from the other — and
+// a publisher's save took a live product offline without a word.
 //
 // The same rule as for pages. A published product is in the shop the moment it
 // is stored, so its text, price, stock and picture, and its removal, are a
@@ -183,8 +190,8 @@ func (h *Handler) liveLocked(r *http.Request, p *page.Page) bool {
 // whatever they store a draft. The refusal is readOnlySentence, because a
 // published product is online at once; liveLockedSentence proposes duplicating
 // a page, and products have no such way forward.
-func (h *Handler) productLocked(r *http.Request, p *shop.Product) bool {
-	return p != nil && p.Status == shop.StatusPublished && !h.mayPublish(r)
+func productLockedFor(mayPublish bool, p *shop.Product) bool {
+	return p != nil && p.Status == shop.StatusPublished && !mayPublish
 }
 
 // liveLockedSentence is the refusal every locked door answers with. A function
