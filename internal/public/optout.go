@@ -76,6 +76,15 @@ const (
 	// (optout_limit.go). A person sends one; an office behind one address a
 	// few. Reaching it closes the form for that network only.
 	optoutNetworkLimit = 10
+	// optoutBlockLimit is how many the block around that network — the IPv4
+	// /24, the IPv6 /48 — may send per hour, so that one subscriber's many
+	// /64s are not many budgets. A tenth of the ceiling: ten blocks, not one
+	// home connection, are what it takes to reach it.
+	optoutBlockLimit = 30
+	// optoutNetsMax is how many networks the budget remembers at most. An
+	// entry is a few hundred bytes, so even a full budget stays in the tens
+	// of megabytes.
+	optoutNetsMax = 50000
 	// optoutMailLimit is how many notifications a website's operator gets
 	// per hour. A request above it is stored and listed, not mailed: the
 	// record matters more than the inbox, and a flood should fill neither.
@@ -320,7 +329,9 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	}
 	// The network's budget before the website's ceiling, so that one
 	// network that spent its own never reaches the one everybody shares.
-	if network, ok := h.optoutNetwork(r); ok && h.optoutNets != nil && !h.optoutNets.take(network, now) {
+	networks, budgeted := h.optoutNetworks(r)
+	budgeted = budgeted && h.optoutNets != nil
+	if budgeted && !h.optoutNets.take(networks, now) {
 		optoutRedirect(w, r, back, "spaeter")
 		return nil
 	}
@@ -341,6 +352,12 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	// read first lets a burst of parallel posts all read the same number.
 	hourAgo := now.Add(-time.Hour)
 	_, err = h.requests.AddWithin(ctx, req, hourAgo, optoutSiteLimit)
+	// A request the ceiling refused cost nothing, so it spends nothing: once
+	// the ceiling is reached, every further post would otherwise add a
+	// network to the budget for no purpose.
+	if budgeted && errors.Is(err, dsr.ErrLimit) {
+		h.optoutNets.give(networks, now)
+	}
 	switch {
 	case errors.Is(err, dsr.ErrLimit):
 		optoutRedirect(w, r, back, "spaeter")

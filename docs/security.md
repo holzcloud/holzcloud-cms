@@ -312,10 +312,15 @@ It stores **no IP address and no user agent**, and the form sets no cookie
 (`TestTheOptOutPostSetsNoCookie`). The spam protection needs none either: a
 honeypot field, a signed time stamp in the form that has to be between two
 seconds and two hours old and is valid only on the website that drew it, and
-two limits per hour. One network — an IPv4 address, or an IPv6 /64 — may send
-10 requests an hour; that budget is kept in memory only, so no address is
-stored, and spending it closes the form to that network and nobody else
-(`TestOneNetworkCannotLockOutTheOthers`). The website as a whole stores at
+three limits per hour. One network — an IPv4 address, or an IPv6 /64 — may send
+10 requests an hour, and the block around it — the IPv4 /24, the IPv6 /48 —
+30, so that a home connection's /56 or a tunnel broker's free /48 is not
+hundreds of budgets (`TestOneDelegationCannotCloseTheForm`). These budgets
+are kept in memory only, for at most an hour and for at most 50 000 networks,
+so no address is stored; spending one closes the form to that network and
+nobody else (`TestOneNetworkCannotLockOutTheOthers`). A request the website's
+limit refuses spends nothing (`TestARefusalByTheCeilingLeavesNoBudgetBehind`).
+The website as a whole stores at
 most 300 an hour, counted inside the insert so that neither a restart nor a
 burst of parallel posts gets past it (`TestTheHourlyCapHoldsUnderABurst`).
 The operator is mailed about the first 30 of an hour; any further request is

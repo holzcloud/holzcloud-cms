@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"strings"
 	"sync"
@@ -569,9 +570,9 @@ func optoutSeed(t *testing.T, database *db.DB, websiteID int64, n int) {
 }
 
 // TestTheHourlyCapHoldsUnderABurst sends far more valid posts at once than
-// the website has room for, each from its own address so that only the
-// website's ceiling can stop them. Before the count moved into the insert,
-// 120 parallel posts stored 119 rows against a cap of 30.
+// the website has room for, each from its own address in its own /24 so that
+// only the website's ceiling can stop them. Before the count moved into the
+// insert, 120 parallel posts stored 119 rows against a cap of 30.
 func TestTheHourlyCapHoldsUnderABurst(t *testing.T) {
 	h, database, ws := optoutSite(t, "eu,us", "")
 	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
@@ -585,7 +586,7 @@ func TestTheHourlyCapHoldsUnderABurst(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			optoutPost(h, ws, optoutForm(ws, "do-not-sell"), optoutFrom(fmt.Sprintf("198.51.100.%d:4000", i)))
+			optoutPost(h, ws, optoutForm(ws, "do-not-sell"), optoutFrom(fmt.Sprintf("198.51.%d.1:4000", i)))
 		}()
 	}
 	close(start)
@@ -638,6 +639,101 @@ func TestOneNetworkCannotLockOutTheOthers(t *testing.T) {
 	rec = optoutPost(h, ws, optoutForm(ws, "do-not-sell"), optoutFrom("[2001:db8:1:3::1]:5000"))
 	if loc := rec.Header().Get("Location"); loc != "/do-not-sell?widerspruch=eingegangen" {
 		t.Errorf("the neighbouring /64: %q; want recorded", loc)
+	}
+}
+
+// TestOneDelegationCannotCloseTheForm is WR-01 of the second 33.1 review. A
+// home connection is commonly handed a /56 — 256 /64s — and a tunnel broker
+// a /48 for free, so with a budget per /64 alone thirty-one of them, out of
+// one subscriber's own block, reached the website's ceiling and closed the
+// form to everybody. The /48 now has a budget too, and so has an IPv4 /24,
+// and a request has to find room in both.
+func TestOneDelegationCannotCloseTheForm(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+
+	stamp := optoutStamp(ws, 10*time.Second)
+	post := func(from string) string {
+		form := optoutForm(ws, "do-not-sell")
+		form.Set("stempel", stamp)
+		return optoutPost(h, ws, form, optoutFrom(from)).Header().Get("Location")
+	}
+	for n := 0; n < 31; n++ {
+		for i := 0; i < optoutNetworkLimit; i++ {
+			post(fmt.Sprintf("[2001:db8:aa:%02x::%x]:5000", n, i+1))
+		}
+	}
+	if n := optoutRows(t, database, ws.ID); n != optoutBlockLimit {
+		t.Errorf("31 /64s of one /56 stored %d rows; want the /48's budget, %d", n, optoutBlockLimit)
+	}
+	if loc := post("[2001:db8:aa:ff::1]:5000"); loc != "/do-not-sell?widerspruch=spaeter" {
+		t.Errorf("one more /64 of the spent /48: %q; want refused", loc)
+	}
+
+	// The same for IPv4: the addresses of one /24 share a budget.
+	for host := 1; host <= 4; host++ {
+		for i := 0; i < optoutNetworkLimit; i++ {
+			post(fmt.Sprintf("203.0.113.%d:5000", host))
+		}
+	}
+	if n := optoutRows(t, database, ws.ID); n != 2*optoutBlockLimit {
+		t.Errorf("four addresses of one /24 stored %d rows; want the /24's budget, %d", n-optoutBlockLimit, optoutBlockLimit)
+	}
+
+	// Everybody else still gets through.
+	for _, from := range []string{"192.0.2.200:1", "[2001:db8:bb::1]:1"} {
+		if loc := post(from); loc != "/do-not-sell?widerspruch=eingegangen" {
+			t.Errorf("a visitor from %s after both floods: %q; want recorded", from, loc)
+		}
+	}
+}
+
+// The budget forgets nothing within the hour and grows with every network
+// that posts, so it has a size: past it the network spent from longest ago
+// is forgotten first.
+func TestTheNetworkBudgetHasASize(t *testing.T) {
+	b := newNetBudget(100, time.Hour)
+	now := time.Now()
+	first := netip.MustParsePrefix("2001:db8:ffff::/48")
+	if !b.take([]netLimit{{first, 1}}, now) {
+		t.Fatal("the first request was refused")
+	}
+	for i := 0; i < 5000; i++ {
+		network := netip.PrefixFrom(netip.AddrFrom4([4]byte{198, 18, byte(i >> 8), byte(i)}), 32)
+		if !b.take([]netLimit{{network, 1}}, now) {
+			t.Fatalf("request %d from a fresh network was refused", i)
+		}
+	}
+	if n, m := len(b.taken), b.order.Len(); n > 100 || n != m {
+		t.Errorf("the budget holds %d networks (%d in its order) after 5000; want at most 100", n, m)
+	}
+	if !b.take([]netLimit{{first, 1}}, now) {
+		t.Error("the network spent from longest ago is still remembered; want it forgotten first")
+	}
+	last := netip.PrefixFrom(netip.AddrFrom4([4]byte{198, 18, byte(4999 >> 8), byte(4999 & 0xff)}), 32)
+	if b.take([]netLimit{{last, 1}}, now) {
+		t.Error("the network spent from last was forgotten")
+	}
+}
+
+// Once the website's ceiling refuses, a post spends nothing and leaves
+// nothing behind: five thousand refused posts from five thousand networks
+// used to leave five thousand entries in memory.
+func TestARefusalByTheCeilingLeavesNoBudgetBehind(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+	optoutSeed(t, database, ws.ID, optoutSiteLimit)
+	stamp := optoutStamp(ws, 10*time.Second)
+	for i := 0; i < 5000; i++ {
+		form := optoutForm(ws, "do-not-sell")
+		form.Set("stempel", stamp)
+		optoutPost(h, ws, form, optoutFrom(fmt.Sprintf("[2001:db8:%x:%x::1]:5000", i/256, i%256)))
+	}
+	h.optoutNets.mu.Lock()
+	n := len(h.optoutNets.taken)
+	h.optoutNets.mu.Unlock()
+	if n != 0 {
+		t.Errorf("the budget holds %d networks after 5000 posts the ceiling refused; want none", n)
 	}
 }
 

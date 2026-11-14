@@ -122,7 +122,7 @@ func NewHandler(pageStore *page.Store, menuStore *menu.Store, mediaStore *media.
 		dataDir:      dataDir,
 		defaultFS:    defaultFS,
 		secure:       secure,
-		optoutNets:   newNetBudget(optoutNetworkLimit, time.Hour),
+		optoutNets:   newNetBudget(optoutNetsMax, time.Hour),
 	}
 }
 
