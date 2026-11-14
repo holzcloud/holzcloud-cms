@@ -1,6 +1,8 @@
 package mail
 
 import (
+	"io"
+	"mime/quotedprintable"
 	"net"
 	"strings"
 	"testing"
@@ -136,6 +138,33 @@ func TestLineEndingsAreUnified(t *testing.T) {
 	if strings.Contains(strings.ReplaceAll(rumpf, "\r\n", ""), "\n") ||
 		strings.Contains(strings.ReplaceAll(rumpf, "\r\n", ""), "\r") {
 		t.Errorf("single line endings were left over: %q", rumpf)
+	}
+}
+
+// A line of a mail may be at most 998 octets (RFC 5322 2.1.1), and a body
+// built from a visitor's note can hold one line of 2000 characters, 8000
+// octets in UTF-8. Some servers refuse such a mail, others cut it (IN-09 of
+// the 33.1 review). The body goes out quoted-printable, whose lines stay
+// under 77 octets, and decodes back to exactly what was written.
+func TestALongLineIsWrapped(t *testing.T) {
+	s := testSender()
+	body := "Anmerkung: " + strings.Repeat("Grüße und ", 400) + "\nzweite Zeile\n.\nEnde"
+	raw := s.compose(Message{To: "eva@example.test", Subject: "A", Body: body})
+	kopf, rumpf, _ := strings.Cut(raw, "\r\n\r\n")
+	if !strings.Contains(kopf, "Content-Transfer-Encoding: quoted-printable\r\n") {
+		t.Errorf("the body is not declared quoted-printable:\n%s", kopf)
+	}
+	for _, line := range strings.Split(rumpf, "\r\n") {
+		if len(line) > 76 {
+			t.Fatalf("a line of %d octets: %q…", len(line), line[:40])
+		}
+	}
+	decoded, err := io.ReadAll(quotedprintable.NewReader(strings.NewReader(rumpf)))
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if want := strings.ReplaceAll(body, "\n", "\r\n"); string(decoded) != want {
+		t.Errorf("decoded body differs:\n got %q\nwant %q", decoded, want)
 	}
 }
 
