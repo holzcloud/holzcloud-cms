@@ -30,11 +30,11 @@ Scrivai a questa adressa dad e-mail {fillin} u utilisai il formular sin la pagin
 
 ### Global Privacy Control
 
-Sche Voss navigatur trametta il signal Global Privacy Control, q.v.d. la lingia d’entestaziun (header) Sec-GPC: 1, vala quai sco opposiziun cunter la vendita e la partiziun da Vossas datas per quest navigatur (§ 7025 da las prescripziuns CCPA). Sin la website na sa mida nagut, perquai che nagut na vegn vendì u partì. La pagina «Do Not Sell or Share My Personal Information» mussa ch’il signal è vegnì renconuschì. Il signal sez na vegn ni memorisà ni protocollà.
+Sche Voss navigatur trametta il signal Global Privacy Control, q.v.d. la lingia d’entestaziun (header) Sec-GPC: 1, vala quai sco opposiziun cunter la vendita e la partiziun da Vossas datas per quest navigatur (§ 7025 da las prescripziuns CCPA). Sin la website na sa mida nagut, perquai che nagut na vegn vendì u partì. La pagina «Do Not Sell or Share My Personal Information» mussa ch’il signal è vegnì renconuschì. Il signal na vegn betg protocollà. El vegn memorisà mo ensemen cun ina dumonda che Vus tramettais cun il formular.
 
 ### Il formular d’opposiziun
 
-Il formular sin la pagina «Do Not Sell or Share My Personal Information» memorisescha num, adressa dad e-mail e remartga, uschia sco Vus las endatais. El na memorisescha ni Vossa adressa IP ni ina identificaziun da Voss navigatur. Sch’in server dad e-mail è installà, survegn il gestiunari in avis per e-mail. Las indicaziuns vegnan utilisadas mo per tractar Vossa opposiziun. Ellas vegnan conservadas uschè ditg {fillin}. Annotaziuns davart dumondas e davart lur respostas vegnan conservadas almain 24 mais (§ 7101 da las prescripziuns CCPA).
+Il formular sin la pagina «Do Not Sell or Share My Personal Information» memorisescha num, adressa dad e-mail e remartga, uschia sco Vus las endatais, sco er la lingua da la pagina e sch’il navigatur ha tramess il signal Global Privacy Control. El na memorisescha ni Vossa adressa IP ni ina identificaziun da Voss navigatur. Sch’in server dad e-mail è installà, survegn il gestiunari in avis per e-mail. Las indicaziuns vegnan utilisadas mo per tractar Vossa opposiziun. Ellas vegnan conservadas uschè ditg {fillin}. Annotaziuns davart dumondas e davart lur respostas vegnan conservadas almain 24 mais (§ 7101 da las prescripziuns CCPA).
 
 ### Do Not Track
 

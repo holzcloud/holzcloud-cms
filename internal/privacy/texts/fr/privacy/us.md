@@ -30,11 +30,11 @@ Vous avez le droit de savoir quelles données personnelles ont été collectées
 
 ### Global Privacy Control
 
-Si votre navigateur envoie le signal Global Privacy Control, c’est-à-dire l’en-tête Sec-GPC: 1, celui-ci est traité comme une demande d’opposition à la vente et au partage de vos données personnelles pour ce navigateur (§ 7025 des règlements CCPA). Rien ne change sur le site pour autant, car rien n’est vendu ni partagé. La page « Do Not Sell or Share My Personal Information » indique que le signal a été reconnu. Le signal lui-même n’est ni enregistré ni journalisé.
+Si votre navigateur envoie le signal Global Privacy Control, c’est-à-dire l’en-tête Sec-GPC: 1, celui-ci est traité comme une demande d’opposition à la vente et au partage de vos données personnelles pour ce navigateur (§ 7025 des règlements CCPA). Rien ne change sur le site pour autant, car rien n’est vendu ni partagé. La page « Do Not Sell or Share My Personal Information » indique que le signal a été reconnu. Le signal n’est pas journalisé. Il n’est enregistré qu’avec une demande que vous envoyez au moyen du formulaire.
 
 ### Le formulaire d’opposition
 
-Le formulaire de la page « Do Not Sell or Share My Personal Information » enregistre votre nom, adresse e-mail et remarque tels que vous les saisissez, mais ni votre adresse IP ni un identifiant de votre navigateur. Si un serveur de messagerie est configuré, l’exploitant reçoit une notification par e-mail. Les indications sont utilisées uniquement pour traiter votre opposition et sont conservées {fillin}. Les enregistrements des demandes et de la suite qui leur a été donnée sont conservés au moins 24 mois (§ 7101 des règlements CCPA).
+Le formulaire de la page « Do Not Sell or Share My Personal Information » enregistre votre nom, adresse e-mail et remarque tels que vous les saisissez, ainsi que la langue de la page et le fait que votre navigateur ait envoyé ou non le signal Global Privacy Control, mais ni votre adresse IP ni un identifiant de votre navigateur. Si un serveur de messagerie est configuré, l’exploitant reçoit une notification par e-mail. Les indications sont utilisées uniquement pour traiter votre opposition et sont conservées {fillin}. Les enregistrements des demandes et de la suite qui leur a été donnée sont conservés au moins 24 mois (§ 7101 des règlements CCPA).
 
 ### Do Not Track
 

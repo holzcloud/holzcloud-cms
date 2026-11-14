@@ -30,11 +30,11 @@ Scriva a questo indirizzo e-mail {fillin} oppure utilizzi il modulo sulla pagina
 
 ### Global Privacy Control
 
-Se il Suo browser invia il segnale Global Privacy Control, cioè l’intestazione Sec-GPC: 1, esso viene trattato come opposizione alla vendita e alla condivisione dei Suoi dati per questo browser (§ 7025 del regolamento CCPA). Sul sito web non cambia nulla, perché nulla viene venduto o condiviso. La pagina «Do Not Sell or Share My Personal Information» indica che il segnale è stato riconosciuto. Il segnale stesso non viene né memorizzato né registrato.
+Se il Suo browser invia il segnale Global Privacy Control, cioè l’intestazione Sec-GPC: 1, esso viene trattato come opposizione alla vendita e alla condivisione dei Suoi dati per questo browser (§ 7025 del regolamento CCPA). Sul sito web non cambia nulla, perché nulla viene venduto o condiviso. La pagina «Do Not Sell or Share My Personal Information» indica che il segnale è stato riconosciuto. Il segnale non viene registrato in un protocollo. Viene memorizzato solo insieme a una richiesta che Lei invia tramite il modulo.
 
 ### Il modulo di opposizione
 
-Il modulo sulla pagina «Do Not Sell or Share My Personal Information» memorizza nome, indirizzo e-mail e osservazione così come Lei li inserisce, ma né il Suo indirizzo IP né un identificativo del Suo browser. Se è configurato un server di posta, il gestore riceve una notifica per e-mail. I dati vengono utilizzati solo per trattare la Sua opposizione e vengono conservati per questo periodo {fillin}. Le registrazioni delle richieste e delle relative risposte vengono conservate per almeno 24 mesi (§ 7101 del regolamento CCPA).
+Il modulo sulla pagina «Do Not Sell or Share My Personal Information» memorizza nome, indirizzo e-mail e osservazione così come Lei li inserisce, la lingua della pagina e se il Suo browser ha inviato il segnale Global Privacy Control, ma né il Suo indirizzo IP né un identificativo del Suo browser. Se è configurato un server di posta, il gestore riceve una notifica per e-mail. I dati vengono utilizzati solo per trattare la Sua opposizione e vengono conservati per questo periodo {fillin}. Le registrazioni delle richieste e delle relative risposte vengono conservate per almeno 24 mesi (§ 7101 del regolamento CCPA).
 
 ### Do Not Track
 

@@ -30,11 +30,11 @@ Schreibe an diese E-Mail-Adresse {fillin} oder nutze das Formular auf der Seite 
 
 ### Global Privacy Control
 
-Sendet dein Browser das Signal Global Privacy Control, also die Kopfzeile Sec-GPC: 1, wird es als Widerspruch gegen den Verkauf und das Teilen deiner Daten für diesen Browser behandelt (§ 7025 der CCPA-Vorschriften). Auf der Website ändert sich dadurch nichts, weil nichts verkauft oder geteilt wird. Die Seite „Do Not Sell or Share My Personal Information“ zeigt an, dass das Signal erkannt wurde. Das Signal selbst wird weder gespeichert noch protokolliert.
+Sendet dein Browser das Signal Global Privacy Control, also die Kopfzeile Sec-GPC: 1, wird es als Widerspruch gegen den Verkauf und das Teilen deiner Daten für diesen Browser behandelt (§ 7025 der CCPA-Vorschriften). Auf der Website ändert sich dadurch nichts, weil nichts verkauft oder geteilt wird. Die Seite „Do Not Sell or Share My Personal Information“ zeigt an, dass das Signal erkannt wurde. Das Signal wird nicht protokolliert. Gespeichert wird es nur zusammen mit einem Antrag, den du über das Formular sendest.
 
 ### Das Widerspruchsformular
 
-Das Formular auf der Seite „Do Not Sell or Share My Personal Information“ speichert Name, E-Mail-Adresse und Anmerkung, so wie du sie eingibst, aber weder deine IP-Adresse noch eine Kennung deines Browsers. Ist ein Mailserver eingerichtet, erhält der Betreiber eine Benachrichtigung per E-Mail. Die Angaben werden nur verwendet, um deinen Widerspruch zu bearbeiten, und werden so lange aufbewahrt {fillin}. Aufzeichnungen über Anträge und ihre Beantwortung werden mindestens 24 Monate aufbewahrt (§ 7101 der CCPA-Vorschriften).
+Das Formular auf der Seite „Do Not Sell or Share My Personal Information“ speichert Name, E-Mail-Adresse und Anmerkung, so wie du sie eingibst, dazu die Sprache der Seite und ob dein Browser das Signal Global Privacy Control gesendet hat, aber weder deine IP-Adresse noch eine Kennung deines Browsers. Ist ein Mailserver eingerichtet, erhält der Betreiber eine Benachrichtigung per E-Mail. Die Angaben werden nur verwendet, um deinen Widerspruch zu bearbeiten, und werden so lange aufbewahrt {fillin}. Aufzeichnungen über Anträge und ihre Beantwortung werden mindestens 24 Monate aufbewahrt (§ 7101 der CCPA-Vorschriften).
 
 ### Do Not Track
 

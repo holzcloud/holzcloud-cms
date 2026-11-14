@@ -30,11 +30,11 @@ Write to this e-mail address {fillin} or use the form on this website's page “
 
 ### Global Privacy Control
 
-If your browser sends the Global Privacy Control signal, that is the header Sec-GPC: 1, it is treated as a request to opt out of the sale and sharing of your personal information for that browser (§ 7025 of the CCPA Regulations). Nothing on the website changes as a result, because nothing is sold or shared. The page “Do Not Sell or Share My Personal Information” shows that the signal was recognised. The signal itself is neither stored nor logged.
+If your browser sends the Global Privacy Control signal, that is the header Sec-GPC: 1, it is treated as a request to opt out of the sale and sharing of your personal information for that browser (§ 7025 of the CCPA Regulations). Nothing on the website changes as a result, because nothing is sold or shared. The page “Do Not Sell or Share My Personal Information” shows that the signal was recognised. The signal is not logged; it is recorded only together with a request you send through the form.
 
 ### The opt-out form
 
-The form on the page “Do Not Sell or Share My Personal Information” stores your name, e-mail address and note as you enter them, but neither your IP address nor an identifier of your browser. If a mail server is set up, the operator receives a notification by e-mail. The details are used only to handle your opt-out and are kept {fillin}. Records of requests and of how they were answered are kept for at least 24 months (§ 7101 of the CCPA Regulations).
+The form on the page “Do Not Sell or Share My Personal Information” stores your name, e-mail address and note as you enter them, the language of the page and whether your browser sent the Global Privacy Control signal, but neither your IP address nor an identifier of your browser. If a mail server is set up, the operator receives a notification by e-mail. The details are used only to handle your opt-out and are kept {fillin}. Records of requests and of how they were answered are kept for at least 24 months (§ 7101 of the CCPA Regulations).
 
 ### Do Not Track
 

@@ -371,6 +371,43 @@ func TestTheGermanSectionsNameTheirAuthorities(t *testing.T) {
 	}
 }
 
+// The US section says what the opt-out form stores, all of it (WR-05 of the
+// 33.1 review): a request carries the page's language and whether the
+// browser sent the signal (dsr.Request, migration 00064), so the notice may
+// not say the signal is never stored. Under CalOPPA and the CCPA this is a
+// statement about what is collected. Every language, because each is
+// published on its own.
+func TestTheUSSectionSaysWhatTheFormStores(t *testing.T) {
+	for lang, want := range map[string]struct{ stored, signal, never string }{
+		"de": {"die Sprache der Seite und ob dein Browser das Signal Global Privacy Control gesendet hat",
+			"Das Signal wird nicht protokolliert. Gespeichert wird es nur zusammen mit einem Antrag, den du über das Formular sendest.",
+			"weder gespeichert noch protokolliert"},
+		"en": {"the language of the page and whether your browser sent the Global Privacy Control signal",
+			"The signal is not logged; it is recorded only together with a request you send through the form.",
+			"neither stored nor logged"},
+		"fr": {"la langue de la page et le fait que votre navigateur ait envoyé ou non le signal Global Privacy Control",
+			"Le signal n’est pas journalisé. Il n’est enregistré qu’avec une demande que vous envoyez au moyen du formulaire.",
+			"ni enregistré ni journalisé"},
+		"it": {"la lingua della pagina e se il Suo browser ha inviato il segnale Global Privacy Control",
+			"Il segnale non viene registrato in un protocollo. Viene memorizzato solo insieme a una richiesta che Lei invia tramite il modulo.",
+			"né memorizzato né registrato"},
+		"rm": {"la lingua da la pagina e sch’il navigatur ha tramess il signal Global Privacy Control",
+			"Il signal na vegn betg protocollà. El vegn memorisà mo ensemen cun ina dumonda che Vus tramettais cun il formular.",
+			"ni memorisà ni protocollà"},
+	} {
+		text := ComposePrivacy(Request{Lang: lang, Set: legal.ParseSet("us"), Features: allFeatures()})
+		us := text[strings.Index(text, heading(t, lang, "us")):]
+		for _, w := range []string{want.stored, want.signal} {
+			if !strings.Contains(us, w) {
+				t.Errorf("%s: the US section lacks %q", lang, w)
+			}
+		}
+		if strings.Contains(us, want.never) {
+			t.Errorf("%s: the US section still says the signal is never stored (%q)", lang, want.never)
+		}
+	}
+}
+
 // What Global Privacy Control changes, said in the US section (D-10, D-11,
 // D-12): the signal is an opt-out of sale and sharing, nothing on the website
 // changes because nothing is sold or shared, the Do Not Sell or Share page
