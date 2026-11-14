@@ -621,8 +621,11 @@ func launchChecklist(d Deps) Tool {
 	return Tool{
 		Name: "launch_checklist",
 		Description: "The \"ready to launch?\" list of the settings screen: domain, primary domain, a " +
-			"published start page, an activated template, the imprint in the footer menu, a description " +
-			"for search engines, a favicon. Each item says whether it is done and what to do if not.",
+			"published start page, an activated template, whether legal frameworks are chosen, the " +
+			"imprint, the privacy page and — with the United States chosen — the Do Not Sell or Share " +
+			"page, each linked in the footer menu, a description for search engines, a favicon. Each " +
+			"item says whether it is done and what to do if not; the legal hints name the law of the " +
+			"website's own frameworks.",
 		InputSchema: Schema{
 			Type:       "object",
 			Properties: map[string]Property{"website": websiteArg},

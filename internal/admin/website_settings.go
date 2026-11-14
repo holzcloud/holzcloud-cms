@@ -13,6 +13,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/legal"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"github.com/holzcloud/holzcloud-cms/internal/privacy"
 	"github.com/holzcloud/holzcloud-cms/internal/structured"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
@@ -209,12 +210,7 @@ func (h *Handler) siteChecks(ctx context.Context, ws *domain.Website, domains []
 		Link:  base + "/design",
 	})
 
-	checks = append(checks, siteCheck{
-		Label: i18n.N("Imprint linked in the footer menu"),
-		OK:    h.footerLinksImprint(ctx, ws.ID),
-		Hint:  i18n.N("German law (§ 5 DDG) requires an imprint reachable from every page; the footer menu does that."),
-		Link:  base + "/menus",
-	})
+	checks = append(checks, h.legalChecks(ctx, ws, base)...)
 
 	checks = append(checks,
 		siteCheck{
@@ -234,13 +230,96 @@ func (h *Handler) siteChecks(ctx context.Context, ws *domain.Website, domains []
 	return checks
 }
 
-// footerLinksImprint reports whether the footer menu points at a published page
-// that looks like an imprint.
+// legalChecks are the legal items of the launch checklist (D-13, D-16).
+//
+// Whether any framework is chosen at all comes first: an empty set is
+// allowed, and this is where it is reported. Then the pages the frameworks
+// call for — the imprint and the privacy page always, the Do-Not-Sell page
+// only with the United States — each done when a published page of its kind
+// is linked in the footer menu. The footer link is what makes a page
+// reachable from every page, which is what § 5 DDG means by "unmittelbar
+// erreichbar" and what the CCPA regulations (§ 7011(d)) mean by a conspicuous
+// link on the homepage.
+//
+// A page is recognised by the slugs its kind has in every language
+// (privacy.RoleSlugs): an English website's legal-notice is its imprint as
+// much as a German website's own slug is. The check used to know only the
+// German one, so an English or French website failed it forever.
+//
+// Each hint is a whole sentence of the catalogue, chosen by the first
+// framework of the set in the order EU, Switzerland, United Kingdom, United
+// States, so that it names the law the operator actually chose.
+func (h *Handler) legalChecks(ctx context.Context, ws *domain.Website, base string) []siteCheck {
+	set := ws.Frameworks()
+	first := legal.Framework("")
+	if list := set.List(); len(list) > 0 {
+		first = list[0]
+	}
+
+	imprintHint := i18n.N("Say who runs this website and how to reach them; the footer menu makes it reachable from every page.")
+	privacyHint := i18n.N("A privacy notice tells visitors what this website does with their data; the footer menu links it from every page.")
+	switch first {
+	case legal.EU:
+		imprintHint = i18n.N("German law (§ 5 DDG) requires an imprint reachable from every page; the footer menu does that.")
+		privacyHint = i18n.N("The GDPR (Art. 13) requires a privacy notice at the moment data is collected; the footer menu links it from every page.")
+	case legal.CH:
+		imprintHint = i18n.N("Swiss law (Art. 3 para. 1 let. s UWG) requires your identity and contact address, e-mail included; the footer menu makes it reachable from every page.")
+		privacyHint = i18n.N("The Swiss FADP (Art. 19) requires a privacy notice; the footer menu links it from every page.")
+	case legal.UK:
+		imprintHint = i18n.N("UK law (Electronic Commerce Regulations 2002, reg. 6) requires your name, address and e-mail on the website; the footer menu makes them reachable from every page.")
+		privacyHint = i18n.N("UK GDPR (Art. 13) requires a privacy notice; the footer menu links it from every page.")
+	case legal.US:
+		privacyHint = i18n.N("California law (CalOPPA) requires a conspicuous link containing the word “privacy”; the footer menu provides it.")
+	}
+
+	checks := []siteCheck{
+		{
+			Label: i18n.N("Legal frameworks chosen"),
+			OK:    !set.Empty(),
+			Hint:  i18n.N("The privacy page, the imprint and the legal checks follow from the frameworks; without one, the templates carry no section of any law."),
+			Link:  base + "#legal-frameworks",
+		},
+		{
+			Label: i18n.N("Imprint linked in the footer menu"),
+			OK:    h.footerLinksRole(ctx, ws.ID, privacy.RoleSlugs(privacy.KindImprint)),
+			Hint:  imprintHint,
+			Link:  h.legalCheckLink(ctx, ws, base, privacy.KindImprint),
+		},
+		{
+			Label: i18n.N("Privacy page linked in the footer menu"),
+			OK:    h.footerLinksRole(ctx, ws.ID, privacy.RoleSlugs(privacy.KindPrivacy)),
+			Hint:  privacyHint,
+			Link:  h.legalCheckLink(ctx, ws, base, privacy.KindPrivacy),
+		},
+	}
+	if ws.HasUSFramework() {
+		checks = append(checks, siteCheck{
+			Label: i18n.N("Do Not Sell or Share page linked in the footer menu"),
+			OK:    h.footerLinksRole(ctx, ws.ID, privacy.RoleSlugs(privacy.KindDNS)),
+			Hint:  i18n.N("With the United States chosen, this page says that nothing is sold or shared and shows whether a visitor's browser sent the Global Privacy Control signal (Cal. Civ. Code § 1798.135)."),
+			Link:  h.legalCheckLink(ctx, ws, base, privacy.KindDNS),
+		})
+	}
+	return checks
+}
+
+// legalCheckLink is where a legal item sends the operator: to the menus when
+// the page exists and only the link is missing, to the legal card of the
+// settings screen when there is no page to link yet.
+func (h *Handler) legalCheckLink(ctx context.Context, ws *domain.Website, base string, k privacy.Kind) string {
+	if p, err := h.findLegalPage(ctx, ws, k, ws.Locale); err == nil && p == nil {
+		return base + "#legal-pages"
+	}
+	return base + "/menus"
+}
+
+// footerLinksRole reports whether the footer menu points at a published page
+// whose slug contains one of the slugs.
 //
 // It matches on the slug rather than the title because the slug is what the
 // legal requirement is really about — a reachable address — and because a menu
 // entry can be titled anything.
-func (h *Handler) footerLinksImprint(ctx context.Context, websiteID int64) bool {
+func (h *Handler) footerLinksRole(ctx context.Context, websiteID int64, slugs []string) bool {
 	if h.menuStore == nil {
 		return false
 	}
@@ -252,8 +331,12 @@ func (h *Handler) footerLinksImprint(ctx context.Context, websiteID int64) bool 
 		if node.PageSlug == "" {
 			continue
 		}
-		if pg, err := h.pages.GetPublishedPage(ctx, websiteID, node.PageSlug); err == nil && pg != nil {
-			if strings.Contains(node.PageSlug, "impressum") {
+		pg, err := h.pages.GetPublishedPage(ctx, websiteID, node.PageSlug)
+		if err != nil || pg == nil {
+			continue
+		}
+		for _, s := range slugs {
+			if strings.Contains(node.PageSlug, s) {
 				return true
 			}
 		}
