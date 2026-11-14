@@ -345,10 +345,22 @@ navigation of a website with the United States. "Mark as handled" stores the
 date once (`TestMarkingAnOptOutHandledStoresTheDateOnce`). There is no delete:
 neither the screen nor the store can remove a request
 (`TestTheOptOutScreenCannotDelete`, `TestTheStoreCannotDelete`), and the
-assistant connection cannot read them ([AI access](ai-access.md#tools)). In
-this release they are kept until the website itself is deleted. Retention and
-deletion arrive with the data-subject requests of the next phase, which must
-keep a US opt-out for at least 24 months (CCPA regulations § 7101).
+assistant connection cannot read them ([AI access](ai-access.md#tools)).
+Retention and deletion arrive with the data-subject requests of the next
+phase, which must keep a US opt-out for at least 24 months (CCPA regulations
+§ 7101).
+
+Deleting the website does not get round that. A website that received or
+answered a request in the last 24 months cannot be deleted — not from the
+settings screen and not by the assistant — because its requests would go with
+it; the database refuses (trigger `websites_keep_privacy_requests`, migration
+`00065`), and the screen says why and suggests deactivating the website
+instead (`TestAWebsiteWithRecentPrivacyRequestsIsKept`). Requests older than
+that go with their website. Moving a website by export and import takes its
+requests along with the dates they arrived and were answered
+(`TestPrivacyRequestsTravelWithTheWebsite`), so an export archive of such a
+website carries names, addresses and notes and is to be kept like the
+database.
 
 ## Two-factor authentication
 

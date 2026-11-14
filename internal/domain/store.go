@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -249,10 +250,24 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-// DeleteWebsite deletes a website by ID.
+// ErrWebsiteKeepsRequests means the website received a privacy request, or
+// answered one, in the last 24 months, and is therefore not deleted: its
+// requests would go with it, and CCPA regs § 7101 ask for that record to be
+// kept for 24 months. The rule is a trigger, migration 00065.
+var ErrWebsiteKeepsRequests = errors.New("the website keeps privacy requests younger than 24 months; they are the record US law asks to be kept for 24 months, so the website cannot be deleted yet — deactivate it instead")
+
+// keepsRequestsAbort is the message the trigger of migration 00065 aborts
+// with. Matched rather than parsed: it is the only thing that tells this
+// abort apart from any other failed delete.
+const keepsRequestsAbort = "website keeps privacy requests younger than 24 months"
+
+// DeleteWebsite deletes a website by ID, or returns ErrWebsiteKeepsRequests.
 func (s *Store) DeleteWebsite(ctx context.Context, id int64) error {
 	_, err := s.DB.Write.ExecContext(ctx, `DELETE FROM websites WHERE id = $1`, id)
 	if err != nil {
+		if strings.Contains(err.Error(), keepsRequestsAbort) {
+			return ErrWebsiteKeepsRequests
+		}
 		return fmt.Errorf("delete website: %w", err)
 	}
 	return nil

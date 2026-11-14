@@ -168,6 +168,72 @@ func (s *Store) List(ctx context.Context, websiteID int64, kind string) ([]Reque
 	return out, rows.Err()
 }
 
+// ListAll returns every request of one website, of every kind, oldest
+// first: the order an archive writes them in (internal/bundle).
+func (s *Store) ListAll(ctx context.Context, websiteID int64) ([]Request, error) {
+	rows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT `+columns+` FROM privacy_requests
+		 WHERE website_id = $1
+		 ORDER BY created_at, id`, websiteID)
+	if err != nil {
+		return nil, fmt.Errorf("list requests: %w", err)
+	}
+	defer rows.Close()
+	var out []Request
+	for rows.Next() {
+		r, err := scan(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan request: %w", err)
+		}
+		out = append(out, *r)
+	}
+	return out, rows.Err()
+}
+
+// Restore stores a request that arrived elsewhere, with the moment it
+// arrived and the moment it was answered: a website moved by export and
+// import keeps its record (WR-06 of the 33.1 review), and the dates are the
+// record.
+//
+// The checks are Add's, except one. An address is kept as it was received
+// even when ValidEmail would refuse it today: a record is not corrected on
+// the way, and the admin list links only an address that passes the check.
+// A request with no arrival time is ErrNoTime.
+func (s *Store) Restore(ctx context.Context, r Request) (int64, error) {
+	if !kinds[r.Kind] {
+		return 0, ErrBadKind
+	}
+	if r.CreatedAt.IsZero() {
+		return 0, ErrNoTime
+	}
+	if utf8.RuneCountInString(r.Name) > MaxName ||
+		utf8.RuneCountInString(r.Email) > MaxEmail ||
+		utf8.RuneCountInString(r.Note) > MaxNote ||
+		utf8.RuneCountInString(r.Locale) > maxLocale {
+		return 0, ErrTooLong
+	}
+	if r.Name == "" && r.Email == "" && !r.GPC {
+		return 0, ErrEmpty
+	}
+	gpc := 0
+	if r.GPC {
+		gpc = 1
+	}
+	var handled any
+	if r.HandledAt != nil {
+		handled = r.HandledAt.UTC().Format(timeLayout)
+	}
+	res, err := s.DB.Write.ExecContext(ctx,
+		`INSERT INTO privacy_requests (website_id, kind, locale, name, email, note, gpc, created_at, handled_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		r.WebsiteID, r.Kind, r.Locale, r.Name, r.Email, r.Note, gpc,
+		r.CreatedAt.UTC().Format(timeLayout), handled)
+	if err != nil {
+		return 0, fmt.Errorf("restore request: %w", err)
+	}
+	return res.LastInsertId()
+}
+
 // Get returns one request of one website, or nil when there is none — also
 // when the id belongs to another website, which is the same answer on purpose:
 // the website is part of the lookup, not a comparison a caller has to

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -364,7 +365,13 @@ func (h *Handler) HandleWebsiteDelete(w http.ResponseWriter, r *http.Request) er
 	}
 
 	if err := h.deleteWebsite(r.Context(), id); err != nil {
-		return err
+		if !errors.Is(err, domain.ErrWebsiteKeepsRequests) {
+			return err
+		}
+		// Refused by the database (migration 00065): the website's opt-outs
+		// are the record § 7101 asks to be kept, and they would go with it.
+		web.SetFlashError(h.sm, r.Context(), "This website received opt-out or privacy requests in the last 24 months. US law asks for them to be kept that long, so the website cannot be deleted yet. Export it to keep a copy, or deactivate it.")
+		return h.redirect(w, r, "/admin/websites/"+strconv.FormatInt(id, 10))
 	}
 
 	web.SetFlashSuccess(h.sm, r.Context(), "Website deleted")

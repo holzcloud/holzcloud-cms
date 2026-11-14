@@ -61,6 +61,27 @@ type Manifest struct {
 	// writes a manifest byte for byte like one from before them, and an older
 	// version reading a newer bundle ignores the key it does not know.
 	Values []SiteValue `json:"values,omitempty"`
+	// PrivacyRequests are the requests people made about their data on this
+	// website — the opt-outs of its "Do Not Sell or Share" page. They are
+	// the record CCPA regs § 7101 ask to be kept for 24 months, and a website
+	// moved to another installation has to take its record along (WR-06 of
+	// the 33.1 review). The archive therefore carries personal data — names,
+	// addresses, notes — and is to be handled like the database it came from.
+	PrivacyRequests []PrivacyRequest `json:"privacy_requests,omitempty"`
+}
+
+// PrivacyRequest is one request about a person's data, as dsr.Request keeps
+// it. The two dates are UTC in RFC 3339 and travel unchanged: when a request
+// arrived and when it was answered is the record, not a detail of it.
+type PrivacyRequest struct {
+	Kind      string `json:"kind"`
+	Locale    string `json:"locale,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Email     string `json:"email,omitempty"`
+	Note      string `json:"note,omitempty"`
+	GPC       bool   `json:"gpc,omitempty"`
+	CreatedAt string `json:"created_at"`
+	HandledAt string `json:"handled_at,omitempty"`
 }
 
 // SiteValue is one named text of the website: the key a page writes between

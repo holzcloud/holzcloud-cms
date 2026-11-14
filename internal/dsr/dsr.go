@@ -81,6 +81,8 @@ var (
 	// ErrBadEmail means the e-mail field holds something other than one bare
 	// address (ValidEmail).
 	ErrBadEmail = errors.New("dsr: not one e-mail address")
+	// ErrNoTime means a restored request does not say when it arrived.
+	ErrNoTime = errors.New("dsr: the request has no arrival time")
 	// ErrLimit means the website already received as many requests of the
 	// kind as AddWithin allows in its window, and this one was not stored.
 	ErrLimit = errors.New("dsr: too many requests in the window")

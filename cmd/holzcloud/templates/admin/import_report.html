@@ -9,6 +9,7 @@
         <li>{{tf "%d snippets" .Report.Snippets}}</li>
         <li>{{tf "%d values" .Report.Values}}</li>
         <li>{{tf "%d albums" .Report.Albums}}</li>
+        {{if .Report.Requests}}<li>{{tf "%d privacy requests" .Report.Requests}}</li>{{end}}
     </ul>
 
     <p class="callout callout--warning">

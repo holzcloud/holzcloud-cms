@@ -968,6 +968,12 @@ func TestMigration00064DownAndUp(t *testing.T) {
 		t.Errorf("a request carried by the signal alone was refused: %v", err)
 	}
 
+	// Past the 24 months that 00065 keeps a website for, so the delete below
+	// is about this table's cascade and not about that trigger.
+	if _, err := database.Write.ExecContext(ctx,
+		`UPDATE privacy_requests SET created_at = '2020-01-01T00:00:00Z' WHERE website_id = ?`, site); err != nil {
+		t.Fatalf("backdating: %v", err)
+	}
 	if _, err := database.Write.ExecContext(ctx, `DELETE FROM websites WHERE id = ?`, site); err != nil {
 		t.Fatalf("deleting the website: %v", err)
 	}
@@ -978,5 +984,54 @@ func TestMigration00064DownAndUp(t *testing.T) {
 	}
 	if left != 0 {
 		t.Errorf("%d requests outlived their website (ON DELETE CASCADE)", left)
+	}
+}
+
+// TestMigration00065DownAndUp drives the trigger that keeps a website with
+// recent privacy requests: it refuses the delete, its rollback lets the
+// delete through, and it comes back.
+func TestMigration00065DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+	site := func() int64 {
+		res, err := database.Write.ExecContext(ctx, `INSERT INTO websites (name, description) VALUES ('Hofladen', '')`)
+		if err != nil {
+			t.Fatalf("creating a website: %v", err)
+		}
+		id, _ := res.LastInsertId()
+		if _, err := database.Write.ExecContext(ctx,
+			`INSERT INTO privacy_requests (website_id, kind, name) VALUES (?, 'optout', 'Ada')`, id); err != nil {
+			t.Fatalf("a request: %v", err)
+		}
+		return id
+	}
+
+	kept := site()
+	if _, err := database.Write.ExecContext(ctx, `DELETE FROM websites WHERE id = ?`, kept); err == nil {
+		t.Error("a website with a request of today was deleted")
+	}
+
+	rollBackTo(t, ctx, provider, 64)
+	gone := site()
+	if _, err := database.Write.ExecContext(ctx, `DELETE FROM websites WHERE id = ?`, gone); err != nil {
+		t.Errorf("without the trigger the delete was refused: %v", err)
+	}
+
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+	if _, err := database.Write.ExecContext(ctx, `DELETE FROM websites WHERE id = ?`, kept); err == nil {
+		t.Error("the trigger did not come back")
 	}
 }

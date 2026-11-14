@@ -20,7 +20,18 @@ import (
 // would — the structs of this package could not write either.
 func legalBundleRaw(t *testing.T, site string) []byte {
 	t.Helper()
-	manifest := `{"version": ` + strconv.Itoa(Version) + `, "site": ` + site + `}`
+	return legalBundleRawWith(t, site, "")
+}
+
+// legalBundleRawWith is legalBundleRaw with further top-level members, written
+// as JSON without the braces.
+func legalBundleRawWith(t *testing.T, site, more string) []byte {
+	t.Helper()
+	manifest := `{"version": ` + strconv.Itoa(Version) + `, "site": ` + site
+	if more != "" {
+		manifest += ", " + more
+	}
+	manifest += `}`
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	w, err := zw.Create(ManifestName)

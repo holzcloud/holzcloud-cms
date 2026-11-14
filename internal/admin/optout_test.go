@@ -6,9 +6,11 @@ import (
 	"html/template"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alexedwards/scs/v2"
 
@@ -164,6 +166,34 @@ func TestOnlyAValidAddressBecomesALink(t *testing.T) {
 	}
 	if !strings.Contains(mallory, "op@example.com?bcc=thief@evil.example&amp;subject=Re") {
 		t.Errorf("the address is not shown as text:\n%s", mallory)
+	}
+}
+
+// Deleting a website with an opt-out of the last 24 months is refused with a
+// sentence that says why and what to do instead (WR-06): the requests went
+// with the website, and they are the record US law asks to be kept.
+func TestDeletingAWebsiteWithRecentOptOutsIsRefused(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	optoutFrameworks(t, database, ws.ID, "eu,us")
+	optoutAdd(t, database, dsr.Request{WebsiteID: ws.ID, Name: "Ada"}, time.Now().UTC().Format("2006-01-02T15:04:05Z"))
+
+	target := "/admin/websites/" + strconv.FormatInt(ws.ID, 10) + "/delete"
+	rec, bad, good := albumFlash(t, h, sm, h.HandleWebsiteDelete, postForm(target, url.Values{}, map[string]string{"id": strconv.FormatInt(ws.ID, 10)}))
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status %d; want 303", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/admin/websites/"+strconv.FormatInt(ws.ID, 10) {
+		t.Errorf("redirected to %q; want back to the website", loc)
+	}
+	want := "This website received opt-out or privacy requests in the last 24 months. US law asks for them to be kept that long, so the website cannot be deleted yet. Export it to keep a copy, or deactivate it."
+	if bad != want || good != "" {
+		t.Errorf("flash error %q, success %q; want the reason", bad, good)
+	}
+	if got, err := h.domains.GetWebsite(context.Background(), ws.ID); err != nil || got == nil {
+		t.Fatalf("the website was deleted (err %v)", err)
+	}
+	if i18n.T("de", want) == want {
+		t.Error("the German catalogue lacks the sentence")
 	}
 }
 

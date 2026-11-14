@@ -28,6 +28,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/design"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/kind"
@@ -55,6 +56,8 @@ type Report struct {
 	Albums    int
 	// Values counts the website's named texts the import created.
 	Values int
+	// Requests counts the privacy requests the import took over.
+	Requests int
 	// Warnings are the things that did not come through. Each one names what
 	// was lost and why; none of them stops the import.
 	//
@@ -175,8 +178,50 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 	// page of this same bundle, and only now does every address have an id.
 	importSnippets(ctx, s, websiteID, manifest, mediaByName, pages, report)
 	importMenus(ctx, s, websiteID, manifest, report)
+	// Nothing on the website depends on its privacy requests, and nothing in
+	// them on the website's content.
+	importRequests(ctx, s, websiteID, manifest, report)
 
 	return report, nil
+}
+
+// importRequests takes over the website's privacy requests with the dates
+// they arrived and were answered (dsr.Store.Restore), so a moved website
+// keeps the record CCPA regs § 7101 ask for. What the store refuses — an
+// unknown kind, a request that names nobody, a date that is not one — is
+// named in the report, and the import goes on.
+func importRequests(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) {
+	if len(m.PrivacyRequests) == 0 {
+		return
+	}
+	if s.Requests == nil {
+		report.warnf(i18n.N("%d privacy requests were not taken over: this installation has no place for them."), len(m.PrivacyRequests))
+		return
+	}
+	for i, pr := range m.PrivacyRequests {
+		created, err := time.Parse(time.RFC3339, pr.CreatedAt)
+		if err != nil {
+			report.warnf(i18n.N("privacy request %d: the date it arrived, %q, is not a date."), i+1, pr.CreatedAt)
+			continue
+		}
+		req := dsr.Request{
+			WebsiteID: websiteID, Kind: pr.Kind, Locale: pr.Locale,
+			Name: pr.Name, Email: pr.Email, Note: pr.Note, GPC: pr.GPC, CreatedAt: created,
+		}
+		if pr.HandledAt != "" {
+			handled, err := time.Parse(time.RFC3339, pr.HandledAt)
+			if err != nil {
+				report.warnf(i18n.N("privacy request %d: the date it was answered, %q, is not a date."), i+1, pr.HandledAt)
+				continue
+			}
+			req.HandledAt = &handled
+		}
+		if _, err := s.Requests.Restore(ctx, req); err != nil {
+			report.warnf(i18n.N("privacy request %d could not be taken over: %v"), i+1, err)
+			continue
+		}
+		report.Requests++
+	}
 }
 
 func readManifest(zr *zip.Reader) (*Manifest, error) {
