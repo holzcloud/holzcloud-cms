@@ -3,6 +3,7 @@ package media
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -188,7 +189,9 @@ func (s *Store) Delete(ctx context.Context, id int64, dataDir string, force bool
 
 	// Read the variant names before the row goes, because the cascade takes
 	// them with it and the files would then have no name left to delete by.
-	s.removeVariantFiles(ctx, id, websiteID, dataDir)
+	// A copy that stays is not reported here, as it never was; DeleteOwned
+	// reports it.
+	_ = s.removeVariantFiles(ctx, id, websiteID, dataDir)
 
 	if _, err := s.DB.Write.ExecContext(ctx, `DELETE FROM media WHERE id = $1`, id); err != nil {
 		return fmt.Errorf("delete media: %w", err)
@@ -196,6 +199,71 @@ func (s *Store) Delete(ctx context.Context, id int64, dataDir string, force bool
 
 	diskPath := filepath.Join(dataDir, "media", strconv.FormatInt(websiteID, 10), filename)
 	_ = os.Remove(diskPath)
+	return nil
+}
+
+// ErrFileRemains is a file that could not be removed from the disk while its
+// record went.
+var ErrFileRemains = errors.New("media: a file stayed on the disk")
+
+// ErrNotOwned is a file that exists and belongs to another website. It is
+// ErrNotFound to every caller that asks for that, so the answer to an id
+// outside the website is the same as to no id at all; a caller that has to
+// tell the two apart — a plugin's claim to a foreign file is an error, a
+// file already gone is not — asks for this one.
+var ErrNotOwned = fmt.Errorf("%w: it belongs to another website", ErrNotFound)
+
+// DeleteOwned removes a file of one website: its scaled copies, its row and
+// the original on disk. It is how the retention job and the erasure remove
+// the attachments of a record a plugin returns (Phase 33.2).
+//
+// The website is checked because the id is a plugin's claim: a plugin names
+// the files of its records, and a plugin that named another website's file
+// must not reach it. Such an id answers ErrNotOwned, which is ErrNotFound,
+// and nothing changes; an id that does not exist answers ErrNotFound.
+//
+// A file used on a page goes anyway, as Delete with force does: the record it
+// belonged to has expired or been erased, and the person's file is what has
+// to go.
+//
+// A copy or the original that stays on the disk is an error wrapping
+// ErrFileRemains, after the row is gone: removing an attachment and reporting
+// success while the file is still there is the failure this exists to
+// prevent. A file that was already missing is not an error.
+func (s *Store) DeleteOwned(ctx context.Context, websiteID, id int64, dataDir string) error {
+	var owner int64
+	var filename string
+	err := s.DB.Read.QueryRowContext(ctx,
+		`SELECT website_id, filename FROM media WHERE id = $1`, id).Scan(&owner, &filename)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("get media for delete: %w", err)
+	}
+	if owner != websiteID {
+		return ErrNotOwned
+	}
+
+	// Before the row, as in Delete: the cascade takes the variant names.
+	variantErr := s.removeVariantFiles(ctx, id, websiteID, dataDir)
+	if variantErr != nil && !errors.Is(variantErr, ErrFileRemains) {
+		return fmt.Errorf("read the scaled copies of media %d: %w", id, variantErr)
+	}
+	if _, err := s.DB.Write.ExecContext(ctx,
+		`DELETE FROM media WHERE id = $1 AND website_id = $2`, id, websiteID); err != nil {
+		return fmt.Errorf("delete media: %w", err)
+	}
+
+	diskPath := filepath.Join(dataDir, "media", strconv.FormatInt(websiteID, 10), filename)
+	if err := os.Remove(diskPath); err != nil && !os.IsNotExist(err) {
+		// The id and not the name or the path: a file name is often the
+		// name the uploader gave it, and this error reaches the journal.
+		return fmt.Errorf("%w: media %d", ErrFileRemains, id)
+	}
+	if variantErr != nil {
+		return fmt.Errorf("media %d: %w", id, variantErr)
+	}
 	return nil
 }
 

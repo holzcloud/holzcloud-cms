@@ -46,6 +46,8 @@
                     <span>{{t .Unit}}</span>
                 </div>
                 <p class="form-hint">{{t "Default"}}: {{.Default}} {{t .Unit}}</p>
+                {{if .MinimumNote}}<p class="form-hint">{{tf .MinimumNote .Min}}</p>{{end}}
+                {{range .Notes}}<p class="form-hint">{{t .}}</p>{{end}}
                 {{if .Error}}<p class="form-error" id="period-{{.Kind}}-error">{{if .ErrorArg}}{{tf .Error .ErrorArg}}{{else}}{{t .Error}}{{end}}</p>{{end}}
             </div>
             {{end}}

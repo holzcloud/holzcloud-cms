@@ -303,13 +303,28 @@ func (s *Store) LoadImageSets(ctx context.Context, websiteID int64, pageHTML str
 // The rows go with the original through ON DELETE CASCADE; the files do not,
 // and orphaned copies on an SD card are exactly the kind of leak nobody notices
 // until the card is full.
-func (s *Store) removeVariantFiles(ctx context.Context, mediaID, websiteID int64, dataDir string) {
+//
+// It reports what went wrong, and Delete ignores that for its callers as it
+// always has; DeleteOwned does not. A variant that cannot be read is an error
+// before anything is removed. A copy that is already gone is not an error,
+// and every other copy is still tried when one stays: the error that comes
+// back counts the ones left.
+func (s *Store) removeVariantFiles(ctx context.Context, mediaID, websiteID int64, dataDir string) error {
 	variants, err := s.VariantsFor(ctx, mediaID)
 	if err != nil {
-		return
+		return err
 	}
 	dir := filepath.Join(dataDir, "media", strconv.FormatInt(websiteID, 10))
+	stayed := 0
 	for _, v := range variants {
-		_ = os.Remove(filepath.Join(dir, v.Filename))
+		if err := os.Remove(filepath.Join(dir, v.Filename)); err != nil && !os.IsNotExist(err) {
+			stayed++
+		}
 	}
+	if stayed > 0 {
+		// The count and not the names: a file name is often the name the
+		// uploader gave it, and this error reaches the journal.
+		return fmt.Errorf("%w: %d scaled copies", ErrFileRemains, stayed)
+	}
+	return nil
 }

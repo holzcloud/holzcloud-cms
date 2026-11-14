@@ -218,3 +218,56 @@ func TestChangingAPeriodAsksForThePasswordAndThePublishingRight(t *testing.T) {
 		t.Errorf("after a refused save stored %v, want form_submission still 6", got)
 	}
 }
+
+func TestTheOrderPeriodNamesItsLaw(t *testing.T) {
+	h, sm, database, ws, _ := retentionAdmin(t)
+	for _, c := range []struct {
+		country string
+		years   int
+		basis   string
+	}{
+		{"CH", 10, "Switzerland: business records and booking vouchers are kept for ten years (Art. 958f CO; Art. 70 VAT Act)."},
+		{"AT", 10, "No retention period was researched for the country in this website's address, so the longest researched one, ten years, applies. Set a longer period if your law requires one."},
+		{"DE", 8, "Germany: booking vouchers and copies of invoices are kept for eight years (§ 147 AO, § 257 HGB, § 14b UStG)."},
+	} {
+		if _, err := database.Write.Exec(`UPDATE websites SET country = $1 WHERE id = $2`, c.country, ws.ID); err != nil {
+			t.Fatal(err)
+		}
+		body := retentionGet(t, h, sm, ws.ID)
+		input := retentionInput(body, dsr.RetentionOrder)
+		if !strings.Contains(input, `value="`+strconv.Itoa(c.years)+`"`) || !strings.Contains(input, `min="`+strconv.Itoa(c.years)+`"`) {
+			t.Errorf("%s: the order field is not %d years with a minimum of %d: %q", c.country, c.years, c.years, input)
+		}
+		row := retentionSection(body, "retention-"+dsr.RetentionOrder)
+		if !strings.Contains(row, retentionSays(c.basis)) {
+			t.Errorf("%s: the order row does not name its law:\n%s", c.country, row)
+		}
+		if !strings.Contains(row, retentionSays("At least %d years", c.years)) {
+			t.Errorf("%s: the order row does not say its minimum:\n%s", c.country, row)
+		}
+		if !strings.Contains(row, retentionSays("If your business year is not the calendar year, or a tax assessment is still open, set a longer period: the law's period may then end later.")) {
+			t.Errorf("%s: the order row does not tell an operator with another business year to set a longer period:\n%s", c.country, row)
+		}
+	}
+
+	request := retentionSection(retentionGet(t, h, sm, ws.ID), "retention-"+dsr.RetentionRequest)
+	if !strings.Contains(request, retentionSays("At least 24 months: CCPA regs § 7101 ask for the record of a request for 24 months, and a website with younger requests cannot be deleted either.")) {
+		t.Errorf("the request row does not say why it keeps 24 months:\n%s", request)
+	}
+	if input := retentionInput(request, dsr.RetentionRequest); !strings.Contains(input, `min="24"`) {
+		t.Errorf("the request field allows less than 24 months: %q", input)
+	}
+
+	// Below the law is refused with the minimum, and nothing is stored.
+	rec, _, _ := albumFlash(t, h, sm, h.HandlePrivacyRetention,
+		postForm(retentionAddress(ws.ID), url.Values{dsr.RetentionOrder: {"7"}}, websiteRoute(ws.ID)))
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("7 years on a DE website: status %d, want 422", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `id="period-order-error"`) {
+		t.Error("7 years is refused without an error at the field")
+	}
+	if got := retentionStored(t, database, ws.ID); len(got) != 0 {
+		t.Errorf("a refused period stored %v", got)
+	}
+}

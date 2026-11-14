@@ -29,6 +29,8 @@ import (
 	"log/slog"
 	"time"
 	"unicode/utf8"
+
+	"github.com/holzcloud/holzcloud-cms/internal/legal"
 )
 
 // The kinds of record a website keeps for a period of its own. They are the
@@ -94,12 +96,27 @@ type Period struct {
 	Stored bool
 }
 
+// requestFloor is the shortest period for privacy requests, in months.
+//
+// CCPA regs § 7101 ask a business to keep the record of a consumer request
+// and of its response for at least 24 months, and migration 00065 refuses to
+// delete a website that holds a request younger than that, counted from the
+// later of arrival and answer. The job counts the same way, so the job and
+// the deletion lock agree on which request still has to be there.
+const requestFloor = 24
+
 // defaultPeriods are the kinds with a period, in the order the screen shows
-// them, each with its default, floor and step.
-func defaultPeriods() []Period {
+// them, each with its default, floor and step. The order period follows the
+// seller's country (D-06): its default is the law's period, and so is its
+// floor — a website may keep orders longer, never shorter — in whole years.
+func defaultPeriods(country string) []Period {
+	orders := legal.OrderPeriodFor(country).Years * 12
 	return []Period{
 		// D-04: form submissions are kept for twelve months.
 		{Kind: RetentionFormSubmission, Default: 12, Floor: 1, Step: 1},
+		// D-04: requests for 24 months, never fewer.
+		{Kind: RetentionRequest, Default: requestFloor, Floor: requestFloor, Step: 1},
+		{Kind: RetentionOrder, Default: orders, Floor: orders, Step: 12},
 	}
 }
 
@@ -109,7 +126,7 @@ func (s *Service) Periods(ctx context.Context, websiteID int64, country string) 
 	if err != nil {
 		return nil, err
 	}
-	list := defaultPeriods()
+	list := defaultPeriods(country)
 	for i := range list {
 		p := &list[i]
 		p.Months = p.Default
@@ -117,8 +134,29 @@ func (s *Service) Periods(ctx context.Context, websiteID int64, country string) 
 			p.Stored = true
 			p.Months = m
 		}
+		// A stored period below the floor is one the website chose before
+		// its country changed, or before the law did: the law wins.
+		if p.Months < p.Floor {
+			p.Months = p.Floor
+		}
 	}
 	return list, nil
+}
+
+// OrderYears is how many years the website keeps its orders: the later of
+// the law of its country and the period the operator set. The law's period
+// comes back with it, for the screen to name.
+func (s *Service) OrderYears(ctx context.Context, websiteID int64, country string) (int, legal.OrderPeriod, error) {
+	law := legal.OrderPeriodFor(country)
+	stored, err := s.storedPeriods(ctx, websiteID)
+	if err != nil {
+		return 0, law, err
+	}
+	years := law.Years
+	if m, ok := stored[RetentionOrder]; ok && m/12 > years {
+		years = m / 12
+	}
+	return years, law, nil
 }
 
 func (s *Service) storedPeriods(ctx context.Context, websiteID int64) (map[string]int, error) {
@@ -373,11 +411,24 @@ func (s *Service) expireWebsite(ctx context.Context, ws retentionWebsite, now ti
 	if err != nil {
 		return nil, fmt.Errorf("website %d: %w", ws.id, err)
 	}
+	// The plugins that answer the privacy hook here, asked once for every
+	// kind. A plugin that keeps data and does not answer is not deleted by
+	// the job; the screen names it.
+	var covered []string
+	_, holders, holdersErr := s.pluginSources(ctx, ws.id)
+	for _, h := range holders {
+		if h.Covered {
+			covered = append(covered, h.PluginID)
+		}
+	}
+	if holdersErr != nil {
+		holdersErr = &expireError{cause: causeDatabase, detail: "list the plugins: " + holdersErr.Error()}
+	}
 	var results []KindResult
 	var errs []error
 	for _, p := range periods {
 		kr := KindResult{WebsiteID: ws.id, Kind: p.Kind}
-		n, err := s.expireKind(ctx, ws, p, now)
+		n, err := s.expireKind(ctx, ws, p, now, covered, holdersErr)
 		kr.Deleted = n
 		if err != nil {
 			kr.Err = bounded(err.Error(), 2000)

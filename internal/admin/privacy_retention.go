@@ -11,6 +11,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
+	"github.com/holzcloud/holzcloud-cms/internal/legal"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
@@ -38,10 +39,18 @@ var (
 		dsr.RetentionRequest:        i18n.N("Privacy requests"),
 		dsr.RetentionOrder:          i18n.N("Orders"),
 	}
-	retentionMonths     = i18n.N("months")
-	retentionYears      = i18n.N("years")
-	retentionBadPeriod  = i18n.N("A period must be between 1 and 600 months.")
-	retentionStatusName = map[string]string{
+	retentionMonths    = i18n.N("months")
+	retentionYears     = i18n.N("years")
+	retentionBadPeriod = i18n.N("A period must be between 1 and 600 months.")
+	// The order period's minimum, with the number of years.
+	retentionAtLeastYears = i18n.N("At least %d years")
+	// Said under every order period: the law's period starts at the end of
+	// the business year, and with an open assessment it ends later still
+	// (33.2-RESEARCH §B.3 Rule 2, the German Ablaufhemmung).
+	retentionBusinessYear = i18n.N("If your business year is not the calendar year, or a tax assessment is still open, set a longer period: the law's period may then end later.")
+	// Why requests are kept 24 months at least.
+	retentionRequestFloor = i18n.N("At least 24 months: CCPA regs § 7101 ask for the record of a request for 24 months, and a website with younger requests cannot be deleted either.")
+	retentionStatusName   = map[string]string{
 		dsr.RunRunning: i18n.N("Running"),
 		dsr.RunOK:      i18n.N("Successful"),
 		dsr.RunFailed:  i18n.N("Failed"),
@@ -76,6 +85,12 @@ type retentionPeriodView struct {
 	Default, Min, Max, Step int
 	// IsDefault is true when the website has not chosen its own period.
 	IsDefault bool
+	// MinimumNote says the minimum with Min in it, a catalogue key, "" for a
+	// kind whose minimum needs no saying.
+	MinimumNote string
+	// Notes are the sentences under the field, catalogue keys: the law the
+	// period follows, and what the operator should know about it.
+	Notes []string
 	// Error is the refusal, a catalogue key, with ErrorArg its number when
 	// the sentence carries one.
 	Error    string
@@ -135,6 +150,8 @@ func (h *Handler) savePrivacyRetention(w http.ResponseWriter, r *http.Request, w
 	typed := map[string]string{}
 	months := map[string]int{}
 	errs := web.FormErrors{}
+	// errArgs is the number a refusal sentence carries, by kind.
+	errArgs := map[string]int{}
 	for _, p := range periods {
 		if !r.PostForm.Has(p.Kind) {
 			continue
@@ -152,6 +169,13 @@ func (h *Handler) savePrivacyRetention(w http.ResponseWriter, r *http.Request, w
 		err := h.dataRights.SetPeriods(r.Context(), ws.ID, ws.Country, months)
 		var pe *dsr.PeriodError
 		switch {
+		case errors.As(err, &pe) && errors.Is(err, dsr.ErrBelowFloor):
+			errs.Add(pe.Kind, retentionFloorSentence(pe.Kind))
+			for _, p := range periods {
+				if p.Kind == pe.Kind && pe.Kind == dsr.RetentionOrder {
+					errArgs[pe.Kind] = p.Floor / 12
+				}
+			}
 		case errors.As(err, &pe):
 			errs.Add(pe.Kind, retentionBadPeriod)
 		case err != nil:
@@ -166,6 +190,7 @@ func (h *Handler) savePrivacyRetention(w http.ResponseWriter, r *http.Request, w
 		data.Errors = errs
 		for i := range data.Periods {
 			data.Periods[i].Error = errs[data.Periods[i].Kind]
+			data.Periods[i].ErrorArg = errArgs[data.Periods[i].Kind]
 		}
 		return web.RenderFormError(w, h.templates, r, "privacy_retention", data)
 	}
@@ -184,6 +209,18 @@ func (h *Handler) savePrivacyRetention(w http.ResponseWriter, r *http.Request, w
 	})
 	web.SetFlashSuccess(h.sm, r.Context(), "Retention periods saved.")
 	return h.redirect(w, r, back)
+}
+
+// retentionFloorSentence is the refusal of a period below the kind's floor,
+// a catalogue key. The order's carries the number of years.
+func retentionFloorSentence(kind string) string {
+	switch kind {
+	case dsr.RetentionOrder:
+		return retentionAtLeastYears
+	case dsr.RetentionRequest:
+		return retentionRequestFloor
+	}
+	return retentionBadPeriod
 }
 
 // retentionUnitMonths is how many months one unit of the kind's field is.
@@ -229,8 +266,13 @@ func (h *Handler) privacyRetentionData(r *http.Request, ws *domain.Website, type
 			Step:      p.Step / unit,
 			IsDefault: !p.Stored,
 		}
-		if unit == 12 {
+		switch p.Kind {
+		case dsr.RetentionOrder:
 			v.Unit = retentionYears
+			v.MinimumNote = retentionAtLeastYears
+			v.Notes = []string{legal.OrderPeriodFor(ws.Country).Basis(), retentionBusinessYear}
+		case dsr.RetentionRequest:
+			v.Notes = []string{retentionRequestFloor}
 		}
 		if s, ok := typed[p.Kind]; ok {
 			v.Value = s
