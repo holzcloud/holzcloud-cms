@@ -679,6 +679,7 @@ var editorOpenRoutes = []route{
 	// Opt-outs follow the order book: reading one and recording the answer
 	// publishes nothing (phase 33.1 D-14).
 	{pattern: "GET /admin/websites/{id}/widersprueche"},
+	{pattern: "POST /admin/websites/{id}/widersprueche/{requestID}/erledigt"},
 	{pattern: "GET /admin/websites/{id}/menus"},
 	{pattern: "POST /admin/websites/{id}/menus"},
 	{pattern: "GET /admin/websites/{id}/menus/{menuID}"},

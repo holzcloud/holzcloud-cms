@@ -12,6 +12,7 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 
+	"github.com/holzcloud/holzcloud-cms/internal/ai"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
@@ -222,5 +223,184 @@ func TestTheOptOutListSaysTheRecordIsKept(t *testing.T) {
 	}
 	if !strings.Contains(body, optoutSays(notUS)) {
 		t.Error("without US the screen does not say why there is no form")
+	}
+}
+
+func optoutHandled(websiteID, requestID int64) string {
+	return fmt.Sprintf("/admin/websites/%d/widersprueche/%d/erledigt", websiteID, requestID)
+}
+
+// optoutMark posts "handled" as a user and hands back the answer and both
+// flashes.
+func optoutMark(t *testing.T, h *Handler, sm *scs.SessionManager, userID, websiteID int64, requestID string, hx bool) (*httptest.ResponseRecorder, string, string) {
+	t.Helper()
+	req := postForm(fmt.Sprintf("/admin/websites/%d/widersprueche/%s/erledigt", websiteID, requestID), nil,
+		websiteRoute(websiteID, "requestID", requestID))
+	if hx {
+		req = htmx(req)
+	}
+	return screenValueServe(t, h, sm, userID, h.HandleOptOutHandled, req)
+}
+
+// optoutStored reads one request back, nil when it is not on that website.
+func optoutStored(t *testing.T, database *db.DB, websiteID, id int64) *dsr.Request {
+	t.Helper()
+	r, err := dsr.NewStore(database).Get(context.Background(), websiteID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+func TestMarkingAnOptOutHandledStoresTheDateOnce(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	optoutFrameworks(t, database, ws.ID, "eu,us")
+	// The order book's rights: somebody without the publishing right records
+	// the answer too, because marking publishes nothing.
+	editor := editorWithoutPublishing(t, database, ws.ID)
+	open := optoutAdd(t, database, dsr.Request{WebsiteID: ws.ID, Locale: "de", Name: "Offen Bleibt"}, "2026-01-10T09:00:00Z")
+	done := optoutAdd(t, database, dsr.Request{WebsiteID: ws.ID, Locale: "de", Name: "Wird Erledigt"}, "2026-01-11T09:00:00Z")
+	list := optoutList(ws.ID)
+
+	rec, bad, good := optoutMark(t, h, sm, editor, ws.ID, strconv.FormatInt(done, 10), false)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != list {
+		t.Fatalf("status %d to %q; want 303 to %q", rec.Code, rec.Header().Get("Location"), list)
+	}
+	if bad != "" || good != "Opt-out marked as handled" {
+		t.Errorf("flashes: error %q, success %q; want the success sentence alone", bad, good)
+	}
+	first := optoutStored(t, database, ws.ID, done)
+	if first == nil || first.HandledAt == nil {
+		t.Fatalf("handled_at was not stored: %+v", first)
+	}
+	if got := optoutStored(t, database, ws.ID, open); got.HandledAt != nil {
+		t.Errorf("the other request was marked too: %v", got.HandledAt)
+	}
+
+	// A second answer does not move the date of the first.
+	if _, err := database.Write.Exec(`UPDATE privacy_requests SET handled_at = '2026-01-02T03:04:05Z' WHERE id = $1`, done); err != nil {
+		t.Fatal(err)
+	}
+	rec, _, _ = optoutMark(t, h, sm, editor, ws.ID, strconv.FormatInt(done, 10), true)
+	if rec.Header().Get("HX-Redirect") != list {
+		t.Errorf("htmx: HX-Redirect %q, want %q", rec.Header().Get("HX-Redirect"), list)
+	}
+	if got := optoutStored(t, database, ws.ID, done); got.HandledAt == nil || got.HandledAt.Format("2006-01-02T15:04:05Z") != "2026-01-02T03:04:05Z" {
+		t.Errorf("a second mark changed the date: %v", got.HandledAt)
+	}
+
+	body := optoutGet(t, h, sm, strconv.FormatInt(ws.ID, 10)).Body.String()
+	doneRow, openRow := optoutRow(body, "Wird Erledigt"), optoutRow(body, "Offen Bleibt")
+	if !strings.Contains(doneRow, "02.01.2026") {
+		t.Errorf("the handled row does not show its date:\n%s", doneRow)
+	}
+	if strings.Contains(doneRow, "/erledigt") {
+		t.Errorf("the handled row still offers the button:\n%s", doneRow)
+	}
+	action := optoutHandled(ws.ID, open)
+	for _, want := range []string{
+		`method="POST" action="` + action + `"`,
+		`hx-post="` + action + `"`,
+		`hx-disabled-elt="this"`,
+		`name="gorilla.csrf.Token"`,
+		optoutSays("Mark as handled"),
+	} {
+		if !strings.Contains(openRow, want) {
+			t.Errorf("the open row lacks %s:\n%s", want, openRow)
+		}
+	}
+	for _, key := range []string{"Opt-out marked as handled", "Mark as handled"} {
+		if i18n.T("de", key) == key {
+			t.Errorf("the German catalogue lacks %q", key)
+		}
+	}
+}
+
+func TestAnotherWebsitesOptOutCannotBeMarked(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	other, err := h.domains.CreateWebsite(context.Background(), "Andere", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := optoutAdd(t, database, dsr.Request{WebsiteID: other.ID, Locale: "en", Name: "Fremd"}, "2026-01-10T09:00:00Z")
+
+	for _, id := range []string{strconv.FormatInt(foreign, 10), "abc", "0"} {
+		rec, _, good := optoutMark(t, h, sm, 1, ws.ID, id, false)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("request %q through website %d: status %d, want 404", id, ws.ID, rec.Code)
+		}
+		if good != "" {
+			t.Errorf("request %q: a success was reported", id)
+		}
+	}
+	if got := optoutStored(t, database, other.ID, foreign); got == nil || got.HandledAt != nil {
+		t.Errorf("the other website's request was changed: %+v", got)
+	}
+	// An unknown website is 404 as well.
+	if rec, _, _ := optoutMark(t, h, sm, 1, 9999, strconv.FormatInt(foreign, 10), false); rec.Code != http.StatusNotFound {
+		t.Errorf("unknown website: status %d, want 404", rec.Code)
+	}
+}
+
+func TestTheOptOutScreenCannotDelete(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	optoutFrameworks(t, database, ws.ID, "eu,us")
+	optoutAdd(t, database, dsr.Request{WebsiteID: ws.ID, Locale: "de", Name: "Offen"}, "2026-01-10T09:00:00Z")
+	done := optoutAdd(t, database, dsr.Request{WebsiteID: ws.ID, Locale: "de", Name: "Erledigt"}, "2026-01-11T09:00:00Z")
+	if _, err := database.Write.Exec(`UPDATE privacy_requests SET handled_at = '2026-01-12T09:00:00Z' WHERE id = $1`, done); err != nil {
+		t.Fatal(err)
+	}
+
+	// The content alone, as htmx asks for it: what this screen adds, without
+	// the layout around it.
+	req := htmx(httptest.NewRequest(http.MethodGet, optoutList(ws.ID), nil))
+	req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
+	body := serve(t, h, sm, h.HandleOptOutList, req).Body.String()
+	if !strings.Contains(body, "Offen") || !strings.Contains(body, "Erledigt") {
+		t.Fatal("the fragment does not list the requests; the guard below would prove nothing")
+	}
+
+	if strings.Contains(body, "hx-confirm") {
+		t.Error("the opt-out screen carries an hx-confirm (D-14: the count stays 22)")
+	}
+	for _, tag := range postFormsTo(body, "/") {
+		if strings.Contains(tag, "delete") || strings.Contains(tag, "loeschen") {
+			t.Errorf("a form deletes: %s", tag)
+		}
+	}
+	for _, word := range []string{"Delete", "Remove", "Delete permanently"} {
+		if strings.Contains(body, ">"+optoutSays(word)+"<") {
+			t.Errorf("a control is labelled %q", word)
+		}
+	}
+	if strings.Contains(body, "btn--danger") {
+		t.Error("the screen carries a danger button")
+	}
+}
+
+// D-16: a visitor's name, address and note stay in the admin. No assistant
+// tool lists, reads or marks an opt-out.
+func TestOptOutsAreNotOnMCP(t *testing.T) {
+	h, _, _, _ := newTestAdmin(t)
+	tools := ai.Tools(ai.Deps{
+		Domains: h.domains, Pages: h.pages, Media: h.mediaStore, Fields: h.fields, Ops: h,
+		Limits: ai.Limits{DataDir: h.cfg.DataDir},
+	})
+	if len(tools) < 10 {
+		t.Fatalf("%d tools; the registry was not built, the guard would prove nothing", len(tools))
+	}
+	for _, tool := range tools {
+		name := strings.ToLower(tool.Name)
+		for _, bad := range []string{"opt", "widerspruch", "request", "dsr", "privacy"} {
+			if strings.Contains(name, bad) {
+				t.Errorf("tool %q names %q: opt-outs are not exposed over MCP (D-16)", tool.Name, bad)
+			}
+		}
+		desc := strings.ToLower(tool.Description)
+		for _, bad := range []string{"opt-out", "optout", "widerspruch", "privacy request", "privacy_requests"} {
+			if strings.Contains(desc, bad) {
+				t.Errorf("tool %q describes %q: opt-outs are not exposed over MCP (D-16)", tool.Name, bad)
+			}
+		}
 	}
 }

@@ -1173,6 +1173,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// everybody with access to the website, like the order book: nothing here
 	// publishes, and nothing here deletes (phase 33.1 D-14).
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/widersprueche", adminHandler.ErrHandler(adminHandler.HandleOptOutList))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/widersprueche/{requestID}/erledigt", adminHandler.ErrHandler(adminHandler.HandleOptOutHandled))
 	adminProtectedMux.Handle("GET /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	// A website's own mail account. Admins only: it holds a password, and

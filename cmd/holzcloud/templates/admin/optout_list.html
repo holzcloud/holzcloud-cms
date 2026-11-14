@@ -42,7 +42,15 @@
                 <td class="text-muted">{{if .Language}}{{t .Language}}{{else}}–{{end}}</td>
                 <td style="white-space:nowrap">
                     {{- with .HandledAt}}{{.Format "02.01.2006"}}
-                    {{- else}}<span class="badge">{{t "open"}}</span>{{end -}}
+                    {{- else}}
+                    {{/* No confirmation step: marking removes nothing, and the
+                         count of confirmations stays where nojs_test.go holds it. */}}
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/widersprueche/{{.ID}}/erledigt"
+                          hx-post="/admin/websites/{{$.WebsiteID}}/widersprueche/{{.ID}}/erledigt">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Mark as handled"}}</button>
+                    </form>
+                    {{- end -}}
                 </td>
             </tr>
             {{end}}

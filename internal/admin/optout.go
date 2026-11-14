@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -100,4 +101,40 @@ func (h *Handler) HandleOptOutList(w http.ResponseWriter, r *http.Request) error
 	data.ActiveNav = "optouts"
 	data.CurrentWebsite = ws
 	return web.RenderAdmin(w, h.templates, r, "optout_list", data)
+}
+
+// HandleOptOutHandled records that the operator answered an opt-out.
+//
+// The request is looked up through the website of the path before anything
+// is written, so an id from another website is a 404 and changes nothing
+// (T-33.1-28). The first answer is the one the record keeps: marking a
+// request a second time leaves its date where it was (dsr.Store.MarkHandled).
+// No confirmation step: marking costs nothing and removes nothing.
+func (h *Handler) HandleOptOutHandled(w http.ResponseWriter, r *http.Request) error {
+	ws, ok, err := h.optoutWebsite(w, r)
+	if err != nil || !ok {
+		return err
+	}
+	id, err := strconv.ParseInt(r.PathValue("requestID"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	req, err := h.requests.Get(r.Context(), ws.ID, id)
+	if err != nil {
+		return err
+	}
+	if req == nil || req.Kind != dsr.KindOptOut {
+		http.NotFound(w, r)
+		return nil
+	}
+	if err := h.requests.MarkHandled(r.Context(), ws.ID, id); err != nil {
+		if errors.Is(err, dsr.ErrNotFound) {
+			http.NotFound(w, r)
+			return nil
+		}
+		return err
+	}
+	web.SetFlashSuccess(h.sm, r.Context(), "Opt-out marked as handled")
+	return h.redirect(w, r, optoutListAddress(ws.ID))
 }
