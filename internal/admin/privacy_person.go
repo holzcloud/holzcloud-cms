@@ -160,9 +160,18 @@ func privacyGroups(res *dsr.Result, loc *time.Location) []privacyGroup {
 			}
 			view := privacyRecordView{Record: rec}
 			for _, f := range rec.Fields {
-				if f.Value != "" {
-					view.Shown = append(view.Shown, f)
+				if f.Value == "" {
+					continue
 				}
+				// A stored time is UTC; the screen reads it on the
+				// website's clock, as the record's own time above it. The
+				// export keeps the stored value.
+				if strings.HasSuffix(f.Name, "_at") {
+					if t, err := time.Parse(time.RFC3339, f.Value); err == nil {
+						f.Value = t.In(loc).Format("02.01.2006 15:04 MST")
+					}
+				}
+				view.Shown = append(view.Shown, f)
 			}
 			g.Records = append(g.Records, view)
 		}

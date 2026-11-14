@@ -52,7 +52,7 @@
             {{range .NotCovered}}
             <tr>
                 <td>{{.Name}}</td>
-                <td>{{tf "%d entries" .Entries}}</td>
+                <td>{{if eq .Entries 1}}{{t "One entry"}}{{else}}{{tf "%d entries" .Entries}}{{end}}</td>
                 <td class="text-muted">{{if .Reason}}{{t .Reason}}{{else}}–{{end}}</td>
             </tr>
             {{end}}
@@ -63,7 +63,7 @@
 
 <div class="card" style="margin-bottom: var(--space-3);">
     {{if .Count}}
-    <p>{{tf "%d records found for %s." .Count .Email}}</p>
+    <p>{{if eq .Count 1}}{{tf "One record found for %s." .Email}}{{else}}{{tf "%d records found for %s." .Count .Email}}{{end}}</p>
     {{else}}
     <p>{{t "Nothing found for this address on this website."}}</p>
     {{end}}
@@ -72,7 +72,7 @@
 
 {{range .Groups}}
 <section class="card" style="margin-bottom: var(--space-3);">
-    <h2>{{t .Heading}} <span class="text-muted">({{tf "%d records" (len .Records)}})</span></h2>
+    <h2>{{t .Heading}} <span class="text-muted">({{len .Records}})</span></h2>
     {{range .Records}}
     <article style="margin-block-start: var(--space-3);">
         <h3>

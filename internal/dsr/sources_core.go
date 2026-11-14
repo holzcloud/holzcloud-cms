@@ -199,7 +199,9 @@ func (a accountsSource) Find(ctx context.Context, websiteID int64, email string)
 			field("name", name),
 			field("email", addr),
 			field("role", role),
-			field("created_at", createdAt),
+			// An account is created, not received: same stored name, its
+			// own label.
+			{Name: "created_at", Label: i18n.N("Created"), Value: createdAt},
 			field("last_login_at", nullString(lastLogin)),
 			field("activity_entries", strconv.Itoa(entries)),
 		},
