@@ -574,7 +574,10 @@ func (h *Handler) HandleGPCJSON(w http.ResponseWriter, r *http.Request) error {
 		return h.serve404(w, r, ws)
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	// An hour and not a day: when US is unticked the website stops making
+	// this statement, and a shared cache should not keep making it for the
+	// website for the rest of the day (IN-08 of the 33.1 review).
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 	_, err := io.WriteString(w, `{"gpc": true}`)
 	return err
 }

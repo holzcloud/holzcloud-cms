@@ -1006,6 +1006,17 @@ func TestGPCChangesNothingElse(t *testing.T) {
 	}
 }
 
+// gpc.json is a statement the website stops making the moment US is
+// unticked. A shared cache may keep it an hour, not a day (IN-08).
+func TestGPCJSONIsNotCachedForADay(t *testing.T) {
+	h, _, ws := optoutSite(t, "eu,us", "")
+	rec := optoutDo(h.HandleGPCJSON, ws, http.MethodGet, "/.well-known/gpc.json", nil, nil)
+	cc := rec.Header().Get("Cache-Control")
+	if cc != "public, max-age=3600" {
+		t.Errorf("Cache-Control = %q; want public, max-age=3600", cc)
+	}
+}
+
 func TestGPCJSONOnlyForUS(t *testing.T) {
 	h, database, ws := optoutSite(t, "eu,us", "")
 	rec := optoutDo(h.HandleGPCJSON, ws, http.MethodGet, "/.well-known/gpc.json", nil, nil)

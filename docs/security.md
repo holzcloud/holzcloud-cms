@@ -269,7 +269,8 @@ nothing, honouring it changes nothing but one line:
 - `/.well-known/gpc.json` answers `{"gpc": true}` on a US website, the
   resource the GPC specification defines for a site to say it honours the
   signal, and 404 on any other (`HandleGPCJSON`). `lastUpdate` is left out
-  rather than invented.
+  rather than invented. A shared cache may keep it for an hour, so the
+  statement is gone at most an hour after the United States is unticked.
 
 **The Do Not Sell or Share page** ("Do Not Sell or Share My Personal
 Information", the statutory title, in English on every language's page) says
