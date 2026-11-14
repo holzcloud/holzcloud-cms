@@ -197,6 +197,34 @@ func TestDeletingAWebsiteWithRecentOptOutsIsRefused(t *testing.T) {
 	}
 }
 
+// The list is the § 7101 record an operator reads, so its times are the
+// website's own and say which zone they are in (IN-02): 09:00 UTC on a Swiss
+// website is 10:00 CET, and in summer 23:30 UTC is already the next day.
+func TestTheOptOutListShowsTheWebsitesTime(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	optoutFrameworks(t, database, ws.ID, "eu,us")
+	if _, err := database.Write.Exec(`UPDATE websites SET timezone = 'Europe/Zurich' WHERE id = $1`, ws.ID); err != nil {
+		t.Fatal(err)
+	}
+	optoutAdd(t, database, dsr.Request{WebsiteID: ws.ID, Name: "Winter"}, "2026-01-10T09:00:00Z")
+	summer := optoutAdd(t, database, dsr.Request{WebsiteID: ws.ID, Name: "Sommer"}, "2026-07-01T23:30:00Z")
+	if _, err := database.Write.Exec(`UPDATE privacy_requests SET handled_at = '2026-07-02T22:15:00Z' WHERE id = $1`, summer); err != nil {
+		t.Fatal(err)
+	}
+	body := optoutGet(t, h, sm, strconv.FormatInt(ws.ID, 10)).Body.String()
+
+	if row := optoutRow(body, "Winter"); !strings.Contains(row, "10.01.2026 10:00 CET") {
+		t.Errorf("09:00 UTC on a Swiss website is not shown as 10:00 CET:\n%s", row)
+	}
+	row := optoutRow(body, "Sommer")
+	if !strings.Contains(row, "02.07.2026 01:30 CEST") {
+		t.Errorf("23:30 UTC in summer is not shown as 01:30 CEST of the next day:\n%s", row)
+	}
+	if !strings.Contains(row, "03.07.2026") {
+		t.Errorf("the handled date is not the website's day:\n%s", row)
+	}
+}
+
 func TestTheOptOutListOfAnUnknownWebsiteIs404(t *testing.T) {
 	h, sm, _, _ := newTestAdmin(t)
 	for _, id := range []string{"9999", "abc"} {

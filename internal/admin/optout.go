@@ -9,6 +9,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
+	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -104,8 +105,17 @@ func (h *Handler) HandleOptOutList(w http.ResponseWriter, r *http.Request) error
 	if err != nil {
 		return err
 	}
+	// The store keeps UTC. The screen shows the website's own clock and names
+	// the zone, because this list is the record an operator reads (§ 7101),
+	// and a time one or two hours off is a wrong record.
+	loc := tmpl.LoadLocation(ws.TimeZone)
 	views := make([]optoutView, 0, len(list))
 	for _, req := range list {
+		req.CreatedAt = req.CreatedAt.In(loc)
+		if req.HandledAt != nil {
+			handled := req.HandledAt.In(loc)
+			req.HandledAt = &handled
+		}
 		views = append(views, optoutView{Request: req, Language: locale.Name(req.Locale), MailTo: optoutMailTo(req.Email)})
 	}
 

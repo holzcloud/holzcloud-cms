@@ -34,7 +34,7 @@
         <tbody>
             {{range .Requests}}
             <tr>
-                <td class="text-muted" style="white-space:nowrap">{{.CreatedAt.Format "02.01.2006 15:04"}}</td>
+                <td class="text-muted" style="white-space:nowrap">{{.CreatedAt.Format "02.01.2006 15:04 MST"}}</td>
                 <td>{{if .Name}}{{.Name}}{{else}}<span class="text-muted">–</span>{{end}}</td>
                 <td>{{if .MailTo}}<a href="{{.MailTo}}">{{.Email}}</a>{{else if .Email}}{{.Email}}{{else}}<span class="text-muted">–</span>{{end}}</td>
                 <td style="white-space:pre-line">{{if .Note}}{{.Note}}{{else}}<span class="text-muted">–</span>{{end}}</td>
