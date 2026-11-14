@@ -11,7 +11,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// The Opt-outs screen ("Widersprüche", phase 33.1 D-11 and D-14).
+// The Opt-outs screen (phase 33.1 D-11 and D-14). Its German name comes from
+// the catalogue, under the key "Opt-outs".
 //
 // A website that follows US law offers a "Do Not Sell or Share" page, and the
 // form on it ([[widerspruch]], internal/public/optout.go) stores what a visitor
