@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -220,6 +221,77 @@ func RoleSlugs(k Kind) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// roleJoiners are what stands between two role slugs when one page serves
+// several roles: "impressum-datenschutz", "impressum-und-datenschutz",
+// "imprint-and-privacy", "mentions-legales-et-confidentialite",
+// "note-legali-e-privacy". The bare hyphen last, so that "-und-" is read as
+// a joiner and not as the start of a slug "und-…".
+var roleJoiners = []string{"-und-", "-and-", "-et-", "-e-", "-"}
+
+// IsRoleSlug reports whether a page under slug is a page of kind k (IN-02 of
+// the second 33.1 review): one of RoleSlugs(k); or role slugs of the legal
+// kinds joined into one page's address, at least one of them k's — one page
+// that is imprint and privacy notice at once is common on small websites;
+// and either of them with the numeric counter CreatePage appends to a taken
+// address ("datenschutz-2").
+//
+// Nothing looser. A slug that merely contains or starts with a role slug —
+// a post "privacy-tips", the published compare draft "datenschutz-vorlage" —
+// is not the page (IN-06 of the first review). The variants a language uses
+// are listed in its meta.json under also_slugs, and that list is the place
+// to add one.
+func IsRoleSlug(k Kind, slug string) bool {
+	if base, counter, ok := cutLast(slug, "-"); ok && counter != "" && strings.Trim(counter, "0123456789") == "" {
+		slug = base
+	}
+	own := RoleSlugs(k)
+	if slices.Contains(own, slug) {
+		return true
+	}
+	var all []string
+	for _, kind := range []Kind{KindImprint, KindPrivacy, KindDNS} {
+		all = append(all, RoleSlugs(kind)...)
+	}
+	return joinedRoles(slug, own, all, false)
+}
+
+// joinedRoles reports whether slug is a role slug of all followed by a
+// joiner and the rest, down to a last role slug, with at least one of them
+// in own. Only called on what follows a joiner or on a whole slug that is
+// not itself a role slug of k, so one role slug alone never passes here
+// unless it is k's.
+func joinedRoles(slug string, own, all []string, sawOwn bool) bool {
+	for _, r := range all {
+		rest, ok := strings.CutPrefix(slug, r)
+		if !ok {
+			continue
+		}
+		mine := sawOwn || slices.Contains(own, r)
+		for _, j := range roleJoiners {
+			tail, ok := strings.CutPrefix(rest, j)
+			if !ok || tail == "" {
+				continue
+			}
+			if slices.Contains(all, tail) && (mine || slices.Contains(own, tail)) {
+				return true
+			}
+			if joinedRoles(tail, own, all, mine) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// cutLast is strings.Cut at the last sep.
+func cutLast(s, sep string) (before, after string, found bool) {
+	i := strings.LastIndex(s, sep)
+	if i < 0 {
+		return s, "", false
+	}
+	return s[:i], s[i+len(sep):], true
 }
 
 // wordsOf is the lang.json of a tag, by the same fallback as TextLang: its

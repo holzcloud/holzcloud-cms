@@ -516,6 +516,43 @@ func TestEveryLanguagesNoticeIsRecognised(t *testing.T) {
 	}
 }
 
+// IsRoleSlug is what the launch checklist asks of a footer link (IN-02 of
+// the second 33.1 review): a role slug, a variant the texts list, several
+// role slugs joined into one page's address, each with the counter
+// CreatePage appends — and not a slug that merely starts with one.
+func TestIsRoleSlug(t *testing.T) {
+	for _, tc := range []struct {
+		slug string
+		kind Kind
+		want bool
+	}{
+		{"datenschutz", KindPrivacy, true},
+		{"datenschutz-2", KindPrivacy, true},
+		{"datenschutzhinweise", KindPrivacy, true},
+		{"privacy-statement", KindPrivacy, true},
+		{"impressum-datenschutz", KindPrivacy, true},
+		{"impressum-datenschutz", KindImprint, true},
+		{"impressum-und-datenschutz", KindImprint, true},
+		{"impressum-und-datenschutz-3", KindPrivacy, true},
+		{"imprint-and-privacy-policy", KindPrivacy, true},
+		{"mentions-legales-et-confidentialite", KindPrivacy, true},
+		{"note-legali-e-privacy", KindImprint, true},
+		{"datenschutz", KindImprint, false},
+		{"datenschutz-datenschutzhinweise", KindImprint, false},
+		{"datenschutz-vorlage", KindPrivacy, false},
+		{"privacy-tips", KindPrivacy, false},
+		{"impressum-und-kontakt", KindImprint, false},
+		{"impressum-", KindImprint, false},
+		{"impressum-und-", KindImprint, false},
+		{"-impressum", KindImprint, false},
+		{"", KindImprint, false},
+	} {
+		if got := IsRoleSlug(tc.kind, tc.slug); got != tc.want {
+			t.Errorf("IsRoleSlug(%s, %q) = %v, want %v", tc.kind, tc.slug, got, tc.want)
+		}
+	}
+}
+
 func TestRoleSlugsCoverEveryLanguage(t *testing.T) {
 	got := RoleSlugs(KindPrivacy)
 	if !slices.Contains(got, "datenschutz") {

@@ -281,13 +281,13 @@ func (h *Handler) legalChecks(ctx context.Context, ws *domain.Website, base stri
 		},
 		{
 			Label: i18n.N("Imprint linked in the footer menu"),
-			OK:    h.footerLinksRole(ctx, ws.ID, privacy.RoleSlugs(privacy.KindImprint)),
+			OK:    h.footerLinksRole(ctx, ws.ID, privacy.KindImprint),
 			Hint:  imprintHint,
 			Link:  h.legalCheckLink(ctx, ws, base, privacy.KindImprint),
 		},
 		{
 			Label: i18n.N("Privacy page linked in the footer menu"),
-			OK:    h.footerLinksRole(ctx, ws.ID, privacy.RoleSlugs(privacy.KindPrivacy)),
+			OK:    h.footerLinksRole(ctx, ws.ID, privacy.KindPrivacy),
 			Hint:  privacyHint,
 			Link:  h.legalCheckLink(ctx, ws, base, privacy.KindPrivacy),
 		},
@@ -295,7 +295,7 @@ func (h *Handler) legalChecks(ctx context.Context, ws *domain.Website, base stri
 	if ws.HasUSFramework() {
 		checks = append(checks, siteCheck{
 			Label: i18n.N("Do Not Sell or Share page linked in the footer menu"),
-			OK:    h.footerLinksRole(ctx, ws.ID, privacy.RoleSlugs(privacy.KindDNS)),
+			OK:    h.footerLinksRole(ctx, ws.ID, privacy.KindDNS),
 			Hint:  i18n.N("With the United States chosen, this page says that nothing is sold or shared and shows whether a visitor's browser sent the Global Privacy Control signal (Cal. Civ. Code § 1798.135)."),
 			Link:  h.legalCheckLink(ctx, ws, base, privacy.KindDNS),
 		})
@@ -318,15 +318,19 @@ func (h *Handler) legalCheckLink(ctx context.Context, ws *domain.Website, base s
 //
 // It matches on the slug rather than the title because the slug is what the
 // legal requirement is really about — a reachable address — and because a menu
-// entry can be titled anything. The slug has to BE a role slug, or one with
-// the counter CreatePage appends to a taken address ("datenschutz-2"): it used
+// entry can be titled anything. The slug has to BE the role's
+// (privacy.IsRoleSlug): a role slug or a variant its language lists, several
+// role slugs joined into one page ("impressum-datenschutz"), each with the
+// counter CreatePage appends to a taken address ("datenschutz-2"). It used
 // to be enough to contain one, and a post "privacy-tips" or a published
-// compare draft "datenschutz-vorlage" passed (IN-06 of the 33.1 review).
+// compare draft "datenschutz-vorlage" passed (IN-06 of the 33.1 review); an
+// exact slug alone then turned the combined page and the usual variants away
+// (IN-02 of the second review).
 //
 // A page that still carries the template notice is not done either. The legal
 // card calls it an unfilled template, and a checklist that called it ready
 // would contradict the card on the same screen.
-func (h *Handler) footerLinksRole(ctx context.Context, websiteID int64, slugs []string) bool {
+func (h *Handler) footerLinksRole(ctx context.Context, websiteID int64, k privacy.Kind) bool {
 	if h.menuStore == nil {
 		return false
 	}
@@ -338,7 +342,7 @@ func (h *Handler) footerLinksRole(ctx context.Context, websiteID int64, slugs []
 		if node.PageSlug == "" {
 			continue
 		}
-		if !isRoleSlug(node.PageSlug, slugs) {
+		if !privacy.IsRoleSlug(k, node.PageSlug) {
 			continue
 		}
 		pg, err := h.pages.GetPublishedPage(ctx, websiteID, node.PageSlug)
@@ -346,20 +350,6 @@ func (h *Handler) footerLinksRole(ctx context.Context, websiteID int64, slugs []
 			continue
 		}
 		return true
-	}
-	return false
-}
-
-// isRoleSlug reports whether slug is one of the role slugs, bare or with the
-// numeric counter CreatePage appends when an address is taken.
-func isRoleSlug(slug string, roles []string) bool {
-	for _, s := range roles {
-		if slug == s {
-			return true
-		}
-		if rest, ok := strings.CutPrefix(slug, s+"-"); ok && rest != "" && strings.Trim(rest, "0123456789") == "" {
-			return true
-		}
 	}
 	return false
 }

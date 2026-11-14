@@ -193,6 +193,40 @@ func TestTheLegalCheckWantsTheRealPage(t *testing.T) {
 	}
 }
 
+// The exact-slug rule of IN-06 also turned real pages away (IN-02 of the
+// second 33.1 review): one page for both roles under
+// "impressum-datenschutz", and the usual variants "datenschutzhinweise" and
+// "privacy-statement". A page under role slugs joined, or under a variant
+// the texts list, is the page again — and still nothing that merely starts
+// with a role slug.
+func TestTheLegalCheckKnowsCombinedAndVariantSlugs(t *testing.T) {
+	for _, tc := range []struct {
+		slug          string
+		imprint, priv bool
+	}{
+		{"impressum-datenschutz", true, true},
+		{"impressum-und-datenschutz", true, true},
+		{"impressum-datenschutz-2", true, true},
+		{"datenschutzhinweise", false, true},
+		{"privacy-statement", false, true},
+		{"datenschutz-vorlage", false, false},
+		{"impressum-und-kontakt", false, false},
+	} {
+		t.Run(tc.slug, func(t *testing.T) {
+			h, _, database, ws := newTestAdmin(t)
+			stored := legalCheckWebsite(t, h, database, ws, "eu", "de")
+			legalCheckFooterText(t, h, database, ws.ID, tc.slug, "published", "Unser Text.", true)
+			checks := h.siteChecks(context.Background(), stored, nil)
+			if c := legalCheckFind(checks, legalCheckImprint); c == nil || c.OK != tc.imprint {
+				t.Errorf("imprint check: %+v, want done = %v", c, tc.imprint)
+			}
+			if c := legalCheckFind(checks, legalCheckPrivacy); c == nil || c.OK != tc.priv {
+				t.Errorf("privacy check: %+v, want done = %v", c, tc.priv)
+			}
+		})
+	}
+}
+
 func TestTheDoNotSellCheckOnlyWithUS(t *testing.T) {
 	for _, set := range []string{"", "eu", "eu,ch,uk"} {
 		h, _, database, ws := newTestAdmin(t)
