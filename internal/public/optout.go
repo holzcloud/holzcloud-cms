@@ -115,7 +115,10 @@ func (h *Handler) optoutOffered(ws *domain.Website) bool {
 // marker.OnlyInText first, because the expansion is HTML. An editor can type
 // the marker into a link address, and expanding it there would splice a form
 // into an attribute (UF-1, internal/marker's package doc). A marker that is
-// not in text is removed, which is what it rendered as before.
+// not in text is removed, which is what it rendered as before. Only the
+// marker's own pattern goes to OnlyInText: it looks at one token at a time,
+// and <p>, the marker and </p> are three, so the paragraph pattern could
+// never match there. That pattern is for the replacement below.
 //
 // A website without US in its set gets nothing where the marker stood — not
 // the marker, not a form. A page that loses US keeps its text without a form
@@ -128,7 +131,7 @@ func (h *Handler) expandOptOut(r *http.Request, ws *domain.Website, pg *page.Pag
 	if !strings.Contains(body, optoutMarker) {
 		return body
 	}
-	body = marker.OnlyInText(body, optoutParagraph, optoutPattern)
+	body = marker.OnlyInText(body, optoutPattern)
 	widget := ""
 	if h.optoutOffered(ws) {
 		widget = h.optoutWidget(r, ws, pg)

@@ -59,7 +59,9 @@ func expandOptOutPreview(r *http.Request, ws *domain.Website, body string) strin
 	if !strings.Contains(body, optoutPreviewMarker) {
 		return body
 	}
-	body = marker.OnlyInText(body, optoutPreviewParagraph, optoutPreviewPattern)
+	// The marker's pattern only: OnlyInText looks at one token at a time, and
+	// the paragraph pattern spans three. It is for the replacement below.
+	body = marker.OnlyInText(body, optoutPreviewPattern)
 	sentence := optoutPreviewNotOffered
 	if ws != nil && ws.Frameworks().Has(legal.US) {
 		sentence = optoutPreviewSentence
