@@ -14,7 +14,7 @@ I destinatari sono i responsabili del trattamento della tabella sopra; con ciasc
 
 ### I Suoi diritti
 
-Lei ha il diritto di accesso (art. 15 UK GDPR), di rettifica (art. 16), di cancellazione (art. 17), di limitazione del trattamento (art. 18) e alla portabilità dei dati (art. 20). Il titolare del trattamento risponde alla Sua richiesta senza ingiustificato ritardo, di regola entro un mese. Questo sito web non tratta dati sulla base di un consenso e non prende decisioni automatizzate ai sensi dell’art. 22 UK GDPR.
+Lei ha il diritto di accesso (art. 15 UK GDPR), di rettifica (art. 16), di cancellazione (art. 17), di limitazione del trattamento (art. 18) e alla portabilità dei dati (art. 20). Il titolare del trattamento risponde alla Sua richiesta senza ingiustificato ritardo e comunque entro un mese (art. 12 par. 3 e art. 12A UK GDPR). Se la complessità o il numero delle richieste lo rende necessario, può prorogare questo termine di altri due mesi. In tal caso glielo comunica entro il primo mese, indicandone i motivi. Questo sito web non tratta dati sulla base di un consenso e non prende decisioni automatizzate ai sensi dell’art. 22 UK GDPR.
 
 ### Diritto di opposizione ai sensi dell’art. 21 UK GDPR
 

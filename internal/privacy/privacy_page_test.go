@@ -408,6 +408,38 @@ func TestTheUSSectionSaysWhatTheFormStores(t *testing.T) {
 	}
 }
 
+// The UK section states the deadline as the law does (IN-07 of the 33.1
+// review): "in any event" within one month, not "as a rule", with the
+// extension by two further months and the notice it needs. Since 5 February
+// 2026 UK GDPR Art. 12(3) says "before the end of the applicable time
+// period", and Art. 12A (Data (Use and Access) Act 2025, s. 76) defines that
+// period as one month, extendable by two with reasons given within the first.
+func TestTheUKSectionStatesTheDeadlineAsTheLawDoes(t *testing.T) {
+	for lang, want := range map[string]struct{ deadline, extension, never string }{
+		"de": {"unverzüglich, spätestens innerhalb eines Monats (Art. 12 Abs. 3 und Art. 12A UK GDPR)",
+			"um zwei weitere Monate verlängern", "in der Regel innerhalb eines Monats"},
+		"en": {"without undue delay and in any event within one month (Art. 12(3) and Art. 12A UK GDPR)",
+			"by two further months", "as a rule within one month"},
+		"fr": {"en tout état de cause dans un délai d’un mois (art. 12, par. 3, et art. 12A UK GDPR)",
+			"de deux mois supplémentaires", "en règle générale dans un délai d’un mois"},
+		"it": {"comunque entro un mese (art. 12 par. 3 e art. 12A UK GDPR)",
+			"di altri due mesi", "di regola entro un mese"},
+		"rm": {"en mintga cas entaifer in mais (art. 12 al. 3 ed art. 12A UK GDPR)",
+			"per dus ulteriurs mais", "per regla entaifer in mais"},
+	} {
+		text := ComposePrivacy(Request{Lang: lang, Set: legal.ParseSet("uk"), Features: allFeatures()})
+		uk := text[strings.Index(text, heading(t, lang, "uk")):]
+		for _, w := range []string{want.deadline, want.extension} {
+			if !strings.Contains(uk, w) {
+				t.Errorf("%s: the UK section lacks %q", lang, w)
+			}
+		}
+		if strings.Contains(uk, want.never) {
+			t.Errorf("%s: the UK section still says %q", lang, want.never)
+		}
+	}
+}
+
 // What Global Privacy Control changes, said in the US section (D-10, D-11,
 // D-12): the signal is an opt-out of sale and sharing, nothing on the website
 // changes because nothing is sold or shared, the Do Not Sell or Share page

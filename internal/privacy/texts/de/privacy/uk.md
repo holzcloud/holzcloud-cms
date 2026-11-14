@@ -14,7 +14,7 @@ Empfänger sind die Auftragsverarbeiter aus der Tabelle oben; mit jedem von ihne
 
 ### Deine Rechte
 
-Du hast das Recht auf Auskunft (Art. 15 UK GDPR), auf Berichtigung (Art. 16), auf Löschung (Art. 17), auf Einschränkung der Verarbeitung (Art. 18) und auf Datenübertragbarkeit (Art. 20). Die verantwortliche Stelle beantwortet deinen Antrag unverzüglich, in der Regel innerhalb eines Monats. Diese Website verarbeitet keine Daten auf Grundlage einer Einwilligung und trifft keine automatisierten Entscheidungen im Sinne von Art. 22 UK GDPR.
+Du hast das Recht auf Auskunft (Art. 15 UK GDPR), auf Berichtigung (Art. 16), auf Löschung (Art. 17), auf Einschränkung der Verarbeitung (Art. 18) und auf Datenübertragbarkeit (Art. 20). Die verantwortliche Stelle beantwortet deinen Antrag unverzüglich, spätestens innerhalb eines Monats (Art. 12 Abs. 3 und Art. 12A UK GDPR). Ist es wegen der Komplexität oder der Zahl der Anträge nötig, kann sie diese Frist um zwei weitere Monate verlängern. Das teilt sie dir innerhalb des ersten Monats mit und nennt die Gründe. Diese Website verarbeitet keine Daten auf Grundlage einer Einwilligung und trifft keine automatisierten Entscheidungen im Sinne von Art. 22 UK GDPR.
 
 ### Widerspruchsrecht nach Art. 21 UK GDPR
 

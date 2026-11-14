@@ -14,7 +14,7 @@ The recipients are the processors in the table above; with each of them there is
 
 ### Your rights
 
-You have the right of access (Art. 15 UK GDPR), to rectification (Art. 16), to erasure (Art. 17), to restriction of processing (Art. 18) and to data portability (Art. 20). The controller answers your request without undue delay, as a rule within one month. This website does not process any data on the basis of consent and makes no automated decisions within the meaning of Art. 22 UK GDPR.
+You have the right of access (Art. 15 UK GDPR), to rectification (Art. 16), to erasure (Art. 17), to restriction of processing (Art. 18) and to data portability (Art. 20). The controller answers your request without undue delay and in any event within one month (Art. 12(3) and Art. 12A UK GDPR). Where the complexity or the number of requests makes it necessary, the controller may extend this period by two further months. It tells you so within the first month and gives its reasons. This website does not process any data on the basis of consent and makes no automated decisions within the meaning of Art. 22 UK GDPR.
 
 ### Right to object under Art. 21 UK GDPR
 

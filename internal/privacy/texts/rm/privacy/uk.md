@@ -14,7 +14,7 @@ Retschaviders èn ils elavuraturs d’incumbensa da la tabella survart. Cun mint
 
 ### Voss dretgs
 
-Vus avais il dretg d’infurmaziun (art. 15 UK GDPR), il dretg da correctura (art. 16), il dretg d’annullaziun da las datas (art. 17), il dretg da restrenscher l’elavuraziun (art. 18) ed il dretg a la portabladad da las datas (art. 20). Il responsabel respunda a Vossa dumonda senza retard, per regla entaifer in mais. Questa website n’elavura naginas datas sin basa d’in consentiment. Ella na prenda naginas decisiuns automatisadas tenor l’art. 22 UK GDPR.
+Vus avais il dretg d’infurmaziun (art. 15 UK GDPR), il dretg da correctura (art. 16), il dretg d’annullaziun da las datas (art. 17), il dretg da restrenscher l’elavuraziun (art. 18) ed il dretg a la portabladad da las datas (art. 20). Il responsabel respunda a Vossa dumonda senza retard, en mintga cas entaifer in mais (art. 12 al. 3 ed art. 12A UK GDPR). Sche la cumplexitad u il dumber da las dumondas pretenda quai, po el prolungar quest termin per dus ulteriurs mais. El communitgescha quai a Vus entaifer l’emprim mais e declera pertge. Questa website n’elavura naginas datas sin basa d’in consentiment. Ella na prenda naginas decisiuns automatisadas tenor l’art. 22 UK GDPR.
 
 ### Dretg d’opposiziun tenor l’art. 21 UK GDPR
 

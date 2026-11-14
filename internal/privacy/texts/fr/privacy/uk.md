@@ -14,7 +14,7 @@ Les destinataires sont les sous-traitants du tableau ci-dessus ; un contrat de
 
 ### Vos droits
 
-Vous disposez d’un droit d’accès (art. 15 UK GDPR), de rectification (art. 16), d’effacement (art. 17), à la limitation du traitement (art. 18) et à la portabilité des données (art. 20). Le responsable du traitement répond à votre demande dans les meilleurs délais, en règle générale dans un délai d’un mois. Ce site ne traite aucune donnée sur la base d’un consentement et ne prend aucune décision automatisée au sens de l’art. 22 UK GDPR.
+Vous disposez d’un droit d’accès (art. 15 UK GDPR), de rectification (art. 16), d’effacement (art. 17), à la limitation du traitement (art. 18) et à la portabilité des données (art. 20). Le responsable du traitement répond à votre demande dans les meilleurs délais et en tout état de cause dans un délai d’un mois (art. 12, par. 3, et art. 12A UK GDPR). Si la complexité ou le nombre des demandes le rend nécessaire, il peut prolonger ce délai de deux mois supplémentaires. Il vous en informe dans le premier mois et en indique les motifs. Ce site ne traite aucune donnée sur la base d’un consentement et ne prend aucune décision automatisée au sens de l’art. 22 UK GDPR.
 
 ### Droit d’opposition selon l’art. 21 UK GDPR
 
