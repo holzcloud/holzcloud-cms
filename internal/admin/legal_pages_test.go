@@ -415,6 +415,10 @@ func TestMissingLegalPagesAreCreatedAsDrafts(t *testing.T) {
 // language. It is GetPageBySlugIn now because an address is unique only within
 // a language: the card asks for the imprint of each language separately. The
 // promise is the same — nothing that writes to an existing page.
+//
+// TranslationsForEditor joined the list with WR-04 of the 33.1 review: a
+// further language's page is the one in the main page's translation group,
+// whatever its address. It reads the group and writes nothing.
 func TestLegalPagesOnlyCreatePages(t *testing.T) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "legal_pages.go", nil, 0)
@@ -444,7 +448,7 @@ func TestLegalPagesOnlyCreatePages(t *testing.T) {
 		got = append(got, name)
 	}
 	slices.Sort(got)
-	want := []string{"CreatePage", "GetPageBySlugIn"}
+	want := []string{"CreatePage", "GetPageBySlugIn", "TranslationsForEditor"}
 	if !slices.Equal(got, want) {
 		t.Errorf("legal_pages.go calls %v on the page store, want exactly %v", got, want)
 	}
@@ -820,6 +824,49 @@ func TestAnExistingMainPageIsTheTranslationTarget(t *testing.T) {
 	}
 	if got := legalPagesExact(t, h, ws.ID, "datenschutz"); len(got) != 0 {
 		t.Errorf("a second German privacy page was created")
+	}
+}
+
+// A translation group holds one page per language (WR-04 of the 33.1
+// review). An English page linked as the translation of the German privacy
+// page under an address that is no role slug ("privacy-statement") is the
+// English privacy page: the card shows it, and "create the missing pages"
+// adds no second English member beside it, which would leave the language
+// switcher and hreflang to choose between two.
+func TestATranslationUnderAnotherSlugIsTheLanguagesPage(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+	legalPagesSetFrameworks(t, database, ws.ID, "eu,ch")
+	legalPagesSetLanguages(t, database, ws.ID, "de", "en")
+	main := seedPage(t, database, ws.ID, "Datenschutz", "datenschutz", "x", "published")
+	en := seedPage(t, database, ws.ID, "Privacy statement", "privacy-statement", "y", "published")
+	if err := h.pages.SetTranslation(ctx, ws.ID, en.ID, "en", main.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	card, err := h.legalCard(ctx, readWebsite(t, h, ws.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range card.Rows {
+		for _, c := range row.Cells {
+			if row.Tag == "en" && c.Kind == privacy.KindPrivacy && c.PageID != en.ID {
+				t.Errorf("en/privacy: page %d, state %s; want the linked translation %d", c.PageID, c.State, en.ID)
+			}
+		}
+	}
+
+	serve(t, h, sm, h.HandleLegalDrafts, draftRequest(idOf(ws.ID), nil))
+	group, err := h.pages.TranslationsForEditor(ctx, ws.ID, main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	perLocale := map[string]int{}
+	for _, p := range group {
+		perLocale[p.Locale]++
+	}
+	if perLocale["en"] != 1 {
+		t.Errorf("the privacy page's group holds %d English pages; want 1 (%v)", perLocale["en"], group)
 	}
 }
 

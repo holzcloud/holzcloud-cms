@@ -156,8 +156,33 @@ func (h *Handler) legalCard(ctx context.Context, ws *domain.Website) (legalCard,
 }
 
 // findLegalPage is the page of kind k in the language tag, or nil.
+//
+// In a further language the translation group comes first: whatever page in
+// that language is linked to the main-language page of the kind is that
+// language's page, whatever its address. Looking only at role slugs missed an
+// English page called "privacy-statement" in the group of "datenschutz", and
+// "create the missing pages" then filed a second English page into the same
+// group (WR-04 of the 33.1 review) — a group holds one page per language, and
+// with two the language switcher and hreflang would have to pick one.
 func (h *Handler) findLegalPage(ctx context.Context, ws *domain.Website, k privacy.Kind, tag string) (*page.Page, error) {
 	loc := pageLocale(ws, tag)
+	if loc != "" {
+		mainPage, err := h.findLegalPage(ctx, ws, k, ws.Locale)
+		if err != nil {
+			return nil, err
+		}
+		if mainPage != nil {
+			group, err := h.pages.TranslationsForEditor(ctx, ws.ID, mainPage)
+			if err != nil {
+				return nil, fmt.Errorf("look up %s translations: %w", k, err)
+			}
+			for i := range group {
+				if group[i].Locale == loc {
+					return &group[i], nil
+				}
+			}
+		}
+	}
 	slugs := append([]string{privacy.Slug(k, tag)}, privacy.RoleSlugs(k)...)
 	for _, s := range slugs {
 		p, err := h.pages.GetPageBySlugIn(ctx, ws.ID, loc, s)
