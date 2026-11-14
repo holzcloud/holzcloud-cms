@@ -2126,6 +2126,8 @@
 "posts only": "articles seulement",
 "previous row": "ligne précédente",
 "privacy request %d could not be taken over: %v": "La demande relative aux données %d n’a pas pu être reprise : %v",
+"privacy request %d was not taken over: the date it arrived, %q, lies in the future.": "La demande relative aux données %d n’a pas été reprise : la date d’arrivée, %q, est dans le futur.",
+"privacy request %d was not taken over: the date it was answered, %q, lies in the future or before the date it arrived, %q.": "La demande relative aux données %d n’a pas été reprise : la date de réponse, %q, est dans le futur ou antérieure à la date d’arrivée, %q.",
 "privacy request %d: the date it arrived, %q, is not a date.": "Demande relative aux données %d : la date d’arrivée, %q, n’est pas une date.",
 "privacy request %d: the date it was answered, %q, is not a date.": "Demande relative aux données %d : la date de réponse, %q, n’est pas une date.",
 "published": "publié",

@@ -14,6 +14,11 @@ import (
 
 const timeLayout = "2006-01-02T15:04:05Z"
 
+// restoreSkew is how far ahead of this server's clock a restored date may
+// lie: the exporting server's clock may have run a little ahead, and that
+// is not a reason to lose the record.
+const restoreSkew = 5 * time.Minute
+
 // Request is one request a person made about their data.
 type Request struct {
 	ID        int64
@@ -199,12 +204,29 @@ func (s *Store) ListAll(ctx context.Context, websiteID int64) ([]Request, error)
 // even when ValidEmail would refuse it today: a record is not corrected on
 // the way, and the admin list links only an address that passes the check.
 // A request with no arrival time is ErrNoTime.
+//
+// The dates have to be dates that can have happened: an arrival that lies
+// ahead of now by more than restoreSkew is ErrFutureTime, and an answer that
+// does, or that comes before the arrival, is ErrAnswerTime. Every limit counts from them — the
+// form's hourly ceiling, the mail cap, and the 24 months that keep a website
+// from being deleted (migration 00065) — so a request dated 2099 would close
+// the form and lock the website until then, and this package deletes nothing
+// that could undo it (WR-02 of the second 33.1 review). The manifest it comes
+// from is a file anybody can edit, and a clock that runs ahead does the same
+// without anybody meaning it.
 func (s *Store) Restore(ctx context.Context, r Request) (int64, error) {
 	if !kinds[r.Kind] {
 		return 0, ErrBadKind
 	}
 	if r.CreatedAt.IsZero() {
 		return 0, ErrNoTime
+	}
+	latest := time.Now().Add(restoreSkew)
+	if r.CreatedAt.After(latest) {
+		return 0, ErrFutureTime
+	}
+	if r.HandledAt != nil && (r.HandledAt.Before(r.CreatedAt) || r.HandledAt.After(latest)) {
+		return 0, ErrAnswerTime
 	}
 	if utf8.RuneCountInString(r.Name) > MaxName ||
 		utf8.RuneCountInString(r.Email) > MaxEmail ||

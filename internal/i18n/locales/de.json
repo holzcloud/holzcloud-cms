@@ -2126,6 +2126,8 @@
 "posts only": "nur Beiträge",
 "previous row": "vorherige Zeile",
 "privacy request %d could not be taken over: %v": "Datenschutzanfrage %d konnte nicht übernommen werden: %v",
+"privacy request %d was not taken over: the date it arrived, %q, lies in the future.": "Datenschutzanfrage %d wurde nicht übernommen: Das Eingangsdatum %q liegt in der Zukunft.",
+"privacy request %d was not taken over: the date it was answered, %q, lies in the future or before the date it arrived, %q.": "Datenschutzanfrage %d wurde nicht übernommen: Das Antwortdatum %q liegt in der Zukunft oder vor dem Eingangsdatum %q.",
 "privacy request %d: the date it arrived, %q, is not a date.": "Datenschutzanfrage %d: Das Eingangsdatum %q ist kein Datum.",
 "privacy request %d: the date it was answered, %q, is not a date.": "Datenschutzanfrage %d: Das Antwortdatum %q ist kein Datum.",
 "published": "veröffentlicht",

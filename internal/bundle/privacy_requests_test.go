@@ -97,3 +97,37 @@ func TestABrokenPrivacyRequestIsReported(t *testing.T) {
 		t.Errorf("%d requests, warnings %q; want 1 and three warnings", report.Requests, report.Warnings)
 	}
 }
+
+// A request dated in the future counted in every limit until that date: the
+// form's hourly ceiling, the mail cap and the 24 months that keep a website
+// from being deleted (WR-02 of the second 33.1 review). Such a request, and
+// one answered before it arrived, is named in the report and not restored.
+func TestAPrivacyRequestWithImpossibleDatesIsReported(t *testing.T) {
+	s := newStores(t)
+	s.Requests = dsr.NewStore(s.Domains.DB)
+	archive := legalBundleRawWith(t, `{"name": "Von Hand", "locale": "de"}`,
+		`"privacy_requests": [
+		  {"kind": "optout", "name": "Ada", "created_at": "2026-03-01T10:00:00Z", "handled_at": "2026-03-02T10:00:00Z"},
+		  {"kind": "optout", "name": "Zukunft", "created_at": "2099-01-01T00:00:00Z"},
+		  {"kind": "optout", "name": "Rückwärts", "created_at": "2026-03-01T10:00:00Z", "handled_at": "2026-02-01T10:00:00Z"}
+		]`)
+	report, err := Import(context.Background(), s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if report.Requests != 1 || len(report.Warnings) != 2 {
+		t.Fatalf("%d requests, warnings %q; want 1 and two warnings", report.Requests, report.Warnings)
+	}
+	for i, want := range []string{"privacy request 2", "privacy request 3"} {
+		if !strings.Contains(report.Warnings[i], want) || !strings.Contains(report.Warnings[i], "date") {
+			t.Errorf("warning %d = %q; want it to name %s and its dates", i+1, report.Warnings[i], want)
+		}
+	}
+	got, err := s.Requests.List(context.Background(), report.WebsiteID, dsr.KindOptOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Name != "Ada" {
+		t.Errorf("restored %+v; want only Ada's request", got)
+	}
+}

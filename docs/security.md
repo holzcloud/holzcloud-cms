@@ -366,7 +366,11 @@ that go with their website. Moving a website by export and import takes its
 requests along with the dates they arrived and were answered
 (`TestPrivacyRequestsTravelWithTheWebsite`), so an export archive of such a
 website carries names, addresses and notes and is to be kept like the
-database.
+database. A request in an archive that arrived in the future, or was answered
+in the future or before it arrived, is not restored and is named in the
+import report (`TestAPrivacyRequestWithImpossibleDatesIsReported`): every
+limit above counts from those dates, so one dated 2099 would close the form
+and lock the website until then.
 
 ## Two-factor authentication
 

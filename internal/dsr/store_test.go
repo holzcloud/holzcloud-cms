@@ -314,3 +314,55 @@ func TestAddWithinHoldsTheLimitUnderConcurrency(t *testing.T) {
 		t.Errorf("an empty request = %v; want ErrEmpty", err)
 	}
 }
+
+// A restored request's dates are the record, and every limit counts from
+// them: the hourly ceiling of the form, the mail cap, and the 24 months that
+// keep a website from being deleted (migration 00065). A request dated in the
+// future would count in all three until that date — a manifest dated 2099
+// closed the form for good and locked the website until 2101 (WR-02 of the
+// second 33.1 review). So a restored date may not lie ahead of now by more
+// than clock skew, and an answer may not come before its question.
+func TestRestoreRefusesDatesThatCannotBe(t *testing.T) {
+	s, database := newTestStore(t)
+	ctx := context.Background()
+	ws := website(t, database, "A")
+	now := time.Now()
+	at := func(d time.Duration) *time.Time { t := now.Add(d); return &t }
+	farFuture := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	for _, tc := range []struct {
+		name    string
+		created time.Time
+		handled *time.Time
+		want    error
+	}{
+		{"arrived in 2099", farFuture, nil, ErrFutureTime},
+		{"arrived in an hour", now.Add(time.Hour), nil, ErrFutureTime},
+		{"answered before it arrived", now.Add(-48 * time.Hour), at(-72 * time.Hour), ErrAnswerTime},
+		{"answered in 2099", now.Add(-48 * time.Hour), &farFuture, ErrAnswerTime},
+		{"answered in an hour", now.Add(-48 * time.Hour), at(time.Hour), ErrAnswerTime},
+	} {
+		_, err := s.Restore(ctx, Request{WebsiteID: ws, Kind: KindOptOut, Name: "Ada", CreatedAt: tc.created, HandledAt: tc.handled})
+		if !errors.Is(err, tc.want) {
+			t.Errorf("%s: %v; want %v", tc.name, err, tc.want)
+		}
+	}
+	if n, err := s.CountSince(ctx, ws, KindOptOut, time.Time{}); err != nil || n != 0 {
+		t.Fatalf("%d requests stored, %v; want none", n, err)
+	}
+
+	// A clock a little ahead on the exporting server is not a lie.
+	for _, tc := range []struct {
+		name    string
+		created time.Time
+		handled *time.Time
+	}{
+		{"arrived a minute ahead", now.Add(time.Minute), nil},
+		{"answered the moment it arrived", now.Add(-time.Hour), at(-time.Hour)},
+		{"answered a minute ahead", now.Add(-time.Hour), at(time.Minute)},
+	} {
+		if _, err := s.Restore(ctx, Request{WebsiteID: ws, Kind: KindOptOut, Name: "Ada", CreatedAt: tc.created, HandledAt: tc.handled}); err != nil {
+			t.Errorf("%s: %v; want it restored", tc.name, err)
+		}
+	}
+}

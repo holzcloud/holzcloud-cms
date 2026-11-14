@@ -188,8 +188,9 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 // importRequests takes over the website's privacy requests with the dates
 // they arrived and were answered (dsr.Store.Restore), so a moved website
 // keeps the record CCPA regs § 7101 ask for. What the store refuses — an
-// unknown kind, a request that names nobody, a date that is not one — is
-// named in the report, and the import goes on.
+// unknown kind, a request that names nobody, a date that is not one, or one
+// that cannot have happened yet — is named in the report, and the import
+// goes on.
 func importRequests(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) {
 	if len(m.PrivacyRequests) == 0 {
 		return
@@ -216,7 +217,15 @@ func importRequests(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			}
 			req.HandledAt = &handled
 		}
-		if _, err := s.Requests.Restore(ctx, req); err != nil {
+		_, err = s.Requests.Restore(ctx, req)
+		switch {
+		case errors.Is(err, dsr.ErrFutureTime):
+			report.warnf(i18n.N("privacy request %d was not taken over: the date it arrived, %q, lies in the future."), i+1, pr.CreatedAt)
+			continue
+		case errors.Is(err, dsr.ErrAnswerTime):
+			report.warnf(i18n.N("privacy request %d was not taken over: the date it was answered, %q, lies in the future or before the date it arrived, %q."), i+1, pr.HandledAt, pr.CreatedAt)
+			continue
+		case err != nil:
 			report.warnf(i18n.N("privacy request %d could not be taken over: %v"), i+1, err)
 			continue
 		}

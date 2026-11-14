@@ -83,6 +83,12 @@ var (
 	ErrBadEmail = errors.New("dsr: not one e-mail address")
 	// ErrNoTime means a restored request does not say when it arrived.
 	ErrNoTime = errors.New("dsr: the request has no arrival time")
+	// ErrFutureTime means a restored request arrived in the future
+	// (Restore).
+	ErrFutureTime = errors.New("dsr: the request arrives in the future")
+	// ErrAnswerTime means a restored request was answered in the future, or
+	// before it arrived (Restore).
+	ErrAnswerTime = errors.New("dsr: the request is answered in the future or before it arrived")
 	// ErrLimit means the website already received as many requests of the
 	// kind as AddWithin allows in its window, and this one was not stored.
 	ErrLimit = errors.New("dsr: too many requests in the window")
