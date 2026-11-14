@@ -139,6 +139,8 @@ func websiteFormValues(ws *domain.Website) map[string]string {
 		"opening_hours":      ws.OpeningHours,
 		"blog_base":          ws.BlogBase,
 		"posts_per_page":     strconv.Itoa(ws.PostsPerPage),
+		// A key missing here reads as the empty set on every partial update.
+		"legal_frameworks": ws.LegalFrameworks,
 	}
 }
 

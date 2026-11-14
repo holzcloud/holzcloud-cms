@@ -207,3 +207,57 @@ func TestTheFrameworkLabelsAreNotLanguageNames(t *testing.T) {
 		t.Error("the screen names Ukrainian — a framework went through a locale helper")
 	}
 }
+
+// Pitfall 2: an assistant's change is laid over the stored website as the
+// form would post it, so a key missing there reads as the empty set.
+func TestAPartialMCPUpdateKeepsTheSet(t *testing.T) {
+	h, _, database, ws := newTestAdmin(t)
+	legalSetPut(t, database, ws.ID, "ch,us")
+
+	got, err := h.OpUpdateWebsite(context.Background(), ws.ID, map[string]string{"city": "Chur"})
+	if err != nil {
+		t.Fatalf("OpUpdateWebsite: %v", err)
+	}
+	if got.City != "Chur" {
+		t.Errorf("town = %q, want Chur", got.City)
+	}
+	if got := legalSetStored(t, database, ws.ID); got != "ch,us" {
+		t.Errorf("an update of the town changed the set to %q", got)
+	}
+}
+
+func TestMCPChangesTheSetThroughTheFormsRules(t *testing.T) {
+	h, _, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+
+	for _, c := range []struct{ given, want string }{
+		{"US, eu, xx", "eu,us"},
+		{"", ""},
+	} {
+		if _, err := h.OpUpdateWebsite(ctx, ws.ID, map[string]string{"legal_frameworks": c.given}); err != nil {
+			t.Fatalf("OpUpdateWebsite(%q): %v", c.given, err)
+		}
+		if got := legalSetStored(t, database, ws.ID); got != c.want {
+			t.Errorf("given %q, stored %q, want %q", c.given, got, c.want)
+		}
+	}
+}
+
+func TestMCPChangesOnlyItsOwnWebsite(t *testing.T) {
+	h, _, database, a := newTestAdmin(t)
+	ctx := context.Background()
+	b, err := h.domains.CreateWebsite(ctx, "Zweite", "")
+	if err != nil {
+		t.Fatalf("CreateWebsite: %v", err)
+	}
+
+	if _, err := h.OpUpdateWebsite(ctx, a.ID, map[string]string{"legal_frameworks": "uk"}); err != nil {
+		t.Fatalf("OpUpdateWebsite: %v", err)
+	}
+	if got := legalSetStored(t, database, a.ID); got != "uk" {
+		t.Fatalf("A stored %q, want uk", got)
+	}
+	if got := legalSetStored(t, database, b.ID); got != "eu,ch" {
+		t.Errorf("B's set became %q by a change to A", got)
+	}
+}
