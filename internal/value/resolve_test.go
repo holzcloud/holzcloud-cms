@@ -182,6 +182,16 @@ func TestAValueStaysInsideItsPartOfTheAddress(t *testing.T) {
 		{"plus", "https://x.ch/?q=[[wert:k]]", "a+b", "https://x.ch/?q=a%2Bb"},
 		{"editor's own %5C", "/%5Cfoo/[[wert:k]]", "0.1.5", "/%5Cfoo/0.1.5"},
 		{"a value's backslash", "/x/[[wert:k]]", `a\b`, "/x/"},
+		// WR-02 of the second review: & = + are encoded in the query only. In
+		// an opaque address the + of a phone number is syntax (RFC 3966), and
+		// %2B is a different address (RFC 3986 §6.2.2.2).
+		{"phone number", "tel:[[wert:k]]", "+41 44 123 45 67", "tel:+41%2044%20123%2045%2067"},
+		{"mail address", "mailto:[[wert:k]]?subject=Hallo", "info+shop@x.ch", "mailto:info+shop@x.ch?subject=Hallo"},
+		{"mail subject", "mailto:info@x.ch?subject=[[wert:k]]", "a&b=c+d", "mailto:info@x.ch?subject=a%26b%3Dc%2Bd"},
+		{"path", "/a/[[wert:k]]/b", "x+y&z=1", "/a/x+y&z=1/b"},
+		{"in the fragment", "/a#[[wert:k]]", "x+y", "/a#x+y"},
+		{"a ? inside the fragment", "/a#b?[[wert:k]]", "x+y", "/a#b?x+y"},
+		{"query before a fragment", "/a?q=[[wert:k]]#f", "x+y", "/a?q=x%2By#f"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			out := Resolve(`<a href="`+c.href+`">L</a>`, map[string]string{"k": c.text})

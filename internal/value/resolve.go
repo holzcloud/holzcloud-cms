@@ -172,23 +172,54 @@ func resolveTag(tok xhtml.Token, texts map[string]string) string {
 // not on the decoded address: decoding the whole address also decoded a %5C
 // the editor wrote, and such a link always lost its value (IN-01 of the phase
 // 33 review).
+//
+// Whether & = and + are encoded depends on where the marker stands: in the
+// query, and only there (queryPart says why).
 func resolveURL(val string, texts map[string]string) string {
 	neutral := pattern.ReplaceAllString(val, "x")
 	refused := false
-	out := pattern.ReplaceAllStringFunc(val, func(m string) string {
-		text, ok := texts[keyOf(m)]
+	inQuery := queryPart(val)
+	var b strings.Builder
+	b.Grow(len(val))
+	last := 0
+	for _, m := range pattern.FindAllStringIndex(val, -1) {
+		b.WriteString(val[last:m[0]])
+		last = m[1]
+		text, ok := texts[keyOf(val[m[0]:m[1]])]
 		if !ok {
-			return ""
+			continue
 		}
 		if strings.Contains(text, `\`) {
 			refused = true
 		}
-		return pctEncode(text)
-	})
+		b.WriteString(pctEncode(text, inQuery(m[0])))
+	}
+	b.WriteString(val[last:])
+	out := b.String()
 	if refused || !sameOrigin(neutral, out) {
 		return pattern.ReplaceAllString(val, "")
 	}
 	return out
+}
+
+// queryPart reports, for a byte offset of an address as the editor wrote it,
+// whether that offset stands in the query: after the first "?" and before a
+// "#" that follows it. A "?" after the first "#" is part of the fragment, and
+// an address without a "?" has no query.
+//
+// Only the query needs & = and + encoded (WR-02 of the second phase 33
+// review). There they would let a value add a parameter or turn into a space.
+// Everywhere else they are kept as the value has them: in an opaque address
+// such as tel: the + of a global number is syntax (RFC 3966), and %2B would be
+// a different address (RFC 3986 §6.2.2.2); in a path or a fragment none of the
+// three separates anything a value could escape from.
+func queryPart(val string) func(at int) bool {
+	q := strings.IndexByte(val, '?')
+	h := strings.IndexByte(val, '#')
+	if q < 0 || (h >= 0 && h < q) {
+		return func(int) bool { return false }
+	}
+	return func(at int) bool { return at > q && (h < 0 || at < h) }
 }
 
 // sameOrigin reports whether out keeps the scheme and host of want, and is not
@@ -214,18 +245,19 @@ func sameOrigin(want, out string) bool {
 // mark, hash, square brackets, control and non-ASCII bytes are all encoded, so
 // a value can neither end the attribute nor start a query or a fragment.
 //
-// & = and + are encoded too, wherever the marker stands. In a query string
-// they would let a value add a parameter — ?q=[[wert:a]] with "1&admin=1" was
-// ?q=1&admin=1 — or turn into a space; encoded, the value stays the one
-// parameter's value (IN-01 of the phase 33 review). In a path the encoded
-// spelling means the same as the bare one, so nothing is lost there.
-func pctEncode(s string) string {
+// inQuery encodes & = and + as well. In a query string they would let a value
+// add a parameter — ?q=[[wert:a]] with "1&admin=1" was ?q=1&admin=1 — or turn
+// into a space; encoded, the value stays the one parameter's value (IN-01 of
+// the phase 33 review). Outside the query they stay, because there they are
+// not the same address encoded: tel:+41… is a global number and tel:%2B41… is
+// not (WR-02 of the second review; queryPart).
+func pctEncode(s string, inQuery bool) string {
 	const hex = "0123456789ABCDEF"
 	var b strings.Builder
 	b.Grow(len(s))
 	for i := 0; i < len(s); i++ {
 		c := s[i]
-		if keepInAddress(c) {
+		if keepInAddress(c) || (!inQuery && strings.IndexByte("&=+", c) >= 0) {
 			b.WriteByte(c)
 			continue
 		}

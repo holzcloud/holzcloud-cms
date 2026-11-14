@@ -3,6 +3,8 @@ package page
 import (
 	"strings"
 	"testing"
+
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // A value marker is stored literally wherever it stands, so that delivery has
@@ -38,6 +40,25 @@ func TestAValueMarkerInALinkIsStoredLiterally(t *testing.T) {
 	}
 	if strings.TrimSpace(prose) != `<p>Alpha [[wert:v]]: neu</p>` {
 		t.Errorf("prose with a marker changed: %q", prose)
+	}
+}
+
+// A mail address is followed from the Markdown to the delivered address (WR-02
+// of the second phase 33 review): a + in the address stays a +, and only the
+// query encodes & = and +. (A tel: link is not Markdown's: the sanitiser keeps
+// no tel: address, so a phone link is a block's, and internal/block follows it.)
+func TestAMailAddressReachesItsLink(t *testing.T) {
+	stored, err := RenderMarkdown("[schreiben](mailto:[[wert:mail]]?subject=[[wert:betreff]])")
+	if err != nil {
+		t.Fatalf("RenderMarkdown: %v", err)
+	}
+	got := value.Resolve(stored, map[string]string{"mail": "info+shop@x.ch", "betreff": "Frage & Antwort"})
+	for _, want := range []string{
+		`href="mailto:info+shop@x.ch?subject=Frage%20%26%20Antwort"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("want %s in:\n%s\n(stored: %s)", want, got, stored)
+		}
 	}
 }
 
