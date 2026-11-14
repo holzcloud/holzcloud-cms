@@ -121,3 +121,85 @@ func TestEnglishAndFrenchCarryNoGerman(t *testing.T) {
 		}
 	}
 }
+
+func TestFrenchPrivacyTemplateNamesItsAuthorities(t *testing.T) {
+	enfrWant(t, "fr", map[legal.Framework][]string{
+		legal.EU: {"autorité de contrôle", "RGPD", "règlement (UE) 2016/679", "directive 2002/58/CE", "art. 77", "art. 21", "art. 28"},
+		legal.CH: {"Préposé fédéral à la protection des données et à la transparence (PFPDT)", "LPD", "RS 235.1", "art. 45c", "30 jours"},
+		legal.UK: {"Information Commission", "164A", "section 165", "Schedule A1", "PECR"},
+		legal.US: {"45 jours", "Global Privacy Control", "Sec-GPC: 1", "Do Not Track", "ni vendues ni partagées"},
+	})
+}
+
+// The French US section says what Global Privacy Control changes, like the
+// German and the English one.
+func TestFrenchUSSectionSaysWhatGPCChanges(t *testing.T) {
+	text := enfrSection("fr", legal.US)
+	us := text[strings.Index(text, heading(t, "fr", "us")):]
+	for _, w := range []string{
+		"comme une demande d’opposition à la vente et au partage de vos données personnelles",
+		"Rien ne change sur le site pour autant, car rien n’est vendu ni partagé",
+		"indique que le signal a été reconnu",
+		"nom, adresse e-mail et remarque",
+		"ni votre adresse IP ni un identifiant de votre navigateur",
+		"conservées " + Fillin("fr"),
+	} {
+		if !strings.Contains(us, w) {
+			t.Errorf("the French US section lacks %q", w)
+		}
+	}
+}
+
+// A page in the French of Switzerland gets the French text. The Swiss switch
+// only changes German spelling, so it leaves the French text as it is.
+func TestFrenchFollowsSwissFrenchPages(t *testing.T) {
+	for _, tag := range []string{"fr", "fr-CH", "fr-FR", "FR-ch"} {
+		if got := TextLang(KindPrivacy, tag); got != "fr" {
+			t.Errorf("TextLang(privacy, %q) = %q, want fr", tag, got)
+		}
+	}
+	for _, set := range sets() {
+		for _, f := range []Features{{}, allFeatures()} {
+			fr := ComposePrivacy(Request{Lang: "fr", Set: set, Features: f})
+			for _, swiss := range []bool{false, true} {
+				if got := ComposePrivacy(Request{Lang: "fr-CH", Swiss: swiss, Set: set, Features: f}); got != fr {
+					t.Errorf("%s swiss=%v: the fr-CH text is not the fr text", set, swiss)
+				}
+			}
+			if !strings.Contains(fr, "**"+TemplateNotice("fr")+"**") {
+				t.Errorf("%s: the French text does not open with the French notice", set)
+			}
+		}
+	}
+}
+
+func TestFrenchSlugsAreRoles(t *testing.T) {
+	if got := Slug(KindPrivacy, "fr"); got != "protection-des-donnees" {
+		t.Errorf("Slug(privacy, fr) = %q, want protection-des-donnees", got)
+	}
+	if got := DraftSlug(KindPrivacy, "fr-CH"); got != "protection-des-donnees-modele" {
+		t.Errorf("DraftSlug(privacy, fr-CH) = %q, want protection-des-donnees-modele", got)
+	}
+	roles := RoleSlugs(KindPrivacy)
+	for _, s := range []string{"protection-des-donnees", "confidentialite", "politique-de-confidentialite"} {
+		if !slices.Contains(roles, s) {
+			t.Errorf("RoleSlugs = %v, want %q among them", roles, s)
+		}
+	}
+}
+
+// French typography: a typographic apostrophe, a no-break space before the
+// high punctuation marks and inside the angle quotation marks, and no HTML
+// entity for either, because the text is Markdown and an entity would be
+// printed as written in one place and decoded in another.
+func TestFrenchTypography(t *testing.T) {
+	if TextLang(KindPrivacy, "fr") != "fr" {
+		t.Fatal("there is no French privacy text")
+	}
+	text := ComposePrivacy(Request{Lang: "fr", Set: allSet(), Features: allFeatures()})
+	for _, bad := range []string{"'", " :", " ;", " ?", " !", " %", "&nbsp;", "&#", "« ", " »"} {
+		if i := strings.Index(text, bad); i >= 0 {
+			t.Errorf("the French text contains %q near %q", bad, text[max(0, i-30):min(len(text), i+30)])
+		}
+	}
+}
