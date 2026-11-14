@@ -23,6 +23,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
+	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
@@ -944,6 +945,37 @@ func TestAValueCannotCarryTheWidget(t *testing.T) {
 	if _, err := database.Write.Exec(
 		`INSERT INTO site_values (website_id, key, value) VALUES ($1, 'formular', $2)`, ws.ID, optoutMarker); err == nil {
 		t.Error("the table took a value text with brackets")
+	}
+}
+
+// What a plugin reads carries no opt-out marker, even when a snippet brought
+// it in (IN-04): the marker used to be stripped before the snippets were
+// expanded, so a snippet's [[widerspruch]] reached the plugin raw. Both
+// branches — with the request and without — strip it after the expansion.
+func TestAPluginNeverSeesTheOptOutMarker(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	if _, err := snippet.NewStore(database).Create(context.Background(), ws.ID, "dns", "DNS",
+		"[[widerspruch]]", "<p>[[widerspruch]]</p>"); err != nil {
+		t.Fatalf("snippet: %v", err)
+	}
+	body := "<p>Text</p>[[snippet:dns]]<p>[[widerspruch]]</p>"
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req = req.WithContext(domain.WebsiteToContext(req.Context(), ws))
+	for name, ctx := range map[string]context.Context{
+		"without a request": context.Background(),
+		"with a request":    withRequest(req.Context(), req),
+	} {
+		got := h.expandForPlugin(ctx, ws.ID, body)
+		if strings.Contains(got, "[[") {
+			t.Errorf("%s: the plugin gets a marker: %q", name, got)
+		}
+		if strings.Contains(got, optoutWidgetMark) {
+			t.Errorf("%s: the plugin gets the form: %q", name, got)
+		}
+		if !strings.Contains(got, "<p>Text</p>") {
+			t.Errorf("%s: the page's own text is gone: %q", name, got)
+		}
 	}
 }
 
