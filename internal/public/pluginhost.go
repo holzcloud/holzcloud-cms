@@ -79,6 +79,10 @@ func (h *Handler) expandForPlugin(ctx context.Context, websiteID int64, body str
 	if !strings.Contains(body, "[[") {
 		return body
 	}
+	// A plugin reads the page's text — a search index, a summary — and gets
+	// neither the opt-out marker nor a form: nothing it does with the body
+	// posts back to /widerspruch.
+	body = withoutOptOut(body)
 	r := requestFrom(ctx)
 	if r == nil {
 		// No request means no locale and no album lookup. Expanding the

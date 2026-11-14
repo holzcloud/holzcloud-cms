@@ -112,6 +112,20 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 	if valuesAt.After(albumsAt) {
 		albumsAt = valuesAt
 	}
+	// The opt-out widget of a website that follows US law, and once more
+	// where this stands is the decision.
+	//
+	// AFTER the values, so the page around the widget is the page a visitor
+	// reads, and so a value can never carry the marker in through the back
+	// door: a value is escaped text, and an escaped marker is not a marker.
+	//
+	// BEFORE the plugins and the responsive rewrite, for the reason both give:
+	// a filter sees the page as a visitor would, form included.
+	//
+	// HERE, at delivery, because its first line answers this request — whether
+	// the browser sent the Global Privacy Control signal — and a widget frozen
+	// into content_html could only ever give one of the two answers.
+	body = h.expandOptOut(r, domain.WebsiteFromContext(r.Context()), pg, body)
 	// Plugins last: they see the page as a visitor would, with the snippets
 	// already in place and the form already drawn. A filter that ran earlier
 	// would be filtering markers instead of text.
@@ -622,7 +636,9 @@ func (h *Handler) albumsFor(r *http.Request, websiteID int64, body string) album
 // here with theirs already resolved by loadSnippets. A nil map renders every
 // marker as nothing, never as the marker.
 func expandForFeed(html string, snippets snippet.Rendered, albums album.Set, words func(string) string, texts map[string]string) string {
-	return value.Resolve(block.ResolveWords(album.Expand(snippet.Expand(html, snippets.HTML), albums), words), texts)
+	// The opt-out marker goes without a widget: a feed reader is not a
+	// browser that sent a signal, and a form in a feed posts nowhere useful.
+	return withoutOptOut(value.Resolve(block.ResolveWords(album.Expand(snippet.Expand(html, snippets.HTML), albums), words), texts))
 }
 
 // contentModTime is the validator for conditional requests.

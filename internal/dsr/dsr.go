@@ -1,0 +1,52 @@
+// Package dsr keeps the requests people make about their personal data.
+//
+// A request is one row of privacy_requests: who asked (as much as they chose
+// to say), what kind of request it is, in which language the page was, whether
+// the browser sent the Global Privacy Control signal, when it arrived and when
+// the operator answered it. Nothing else — no IP address and no user agent,
+// because the request is used only to record and answer it (CCPA regs
+// § 7025(c)(2)).
+//
+// Phase 33.1 writes one kind, KindOptOut, from the "Do Not Sell or Share"
+// page. Phase 33.2 adds the data requests (access, correction, erasure) to the
+// same table and this package (33.2 D-09); the kind is validated here rather
+// than by a CHECK list in the schema so that adding one needs no table
+// rebuild.
+//
+// This package never deletes. The record of a US opt-out has to be kept for
+// at least 24 months (§ 7101), and retention — deciding when a row may go —
+// is Phase 33.2's (D-14). A delete method here would be the one way to break
+// that by accident, so there is none.
+package dsr
+
+import "errors"
+
+// KindOptOut is a request not to sell or share personal information.
+const KindOptOut = "optout"
+
+// The longest values the table accepts, in characters. The schema enforces
+// the same numbers.
+const (
+	MaxName  = 200
+	MaxEmail = 254
+	MaxNote  = 2000
+	// maxLocale is a BCP 47 tag's practical length.
+	maxLocale = 35
+)
+
+// kinds are the kinds this program writes. Phase 33.2 adds its own here.
+var kinds = map[string]bool{
+	KindOptOut: true,
+}
+
+var (
+	// ErrEmpty means the request says nothing: no name, no address and no
+	// signal from the browser.
+	ErrEmpty = errors.New("dsr: the request names nobody")
+	// ErrTooLong means a value is longer than the table allows.
+	ErrTooLong = errors.New("dsr: a value is too long")
+	// ErrBadKind means the kind is not one this program knows.
+	ErrBadKind = errors.New("dsr: unknown kind of request")
+	// ErrNotFound means there is no such request on this website.
+	ErrNotFound = errors.New("dsr: no such request")
+)

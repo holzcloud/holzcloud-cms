@@ -12,6 +12,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/kind"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
@@ -75,7 +76,16 @@ type Handler struct {
 	// token can never stand in for the other.
 	share  *sharelink.Signer
 	unlock *sharelink.Signer
-	loader *tmpl.Loader
+	// requests stores what a visitor asks about their data — the opt-out of
+	// the [[widerspruch]] widget. Nil means the widget renders as nothing and
+	// POST /widerspruch answers 404: an opt-out form that cannot store what it
+	// takes must not be offered.
+	requests *dsr.Store
+	// optoutSigner signs the time stamp the opt-out form carries. Its own
+	// label, so a stamp minted for this form never validates as a preview link
+	// or an unlock cookie. Nil has the same effect as a nil request store.
+	optoutSigner *sharelink.Signer
+	loader       *tmpl.Loader
 	// resolver supplies the canonical host. It may be nil, in which case the
 	// requested host is used.
 	resolver *domain.Resolver
@@ -139,6 +149,12 @@ func (h *Handler) SetKindStore(s *kind.Store) { h.kindStore = s }
 func (h *Handler) SetShareSigners(share, unlock *sharelink.Signer) {
 	h.share, h.unlock = share, unlock
 }
+
+// SetRequestStore attaches the store the opt-out form writes to.
+func (h *Handler) SetRequestStore(s *dsr.Store) { h.requests = s }
+
+// SetOptOutSigner attaches the signer of the opt-out form's time stamp.
+func (h *Handler) SetOptOutSigner(s *sharelink.Signer) { h.optoutSigner = s }
 
 // ErrHandler wraps a handler function that returns an error.
 func (h *Handler) ErrHandler(fn func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {

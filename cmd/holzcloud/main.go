@@ -31,6 +31,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/csvimport"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/jobs"
@@ -248,6 +249,13 @@ func main() {
 	// protected page, and an unlock cookie must never show a draft.
 	shareSigner := sharelink.New(append([]byte("share:"), csrfKey...))
 	unlockSigner := sharelink.New(append([]byte("unlock:"), csrfKey...))
+	// The opt-out form's time stamp gets a third label, so a stamp minted for
+	// that form never validates as a preview link or an unlock cookie, and
+	// neither of those as a stamp.
+	optoutSigner := sharelink.New(append([]byte("optout:"), csrfKey...))
+	// The requests visitors make about their data — the opt-outs of a website
+	// that follows US law. Written by the public form, never deleted here.
+	requestStore := dsr.NewStore(database)
 	// Public template loader (created early so admin handler can invalidate cache)
 	publicDefaultFS, err := fs.Sub(staticFS, "templates/public/default")
 	if err != nil {
@@ -448,6 +456,8 @@ func main() {
 		outboxStore:     outboxStore,
 		shareSigner:     shareSigner,
 		unlockSigner:    unlockSigner,
+		optoutSigner:    optoutSigner,
+		requestStore:    requestStore,
 		pluginRT:        pluginRT,
 		mailQueue:       mailQueue,
 		aiServer:        aiServer,
@@ -853,14 +863,19 @@ type routerDeps struct {
 	mediaStore   *media.Store
 	snippetStore *snippet.Store
 	// valueStore resolves the [[wert:key]] markers of a page at request time.
-	valueStore      *value.Store
-	termStore       *term.Store
-	productStore    *shop.Store
-	cartStore       *shop.CartStore
-	orderStore      *shop.OrderStore
-	outboxStore     *outbox.Store
-	shareSigner     *sharelink.Signer
-	unlockSigner    *sharelink.Signer
+	valueStore   *value.Store
+	termStore    *term.Store
+	productStore *shop.Store
+	cartStore    *shop.CartStore
+	orderStore   *shop.OrderStore
+	outboxStore  *outbox.Store
+	shareSigner  *sharelink.Signer
+	unlockSigner *sharelink.Signer
+	// optoutSigner signs the opt-out form's time stamp, and requestStore
+	// keeps what the form takes. Either nil leaves the [[widerspruch]] widget
+	// empty and POST /widerspruch a 404.
+	optoutSigner    *sharelink.Signer
+	requestStore    *dsr.Store
 	templateLoader  *tmpl.Loader
 	publicDefaultFS fs.FS
 	readiness       *web.ReadinessProbe
@@ -1437,6 +1452,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 		BaseURL:  cfg.PayrexxBaseURL,
 	})
 	publicHandler.SetShareSigners(d.shareSigner, d.unlockSigner)
+	publicHandler.SetRequestStore(d.requestStore)
+	publicHandler.SetOptOutSigner(d.optoutSigner)
 	publicMux := http.NewServeMux()
 	publicMux.HandleFunc("GET /t/{path...}", publicHandler.ErrHandler(publicHandler.HandleTemplateAsset))
 	publicMux.HandleFunc("GET /sitemap.xml", publicHandler.ErrHandler(publicHandler.HandleSitemap))
@@ -1445,6 +1462,9 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	publicMux.HandleFunc("GET /feed.xml", publicHandler.ErrHandler(publicHandler.HandleFeed))
 	publicMux.HandleFunc("GET /tag/{slug}", publicHandler.ErrHandler(publicHandler.HandleTag))
 	publicMux.HandleFunc("POST /freischalten", publicHandler.ErrHandler(publicHandler.HandleUnlock))
+	// The opt-out form of a website that follows US law. Like /freischalten
+	// it takes no CSRF token, because it rides no session (D-03).
+	publicMux.HandleFunc("POST /widerspruch", publicHandler.ErrHandler(publicHandler.HandleOptOut))
 	publicMux.HandleFunc("GET /vorschau/{token}", publicHandler.ErrHandler(publicHandler.HandleShareLink))
 	publicMux.HandleFunc("POST /preise", publicHandler.ErrHandler(publicHandler.HandlePriceSwitch))
 	publicMux.HandleFunc("GET /warenkorb", publicHandler.ErrHandler(publicHandler.HandleCart))

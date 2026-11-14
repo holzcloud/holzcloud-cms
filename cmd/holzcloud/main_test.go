@@ -26,6 +26,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/config"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
@@ -209,6 +210,8 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 		termStore:       term.NewStore(database),
 		shareSigner:     sharelink.New([]byte("share")),
 		unlockSigner:    sharelink.New([]byte("unlock")),
+		optoutSigner:    sharelink.New([]byte("optout")),
+		requestStore:    dsr.NewStore(database),
 		templateLoader:  loader,
 		publicDefaultFS: publicDefaultFS,
 		aiServer:        aiServer,
