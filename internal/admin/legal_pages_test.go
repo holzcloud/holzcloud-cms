@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,9 +15,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alexedwards/scs/v2"
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/privacy"
 )
@@ -105,6 +108,8 @@ func legalPagesComposed(t *testing.T, h *Handler, websiteID int64, k privacy.Kin
 		return privacy.ComposeImprint(req)
 	case privacy.KindDNS:
 		return privacy.ComposeDNS(req)
+	case privacy.KindRequest:
+		return privacy.ComposeRequest(req)
 	}
 	t.Fatalf("unknown kind %q", k)
 	return ""
@@ -344,11 +349,11 @@ func TestMissingLegalPagesAreCreatedAsDrafts(t *testing.T) {
 	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/admin/websites/"+idOf(ws.ID)) || strings.Contains(loc, "/pages/") {
 		t.Errorf("redirected to %q, want the settings of the website", loc)
 	}
-	if good != "3 legal pages created as drafts" {
-		t.Errorf("flash %q, want the count of three", good)
+	if good != "4 legal pages created as drafts" {
+		t.Errorf("flash %q, want the count of four", good)
 	}
 
-	for _, k := range []privacy.Kind{privacy.KindPrivacy, privacy.KindImprint, privacy.KindDNS} {
+	for _, k := range []privacy.Kind{privacy.KindPrivacy, privacy.KindImprint, privacy.KindDNS, privacy.KindRequest} {
 		slug := privacy.Slug(k, "de")
 		got := legalPagesExact(t, h, ws.ID, slug)
 		if len(got) != 1 {
@@ -369,8 +374,15 @@ func TestMissingLegalPagesAreCreatedAsDrafts(t *testing.T) {
 			t.Errorf("%s: the draft is not the composed template", k)
 		}
 	}
-	if slugs := []string{privacy.Slug(privacy.KindPrivacy, "de"), privacy.Slug(privacy.KindImprint, "de"), privacy.Slug(privacy.KindDNS, "de")}; !slices.Equal(slugs, []string{"datenschutz", "impressum", "do-not-sell-or-share"}) {
+	if slugs := []string{privacy.Slug(privacy.KindPrivacy, "de"), privacy.Slug(privacy.KindImprint, "de"), privacy.Slug(privacy.KindDNS, "de"), privacy.Slug(privacy.KindRequest, "de")}; !slices.Equal(slugs, []string{"datenschutz", "impressum", "do-not-sell-or-share", "meine-daten"}) {
 		t.Errorf("German slugs %v", slugs)
+	}
+	// The request page carries the form marker once, on a line of its own
+	// (D-01): it is the page the form of plan 03 stands on.
+	if got := legalPagesExact(t, h, ws.ID, "meine-daten"); len(got) != 1 {
+		t.Errorf("pages at meine-daten: %d, want 1", len(got))
+	} else if n := strings.Count("\n"+got[0].ContentMarkdown+"\n", "\n[[datenanfrage]]\n"); n != 1 {
+		t.Errorf("the request page carries the form marker on a line of its own %d times, want 1", n)
 	}
 
 	rec, _, good = albumFlash(t, h, sm, h.HandleLegalDrafts, draftRequest(idOf(ws.ID), nil))
@@ -384,17 +396,22 @@ func TestMissingLegalPagesAreCreatedAsDrafts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(all) != 3 {
-		t.Errorf("after the second POST %d pages, want still 3", len(all))
+	if len(all) != 4 {
+		t.Errorf("after the second POST %d pages, want still 4", len(all))
 	}
 
-	// A privacy page under another usual slug is the privacy page.
+	// A privacy page under another usual slug is the privacy page, and a
+	// request page under its other usual slug is the request page.
 	h2, sm2, database2, ws2 := newTestAdmin(t)
 	legalPagesSetFrameworks(t, database2, ws2.ID, "eu,ch")
 	seedPage(t, database2, ws2.ID, "Datenschutzerklärung", "datenschutzerklaerung", "Eigener Text.", "published")
+	seedPage(t, database2, ws2.ID, "Anfrage zu meinen Daten", "anfrage-zu-meinen-daten", "Eigener Text.", "published")
 	rec, _, good = albumFlash(t, h2, sm2, h2.HandleLegalDrafts, draftRequest(idOf(ws2.ID), nil))
 	if got := legalPagesExact(t, h2, ws2.ID, "datenschutz"); len(got) != 0 {
 		t.Errorf("a second privacy page was created beside datenschutzerklaerung")
+	}
+	if got := legalPagesExact(t, h2, ws2.ID, "meine-daten"); len(got) != 0 {
+		t.Errorf("a second request page was created beside anfrage-zu-meinen-daten")
 	}
 	if got := legalPagesExact(t, h2, ws2.ID, "impressum"); len(got) != 1 {
 		t.Errorf("the missing imprint was not created")
@@ -404,6 +421,16 @@ func TestMissingLegalPagesAreCreatedAsDrafts(t *testing.T) {
 	}
 	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "/pages/") {
 		t.Errorf("one page created: redirected to %q, want its editor", loc)
+	}
+
+	// A request page at its own slug is not created twice either, on a
+	// website without any framework.
+	h3, sm3, database3, ws3 := newTestAdmin(t)
+	legalPagesSetFrameworks(t, database3, ws3.ID, "")
+	seedPage(t, database3, ws3.ID, "Meine Daten", "meine-daten", "Eigener Text.", "draft")
+	albumFlash(t, h3, sm3, h3.HandleLegalDrafts, draftRequest(idOf(ws3.ID), nil))
+	if got := pagesWithSlugPrefix(t, h3, ws3.ID, "meine-daten"); len(got) != 1 {
+		t.Errorf("pages beginning meine-daten: %d, want the existing one alone", len(got))
 	}
 }
 
@@ -488,23 +515,23 @@ func TestWebsiteSettingsShowTheLegalCard(t *testing.T) {
 	}{
 		{
 			name: "no legal page", set: "eu,ch",
-			want: map[string]string{"privacy": "missing", "imprint": "missing"},
+			want: map[string]string{"privacy": "missing", "imprint": "missing", "request": "missing"},
 		},
 		{
 			name: "published privacy page", set: "eu,ch", slug: "datenschutz", body: "BODY-MARKER", status: "published",
-			want: map[string]string{"privacy": "published", "imprint": "missing"},
+			want: map[string]string{"privacy": "published", "imprint": "missing", "request": "missing"},
 		},
 		{
 			name: "draft imprint", set: "eu,ch", slug: "impressum", body: "BODY-MARKER", status: "draft",
-			want: map[string]string{"privacy": "missing", "imprint": "draft"},
+			want: map[string]string{"privacy": "missing", "imprint": "draft", "request": "missing"},
 		},
 		{
 			name: "unfilled template", set: "eu,ch", slug: "datenschutz", body: "BODY-MARKER\n\n" + privacy.TemplateNotice("de"), status: "published",
-			want: map[string]string{"privacy": "template", "imprint": "missing"},
+			want: map[string]string{"privacy": "template", "imprint": "missing", "request": "missing"},
 		},
 		{
 			name: "united states", set: "eu,ch,us",
-			want:    map[string]string{"privacy": "missing", "imprint": "missing", "dns": "missing"},
+			want:    map[string]string{"privacy": "missing", "imprint": "missing", "dns": "missing", "request": "missing"},
 			wantDNS: true,
 		},
 	}
@@ -593,6 +620,7 @@ func TestWebsiteSettingsShowTheLegalCard(t *testing.T) {
 		legalPagesSetFrameworks(t, database, ws.ID, "eu")
 		seedPage(t, database, ws.ID, "x", "datenschutz", "x", "published")
 		seedPage(t, database, ws.ID, "x", "impressum", "x", "published")
+		seedPage(t, database, ws.ID, "x", "meine-daten", "x", "published")
 		body := websiteGet(t, h, sm, h.HandleWebsiteEdit, ws.ID).Body.String()
 		if strings.Contains(body, "Create the missing pages as drafts") {
 			t.Errorf("nothing is missing and the button is offered")
@@ -606,8 +634,8 @@ func TestWebsiteSettingsShowTheLegalCard(t *testing.T) {
 		if !strings.Contains(body, "No legal framework is chosen for this website.") {
 			t.Errorf("the card does not say that no framework is chosen")
 		}
-		if cells := legalPagesCells(body); len(cells) != 2 {
-			t.Errorf("%d cells without a framework, want the privacy page and the imprint", len(cells))
+		if cells := legalPagesCells(body); len(cells) != 3 {
+			t.Errorf("%d cells without a framework, want the privacy page, the imprint and the request page", len(cells))
 		}
 	})
 
@@ -744,8 +772,10 @@ func TestEveryLanguageGetsItsDraftLinkedAsATranslation(t *testing.T) {
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("status %d, want 303", rec.Code)
 	}
-	if good != "6 legal pages created as drafts" {
-		t.Errorf("flash %q, want six", good)
+	// The two kinds the frameworks call for and the request page, in three
+	// languages each.
+	if good != "9 legal pages created as drafts" {
+		t.Errorf("flash %q, want nine", good)
 	}
 
 	for _, k := range []privacy.Kind{privacy.KindPrivacy, privacy.KindImprint} {
@@ -938,11 +968,11 @@ func TestTheCardHasARowPerLanguage(t *testing.T) {
 		t.Errorf("rows %v, want %v", rows, want)
 	}
 	cells := legalPagesCells(body)
-	if len(cells) != len(want)*3 {
-		t.Errorf("%d cells, want %d", len(cells), len(want)*3)
+	if len(cells) != len(want)*4 {
+		t.Errorf("%d cells, want %d", len(cells), len(want)*4)
 	}
 	for _, tag := range want {
-		for _, k := range []string{"privacy", "imprint", "dns"} {
+		for _, k := range []string{"privacy", "imprint", "dns", "request"} {
 			if c, ok := cells[tag+"/"+k]; !ok || c.State != "missing" {
 				t.Errorf("%s/%s: %+v", tag, k, c)
 			}
@@ -953,4 +983,74 @@ func TestTheCardHasARowPerLanguage(t *testing.T) {
 			t.Errorf("the card does not name %q", name)
 		}
 	}
+}
+
+// requestPageCard renders the website's settings screen for an operator who
+// reads the admin in lang.
+func requestPageCard(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, lang string) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/admin/websites/"+idOf(websiteID), nil)
+	req.SetPathValue("id", idOf(websiteID))
+	req = req.WithContext(i18n.WithLang(req.Context(), lang))
+	return serve(t, h, sm, h.HandleWebsiteEdit, req).Body.String()
+}
+
+// requestPageColumnRE finds the header of the request page's column.
+var requestPageColumnRE = regexp.MustCompile(`<th scope="col" data-legal-column="request">([^<]*)</th>`)
+
+// Every website is offered the page a visitor asks about their data on (D-01):
+// the request form exists for every website, whatever its frameworks, so the
+// page it stands on is the last column of the card on all of them. Its header
+// is the catalogue's name of the page, the one the Requests screen uses, in
+// the operator's language.
+func TestEveryWebsiteIsOfferedTheRequestPage(t *testing.T) {
+	for _, set := range []string{"", "eu", "ch", "uk", "us", "eu,ch", "eu,ch,uk,us"} {
+		h, sm, database, ws := newTestAdmin(t)
+		legalPagesSetFrameworks(t, database, ws.ID, set)
+		kinds := legalKinds(readWebsite(t, h, ws.ID))
+		if len(kinds) == 0 || kinds[len(kinds)-1] != privacy.KindRequest {
+			t.Errorf("set %q: kinds %v, want the request page last", set, kinds)
+		}
+		if strings.Count(strings.Join(requestPageKindStrings(kinds), ","), string(privacy.KindRequest)) != 1 {
+			t.Errorf("set %q: kinds %v, want the request page once", set, kinds)
+		}
+		for _, lang := range []string{"de", "en", "fr"} {
+			body := requestPageCard(t, h, sm, ws.ID, lang)
+			m := requestPageColumnRE.FindStringSubmatch(body)
+			if m == nil {
+				t.Errorf("set %q, %s: the card has no column for the request page", set, lang)
+				continue
+			}
+			want := template.HTMLEscapeString(i18n.T(lang, "Request about my data"))
+			if m[1] != want {
+				t.Errorf("set %q, %s: the column says %q, want %q", set, lang, m[1], want)
+			}
+			if lang != i18n.Source && want == "Request about my data" {
+				t.Errorf("%s: the catalogue does not translate the column header", lang)
+			}
+		}
+	}
+
+	// The compare draft of the request page is offered like any other kind.
+	h, sm, _, ws := newTestAdmin(t)
+	serve(t, h, sm, h.HandleLegalDrafts, legalPagesCompare(idOf(ws.ID), privacy.KindRequest, "de"))
+	got := legalPagesExact(t, h, ws.ID, privacy.DraftSlug(privacy.KindRequest, "de"))
+	if len(got) != 1 {
+		t.Fatalf("request compare drafts at %q: %d, want 1", privacy.DraftSlug(privacy.KindRequest, "de"), len(got))
+	}
+	if got[0].Status != "draft" || got[0].Title != privacy.DraftTitle(privacy.KindRequest, "de") {
+		t.Errorf("the compare draft is %q titled %q", got[0].Status, got[0].Title)
+	}
+	if got[0].ContentMarkdown != legalPagesComposed(t, h, ws.ID, privacy.KindRequest, "de") {
+		t.Errorf("the compare draft is not the composed request page")
+	}
+}
+
+// requestPageKindStrings turns kinds into strings.
+func requestPageKindStrings(kinds []privacy.Kind) []string {
+	out := make([]string, len(kinds))
+	for i, k := range kinds {
+		out[i] = string(k)
+	}
+	return out
 }

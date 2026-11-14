@@ -1,0 +1,3 @@
+## Was von einer Bestellung bleibt
+
+Verlangst du die Löschung und hast du hier bestellt, werden E-Mail-Adresse und Telefonnummer aus deiner Bestellung gelöscht, ebenso die E-Mails zu ihr. Was auf der Rechnung steht, muss der Verkäufer aufbewahren: Name, Firma, Anschrift, die bestellten Artikel, die Beträge, der Zahlungsstand, die Rückgabebedingungen und deine Anmerkung zur Bestellung. Diese Angaben bleiben, bis die gesetzliche Aufbewahrungsfrist im Land des Verkäufers endet, gezählt vom Ende des Kalenderjahrs der Bestellung, und werden dann gelöscht. Bis dahin werden sie für nichts anderes verwendet. Die Antwort auf deine Anfrage nennt das Datum.

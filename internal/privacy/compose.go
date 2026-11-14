@@ -38,6 +38,7 @@ const (
 	KindPrivacy Kind = "privacy"
 	KindImprint Kind = "imprint"
 	KindDNS     Kind = "dns"
+	KindRequest Kind = "request"
 )
 
 // Request is everything a composed page depends on.

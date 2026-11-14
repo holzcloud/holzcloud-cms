@@ -1,0 +1,3 @@
+### Frist nach der UK GDPR (Vereinigtes Königreich)
+
+Die verantwortliche Stelle beantwortet deine Anfrage unverzüglich, spätestens innerhalb eines Monats (Art. 12 Abs. 3 und Art. 12A UK GDPR). Ist es wegen der Komplexität oder der Zahl der Anträge nötig, kann sie diese Frist um zwei weitere Monate verlängern. Das teilt sie dir innerhalb des ersten Monats mit und nennt die Gründe. Die Antwort ist kostenlos, außer eine Anfrage ist offenkundig unbegründet oder exzessiv (Art. 12 Abs. 5 UK GDPR). Hat die verantwortliche Stelle begründete Zweifel, dass die Anfrage von dir stammt, kann sie zusätzliche Informationen anfordern, die das bestätigen (Art. 12 Abs. 6 UK GDPR).

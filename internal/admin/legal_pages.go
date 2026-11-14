@@ -89,13 +89,19 @@ func legalRowHint(tag string) string {
 
 // legalKinds are the pages a website's frameworks call for: the privacy page
 // and the imprint always (D-09, D-13), the Do-Not-Sell page only with the
-// United States.
+// United States, and last the page a visitor asks about their data on.
+//
+// The request page is offered to every website whatever its frameworks
+// (33.2 D-01): the request form exists for every website, because the right
+// of access is in all four frameworks, and a form needs a page to stand on.
+// It comes after the framework-dependent kinds so that the card's columns
+// keep their places when the United States is chosen or not.
 func legalKinds(ws *domain.Website) []privacy.Kind {
 	kinds := []privacy.Kind{privacy.KindPrivacy, privacy.KindImprint}
 	if ws.HasUSFramework() {
 		kinds = append(kinds, privacy.KindDNS)
 	}
-	return kinds
+	return append(kinds, privacy.KindRequest)
 }
 
 // legalComposers makes the template of each kind of page.
@@ -103,6 +109,7 @@ var legalComposers = map[privacy.Kind]func(privacy.Request) string{
 	privacy.KindPrivacy: privacy.ComposePrivacy,
 	privacy.KindImprint: privacy.ComposeImprint,
 	privacy.KindDNS:     privacy.ComposeDNS,
+	privacy.KindRequest: privacy.ComposeRequest,
 }
 
 // pageLocale is the locale a page in the language tag is stored with: empty

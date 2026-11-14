@@ -1,0 +1,3 @@
+### Frist nach der DSGVO (Europäische Union)
+
+Die verantwortliche Stelle beantwortet deine Anfrage unverzüglich, in jedem Fall innerhalb eines Monats nach Eingang (Art. 12 Abs. 3 DSGVO). Ist es wegen der Komplexität oder der Zahl der Anträge nötig, kann sie diese Frist um zwei weitere Monate verlängern. Das teilt sie dir innerhalb des ersten Monats mit und nennt die Gründe. Die Antwort ist kostenlos, außer eine Anfrage ist offenkundig unbegründet oder exzessiv (Art. 12 Abs. 5 DSGVO). Hat die verantwortliche Stelle begründete Zweifel, dass die Anfrage von dir stammt, kann sie zusätzliche Informationen anfordern, die das bestätigen (Art. 12 Abs. 6 DSGVO).

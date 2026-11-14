@@ -321,7 +321,8 @@
                 <th scope="col" data-legal-column="{{.}}">
                     {{- if eq . "privacy"}}{{t "Privacy page"}}
                     {{- else if eq . "imprint"}}{{t "Imprint"}}
-                    {{- else if eq . "dns"}}{{t "Do Not Sell or Share"}}{{end -}}
+                    {{- else if eq . "dns"}}{{t "Do Not Sell or Share"}}
+                    {{- else if eq . "request"}}{{t "Request about my data"}}{{end -}}
                 </th>
                 {{end}}
             </tr>

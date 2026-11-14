@@ -1,0 +1,3 @@
+### Frist nach dem CCPA (Kalifornien und andere US-Bundesstaaten)
+
+Der Eingang einer Anfrage auf Auskunft (right to know), Berichtigung (right to correct) oder Löschung (right to delete) wird innerhalb von 10 Geschäftstagen bestätigt. Beantwortet wird sie innerhalb von 45 Kalendertagen nach Eingang. Ist es nötig, kann diese Frist um höchstens 45 weitere Kalendertage verlängert werden; das wird dir mitgeteilt und begründet (§ 7021 der CCPA-Vorschriften, Cal. Code Regs. tit. 11). Geprüft wird eine Anfrage, indem die Angaben darin mit den gespeicherten verglichen werden, zum Beispiel mit der E-Mail-Adresse einer Bestellung (§ 7060 ff. der CCPA-Vorschriften).
