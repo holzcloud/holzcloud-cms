@@ -302,6 +302,8 @@ func (h *Handler) previewPageContent(r *http.Request, ws *domain.Website, pg *pa
 	// (D-11).
 	texts := h.previewValueTexts(r, ws, body, pg.Excerpt)
 	body = value.Resolve(body, texts)
+	// After the values, the slot the public side gives the widget too.
+	body = expandOptOutPreview(r, ws, body)
 	return tmpl.PageContent{
 		Title:         pg.Title,
 		ContentHTML:   template.HTML(body),
