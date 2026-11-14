@@ -462,3 +462,47 @@ func (s *Store) Answer(ctx context.Context, websiteID, id int64, outcome, basis 
 		return ErrAnswered
 	}
 }
+
+// AddReceived stores a data request that did not come through the website's
+// form — it arrived by e-mail, letter or telephone, and the operator enters
+// it — and returns its id.
+//
+// The arrival time is the operator's word here and not this server's clock,
+// because the day the letter came is the day the deadline starts (due.go), and
+// the request may be typed in days later. Restore's date checks apply: no
+// time is ErrNoTime, a time ahead of now by more than restoreSkew
+// ErrFutureTime — a request dated in the future would hold the website's
+// deletion lock of migration 00065 until then, and this package deletes
+// nothing that could undo it.
+//
+// Only a data kind (ErrBadKind otherwise), only a manner other than the form
+// (ErrBadManner otherwise: the form writes its own requests), and the values
+// are checked as Add checks them. The request is stored unanswered; the
+// answer is Answer's.
+func (s *Store) AddReceived(ctx context.Context, r Request) (int64, error) {
+	if !IsDataKind(r.Kind) {
+		return 0, ErrBadKind
+	}
+	if r.Manner == MannerForm || !manners[r.Manner] {
+		return 0, ErrBadManner
+	}
+	if r.CreatedAt.IsZero() {
+		return 0, ErrNoTime
+	}
+	if r.CreatedAt.After(time.Now().Add(restoreSkew)) {
+		return 0, ErrFutureTime
+	}
+	r, err := clean(r)
+	if err != nil {
+		return 0, err
+	}
+	res, err := s.DB.Write.ExecContext(ctx,
+		`INSERT INTO privacy_requests (website_id, kind, locale, name, email, note, manner, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		r.WebsiteID, r.Kind, r.Locale, r.Name, r.Email, r.Note, r.Manner,
+		r.CreatedAt.UTC().Format(timeLayout))
+	if err != nil {
+		return 0, fmt.Errorf("add received request: %w", err)
+	}
+	return res.LastInsertId()
+}

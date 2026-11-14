@@ -543,3 +543,48 @@ func TestListDataListsTheDataRequests(t *testing.T) {
 		t.Errorf("ListData = %+v; want %d then %d", list, newer, older)
 	}
 }
+
+// A request that came by letter is entered by the operator, with the day it
+// arrived: that day, not the day it was typed in, starts the deadline.
+func TestARequestByPostIsEntered(t *testing.T) {
+	s, database := newTestStore(t)
+	ctx := context.Background()
+	ws := website(t, database, "A")
+	arrived := time.Now().Add(-72 * time.Hour).UTC().Truncate(time.Second)
+
+	id, err := s.AddReceived(ctx, Request{WebsiteID: ws, Kind: KindErasure, Manner: MannerPost,
+		Name: "Ada", Email: "ada@example.com", CreatedAt: arrived})
+	if err != nil {
+		t.Fatalf("AddReceived: %v", err)
+	}
+	got, err := s.Get(ctx, ws, id)
+	if err != nil || got == nil {
+		t.Fatalf("Get: %+v, %v", got, err)
+	}
+	if !got.CreatedAt.Equal(arrived) || got.Manner != MannerPost || got.Kind != KindErasure || got.Outcome != "" {
+		t.Errorf("stored %+v; want an open erasure request by post, arrived %v", got, arrived)
+	}
+
+	for _, tc := range []struct {
+		name string
+		r    Request
+		want error
+	}{
+		{"by the form", Request{Kind: KindAccess, Manner: MannerForm, Email: "ada@example.com", CreatedAt: arrived}, ErrBadManner},
+		{"no manner", Request{Kind: KindAccess, Email: "ada@example.com", CreatedAt: arrived}, ErrBadManner},
+		{"by fax", Request{Kind: KindAccess, Manner: "fax", Email: "ada@example.com", CreatedAt: arrived}, ErrBadManner},
+		{"tomorrow", Request{Kind: KindAccess, Manner: MannerPhone, Email: "ada@example.com", CreatedAt: time.Now().Add(24 * time.Hour)}, ErrFutureTime},
+		{"no date", Request{Kind: KindAccess, Manner: MannerPhone, Email: "ada@example.com"}, ErrNoTime},
+		{"an opt-out", Request{Kind: KindOptOut, Manner: MannerEmail, Name: "Ada", CreatedAt: arrived}, ErrBadKind},
+		{"no address", Request{Kind: KindAccess, Manner: MannerEmail, Name: "Ada", CreatedAt: arrived}, ErrNeedsEmail},
+		{"not an address", Request{Kind: KindAccess, Manner: MannerEmail, Email: "ada@example.com?bcc=x", CreatedAt: arrived}, ErrBadEmail},
+	} {
+		tc.r.WebsiteID = ws
+		if _, err := s.AddReceived(ctx, tc.r); !errors.Is(err, tc.want) {
+			t.Errorf("%s: %v; want %v", tc.name, err, tc.want)
+		}
+	}
+	if list, _ := s.ListData(ctx, ws); len(list) != 1 {
+		t.Errorf("%d requests stored; want the one", len(list))
+	}
+}

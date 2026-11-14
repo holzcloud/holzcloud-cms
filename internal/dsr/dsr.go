@@ -125,6 +125,49 @@ const (
 // outcomes are the answers Answer records.
 var outcomes = map[string]bool{OutcomeGranted: true, OutcomePartly: true, OutcomeRefused: true}
 
+// Outcomes are the answers, in the order a form offers them.
+var Outcomes = []string{OutcomeGranted, OutcomePartly, OutcomeRefused}
+
+// ReceivedManners are the manners an operator enters a request with: every
+// one but the form, which writes its own.
+var ReceivedManners = []string{MannerEmail, MannerPost, MannerPhone, MannerOther}
+
+// mannerNames and outcomeNames are the screen's names, catalogue keys. A
+// letter is "Letter" and not "Post", which the catalogue already holds for a
+// blog post.
+var (
+	mannerNames = map[string]string{
+		MannerForm:  i18n.N("Form"),
+		MannerEmail: i18n.N("E-mail"),
+		MannerPost:  i18n.N("Letter"),
+		MannerPhone: i18n.N("Phone"),
+		MannerOther: i18n.N("Other"),
+	}
+	outcomeNames = map[string]string{
+		OutcomeGranted: i18n.N("Granted"),
+		OutcomePartly:  i18n.N("Partly granted"),
+		OutcomeRefused: i18n.N("Refused"),
+	}
+)
+
+// MannerName is the name of a manner, a catalogue key; an unknown manner is
+// its own name.
+func MannerName(manner string) string {
+	if name, ok := mannerNames[manner]; ok {
+		return name
+	}
+	return manner
+}
+
+// OutcomeName is the name of an outcome, a catalogue key; an unknown outcome
+// is its own name.
+func OutcomeName(outcome string) string {
+	if name, ok := outcomeNames[outcome]; ok {
+		return name
+	}
+	return outcome
+}
+
 // family is the kinds a form's hourly ceiling and mail cap count together:
 // the data request form takes all three data kinds, so a ceiling per kind
 // would be three ceilings; the opt-out form takes opt-outs. One form flooded

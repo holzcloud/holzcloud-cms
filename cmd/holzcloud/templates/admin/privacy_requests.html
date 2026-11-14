@@ -1,9 +1,11 @@
 {{/*
   Die Anfragen zu Personendaten einer Website (Phase 33.2, D-01): Auskunft,
   Berichtigung, Löschung — aus dem Formular [[datenanfrage]] oder von Hand
-  erfasst. Die Liste ist der Nachweis, den CCPA regs § 7101 24 Monate lang
-  verlangen; darum gibt es hier nichts zu löschen. Wann eine Zeile gehen darf,
-  entscheidet die Aufbewahrung.
+  erfasst, mit Frist, Antwort und Begründung. Die Liste ist der Nachweis, den
+  CCPA regs § 7101 24 Monate lang verlangen; darum gibt es hier nichts zu
+  löschen und keine Bestätigung (der Zähler in nojs_test.go bleibt bei 22).
+  Beide Formulare sind gewöhnliche POSTs: eine Antwort ohne Begründung kommt
+  als Seite mit dem Fehler zurück, und htmx zeigt eine 422 nicht an.
 */}}
 {{define "content"}}
 {{template "privacy_tabs" .}}
@@ -19,32 +21,125 @@
     <h2>{{t "Request about my data"}}</h2>
     <p class="text-muted">{{t "Visitors send requests about their personal data through the form on this page: access, correction, erasure."}}</p>
     <p><a href="/admin/websites/{{.WebsiteID}}#legal-pages">{{t "Create or open the page on the settings screen"}}</a></p>
+    {{if .NoFramework}}
+    <p class="text-muted">{{t "No legal framework is chosen for this website, so no deadline is shown."}}</p>
+    {{end}}
+</div>
+
+<div class="card" style="margin-bottom: var(--space-3);">
+    <details class="privacy-entry"{{if .EntryOpen}} open{{end}}>
+        <summary>{{t "Enter a request that came by e-mail, post or phone"}}</summary>
+        <form method="POST" action="/admin/websites/{{.WebsiteID}}/datenschutz/anfragen/neu">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="entry-kind">{{t "Kind"}}</label>
+                    <select id="entry-kind" name="kind" class="form-input"
+                            {{with .Errors.kind}}aria-invalid="true" aria-describedby="entry-kind-error"{{end}}>
+                        {{range .Kinds}}<option value="{{.Value}}"{{if eq .Value $.Entry.Kind}} selected{{end}}>{{t .Name}}</option>{{end}}
+                    </select>
+                    {{with .Errors.kind}}<p class="form-error" id="entry-kind-error">{{t .}}</p>{{end}}
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="entry-manner">{{t "Arrived by"}}</label>
+                    <select id="entry-manner" name="manner" class="form-input"
+                            {{with .Errors.manner}}aria-invalid="true" aria-describedby="entry-manner-error"{{end}}>
+                        {{range .Manners}}<option value="{{.Value}}"{{if eq .Value $.Entry.Manner}} selected{{end}}>{{t .Name}}</option>{{end}}
+                    </select>
+                    {{with .Errors.manner}}<p class="form-error" id="entry-manner-error">{{t .}}</p>{{end}}
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="entry-received">{{t "Received on"}}</label>
+                    <input type="date" id="entry-received" name="received" class="form-input" required
+                           max="{{.Today}}" value="{{.Entry.Received}}"
+                           {{with .Errors.received}}aria-invalid="true" aria-describedby="entry-received-error"{{end}}>
+                    {{with .Errors.received}}<p class="form-error" id="entry-received-error">{{t .}}</p>{{end}}
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="entry-email">{{t "E-mail address"}}</label>
+                    <input type="email" id="entry-email" name="email" class="form-input" required
+                           maxlength="254" autocomplete="off" spellcheck="false" value="{{.Entry.Email}}"
+                           {{with .Errors.email}}aria-invalid="true" aria-describedby="entry-email-error"{{end}}>
+                    {{with .Errors.email}}<p class="form-error" id="entry-email-error">{{t .}}</p>{{end}}
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="entry-name">{{t "Name (optional)"}}</label>
+                    <input type="text" id="entry-name" name="name" class="form-input" maxlength="200"
+                           autocomplete="off" value="{{.Entry.Name}}">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="entry-note">{{t "Note (optional)"}}</label>
+                <textarea id="entry-note" name="note" class="form-input" rows="2" maxlength="2000"
+                          {{with .Errors.note}}aria-invalid="true" aria-describedby="entry-note-error"{{end}}>{{.Entry.Note}}</textarea>
+                {{with .Errors.note}}<p class="form-error" id="entry-note-error">{{t .}}</p>{{end}}
+            </div>
+            <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Enter request"}}</button>
+        </form>
+    </details>
 </div>
 
 <div class="card">
     {{if .Requests}}
-    <table class="table">
+    <table class="table privacy-requests">
         <thead>
             <tr>
                 <th scope="col">{{t "Received"}}</th>
                 <th scope="col">{{t "Kind"}}</th>
-                <th scope="col">{{t "Name"}}</th>
-                <th scope="col">{{t "E-mail address"}}</th>
+                <th scope="col">{{t "Person"}}</th>
                 <th scope="col">{{t "Note"}}</th>
-                <th scope="col">{{t "Language"}}</th>
-                <th scope="col"><span class="sr-only">{{t "Find this person's data"}}</span></th>
+                <th scope="col">{{t "Answer due by"}}</th>
+                <th scope="col">{{t "Answer"}}</th>
             </tr>
         </thead>
         <tbody>
             {{range .Requests}}
             <tr>
-                <td class="text-muted" style="white-space:nowrap">{{.CreatedAt.Format "02.01.2006 15:04 MST"}}</td>
+                <td style="white-space:nowrap">
+                    <span class="text-muted">{{.CreatedAt.Format "02.01.2006 15:04 MST"}}</span><br>
+                    <small class="text-muted">{{t .MannerName}}{{if .Language}} · {{t .Language}}{{end}}</small>
+                </td>
                 <td style="white-space:nowrap">{{t .KindName}}</td>
-                <td>{{if .Name}}{{.Name}}{{else}}<span class="text-muted">–</span>{{end}}</td>
-                <td>{{if .MailTo}}<a href="{{.MailTo}}">{{.Email}}</a>{{else if .Email}}{{.Email}}{{else}}<span class="text-muted">–</span>{{end}}</td>
+                <td>
+                    {{if .Name}}{{.Name}}<br>{{end}}
+                    {{if .MailTo}}<a href="{{.MailTo}}">{{.Email}}</a>{{else}}{{.Email}}{{end}}
+                    {{with .SearchURL}}<br><small><a href="{{.}}">{{t "Find this person's data"}}</a></small>{{end}}
+                </td>
                 <td style="white-space:pre-line">{{if .Note}}{{.Note}}{{else}}<span class="text-muted">–</span>{{end}}</td>
-                <td class="text-muted">{{if .Language}}{{t .Language}}{{else}}–{{end}}</td>
-                <td style="white-space:nowrap">{{with .SearchURL}}<a href="{{.}}">{{t "Find this person's data"}}</a>{{end}}</td>
+                <td style="white-space:nowrap">
+                    {{- if .HasDue}}
+                    {{.Due.Answer.Format "02.01.2006"}} <small class="text-muted">({{.DueBy}})</small>
+                    {{- if .Overdue}} <span class="badge badge--warning">{{t "Overdue"}}</span>{{end}}
+                    {{- if and (not .Due.Acknowledge.IsZero) (not .Outcome)}}
+                    <br><small class="text-muted">{{t "Acknowledge by about"}} {{.Due.Acknowledge.Format "02.01.2006"}}</small>
+                    {{- end}}
+                    {{- else}}<span class="text-muted">–</span>{{end -}}
+                </td>
+                <td>
+                    {{- if .Outcome}}
+                    <strong>{{t .OutcomeName}}</strong>{{with .HandledAt}} <span class="text-muted">{{.Format "02.01.2006"}}</span>{{end}}
+                    {{with .Basis}}<p class="text-muted" style="white-space:pre-line; margin:0">{{.}}</p>{{end}}
+                    {{- else}}
+                    {{$mine := eq $.AnswerFor .ID}}
+                    {{/* Keine Bestätigung: eine Antwort festhalten entfernt nichts. */}}
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/datenschutz/anfragen/{{.ID}}/antwort" class="privacy-answer">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <label class="form-label" for="outcome-{{.ID}}">{{t "Answer"}}</label>
+                        <select id="outcome-{{.ID}}" name="outcome" class="form-input"
+                                {{if and $mine $.Errors.outcome}}aria-invalid="true" aria-describedby="outcome-{{.ID}}-error"{{end}}>
+                            {{range $.Outcomes}}<option value="{{.Value}}"{{if and $mine (eq .Value $.Answer.Outcome)}} selected{{end}}>{{t .Name}}</option>{{end}}
+                        </select>
+                        {{if and $mine $.Errors.outcome}}<p class="form-error" id="outcome-{{.ID}}-error">{{t $.Errors.outcome}}</p>{{end}}
+                        <label class="form-label" for="basis-{{.ID}}">{{t "Basis (required for a refusal or a partial answer)"}}</label>
+                        <textarea id="basis-{{.ID}}" name="basis" class="form-input" rows="2" maxlength="2000"
+                                  {{if and $mine $.Errors.basis}}aria-invalid="true" aria-describedby="basis-{{.ID}}-error"{{end}}>{{if $mine}}{{$.Answer.Basis}}{{end}}</textarea>
+                        {{if and $mine $.Errors.basis}}<p class="form-error" id="basis-{{.ID}}-error">{{t $.Errors.basis}}</p>{{end}}
+                        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Record the answer"}}</button>
+                    </form>
+                    {{- end -}}
+                </td>
             </tr>
             {{end}}
         </tbody>

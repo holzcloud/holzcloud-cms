@@ -688,6 +688,10 @@ var editorOpenRoutes = []route{
 	// The requests people sent about their data, like the opt-out list:
 	// reading them publishes nothing (Phase 33.2, D-01).
 	{pattern: "GET /admin/websites/{id}/datenschutz/anfragen"},
+	// Recording an answer or a request that came by letter publishes
+	// nothing either, like marking an opt-out handled.
+	{pattern: "POST /admin/websites/{id}/datenschutz/anfragen/neu"},
+	{pattern: "POST /admin/websites/{id}/datenschutz/anfragen/{requestID}/antwort"},
 	{pattern: "GET /admin/websites/{id}/menus"},
 	{pattern: "POST /admin/websites/{id}/menus"},
 	{pattern: "GET /admin/websites/{id}/menus/{menuID}"},

@@ -375,3 +375,33 @@ func TestTheRequestPageIsNeverAnsweredWithAStaleStamp(t *testing.T) {
 		t.Errorf("If-Modified-Since alone on the request page = %d; want 200 with a fresh form", again.Code)
 	}
 }
+
+// The mail says by when the answer is due, so the operator who reads only
+// the inbox knows the deadline too.
+func TestTheOperatorMailNamesTheDueDate(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu", "")
+	optoutPage(t, database, ws.ID, "meine-daten", datarequestMarkerPage, "")
+	ws = optoutReload(t, database, ws, `notify_email = 'owner@example.com', timezone = 'Europe/Zurich'`)
+	h.SetNotify(domain.NewStore(database), mail.NewQueue(database, mail.NewSender(mail.Config{Host: "smtp.example", Port: 587, From: "cms@example.com"}), nil))
+
+	before := time.Now()
+	if rec := datarequestPost(h, ws, datarequestForm(ws, "meine-daten"), nil); rec.Code != http.StatusSeeOther {
+		t.Fatalf("POST = %d", rec.Code)
+	}
+	msgs := optoutOutbox(t, database, ws.ID)
+	if len(msgs) != 1 {
+		t.Fatalf("%d messages; want exactly one", len(msgs))
+	}
+	zurich, err := time.LoadLocation("Europe/Zurich")
+	if err != nil {
+		t.Skipf("no time zone data: %v", err)
+	}
+	due, ok := dsr.DueFor(before.In(zurich), ws.Frameworks())
+	if !ok {
+		t.Fatal("no due date for an EU website")
+	}
+	want := i18n.T(ws.Locale, "Answer due by") + ": " + due.Answer.Format("02.01.2006")
+	if !strings.Contains(msgs[0].body, want) {
+		t.Errorf("the body lacks %q:\n%s", want, msgs[0].body)
+	}
+}

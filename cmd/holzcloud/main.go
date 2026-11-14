@@ -1191,6 +1191,10 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// The requests people sent about their data, beside the search: open to
 	// the same people, because reading them publishes nothing (D-01).
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/datenschutz/anfragen", adminHandler.ErrHandler(adminHandler.HandlePrivacyRequests))
+	// Entering a request that came by letter and recording an answer publish
+	// nothing either, like marking an opt-out handled.
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/datenschutz/anfragen/neu", adminHandler.ErrHandler(adminHandler.HandlePrivacyRequestNew))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/datenschutz/anfragen/{requestID}/antwort", adminHandler.ErrHandler(adminHandler.HandlePrivacyRequestAnswer))
 	adminProtectedMux.Handle("GET /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	// A website's own mail account. Admins only: it holds a password, and

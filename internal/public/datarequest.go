@@ -247,7 +247,16 @@ func (h *Handler) dataRequestNotify(ctx context.Context, ws *domain.Website, req
 	line(i18n.T(lang, "E-mail address"), req.Email)
 	line(i18n.T(lang, "Note"), req.Note)
 	line(i18n.T(lang, "Language"), req.Locale)
-	line(i18n.T(lang, "Received"), time.Now().In(tmpl.LoadLocation(ws.TimeZone)).Format("02.01.2006 15:04 MST"))
+	received := time.Now().In(tmpl.LoadLocation(ws.TimeZone))
+	line(i18n.T(lang, "Received"), received.Format("02.01.2006 15:04 MST"))
+	// The deadline of the website's frameworks, in its zone (dsr.DueFor):
+	// the operator who reads only the inbox learns it here.
+	if due, ok := dsr.DueFor(received, ws.Frameworks()); ok {
+		line(i18n.T(lang, "Answer due by"), due.Answer.Format("02.01.2006")+" ("+strings.ToUpper(string(due.By))+")")
+		if !due.Acknowledge.IsZero() {
+			line(i18n.T(lang, "Acknowledge by about"), due.Acknowledge.Format("02.01.2006"))
+		}
+	}
 	b.WriteString("\n")
 	b.WriteString(i18n.T(lang, "The request is listed under Settings → Privacy → Requests of this website."))
 	b.WriteString("\n")
