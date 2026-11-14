@@ -84,11 +84,16 @@
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <input type="hidden" name="email" value="{{.Email}}">
         {{if .RequestID}}<input type="hidden" name="anfrage" value="{{.RequestID}}">{{end}}
-        <fieldset class="form-group">
-            <legend class="form-label">{{t "Erase"}}</legend>
-            {{range .Boxes}}
-            <label style="display:block"><input type="checkbox" name="quelle" value="{{.Name}}"{{if .Checked}} checked{{end}}> {{t .Label}}</label>
-            {{end}}
+        <fieldset class="form-fieldset">
+            <legend>{{t "Erase"}}</legend>
+            <div class="form-group">
+                {{range .Boxes}}
+                <label class="form-check">
+                    <input type="checkbox" name="quelle" value="{{.Name}}"{{if .Checked}} checked{{end}}>
+                    <span class="form-check-label">{{t .Label}}</span>
+                </label>
+                {{end}}
+            </div>
         </fieldset>
         {{if .Answers}}<p>{{t "The request this page was opened from is answered with the erasure."}}</p>{{end}}
         <p><strong>{{t "This cannot be undone."}}</strong></p>
