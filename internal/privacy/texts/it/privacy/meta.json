@@ -1,0 +1,50 @@
+{
+  "title": "Dichiarazione sulla protezione dei dati",
+  "slug": "protezione-dei-dati",
+  "also_slugs": ["privacy", "informativa-privacy"],
+  "draft_title": "Dichiarazione sulla protezione dei dati (nuovo modello)",
+  "draft_slug": "protezione-dei-dati-modello",
+
+  "cookie_header": "| Nome | Scopo | Durata | Perché senza consenso |",
+  "processor_header": "| Destinatario | Compito | Dati trasmessi | Contratto |",
+  "purpose_basket": "Viene impostato quando mette qualcosa nel carrello. Ricorda il Suo carrello finché non ordina o finché non scade.",
+  "purpose_price_view": "Viene impostato quando cambia la visualizzazione dei prezzi. Ricorda se Le vengono mostrati i prezzi per clienti privati o per clienti commerciali.",
+  "purpose_unlock": "Viene impostato quando inserisce la password di una pagina protetta. N sta per il numero della pagina protetta. Ricorda che Lei ha sbloccato la pagina.",
+  "why_no_consent": "Tecnicamente necessario per ciò che ha richiesto",
+  "no_cookies": "Questo sito web non imposta cookie.",
+  "cookies_some": "Il Suo browser memorizza qualcosa solo se Lei compie una delle azioni seguenti. Un cookie di questo tipo è tecnicamente necessario per ciò che ha richiesto e non richiede quindi né un consenso né un banner dei cookie.",
+  "processor_hosting": "| Fornitore di hosting {fillin}, Paese del server {fillin} | Gestione del server | Dati di connessione come nella sezione Registro del server | Contratto di trattamento dei dati per conto, se il server si trova presso un terzo |",
+  "processor_payment": "| Fornitore di pagamento Payrexx, Svizzera, nome e indirizzo {fillin} | Esecuzione del pagamento online | Importo, valuta, numero d’ordine con il nome del sito web, nome, indirizzo e-mail, via, codice postale, località e Paese | Contratto di trattamento dei dati per conto, data del contratto {fillin} |",
+
+  "lifetime_day_one": "{n} giorno",
+  "lifetime_day_many": "{n} giorni",
+  "lifetime_hour_one": "{n} ora",
+  "lifetime_hour_many": "{n} ore",
+  "lifetime_minute_one": "{n} minuto",
+  "lifetime_minute_many": "{n} minuti",
+
+  "basis_eu_log": "Registro del server: art. 6 par. 1 lett. f RGPD. L’interesse legittimo è la gestione e la sicurezza del sito web.",
+  "basis_eu_cookies": "Cookie della tabella sopra: art. 6 par. 1 lett. f RGPD, per il carrello di un ordine art. 6 par. 1 lett. b RGPD. Per la memorizzazione nel browser in sé vale la regola sui cookie alla fine di questa sezione.",
+  "basis_eu_orders": "Ordini: art. 6 par. 1 lett. b RGPD (contratto). Senza questi dati un ordine non può essere eseguito. Per i documenti contabili vale inoltre l’art. 6 par. 1 lett. c RGPD (obbligo legale di conservazione).",
+  "basis_eu_payment": "Pagamento online: art. 6 par. 1 lett. b RGPD (contratto).",
+  "basis_eu_forms": "Moduli: art. 6 par. 1 lett. b RGPD se la Sua richiesta riguarda un contratto, altrimenti art. 6 par. 1 lett. f RGPD. L’interesse legittimo è rispondere alla Sua richiesta.",
+  "basis_eu_staff": "Account nell’area di amministrazione: art. 6 par. 1 lett. b RGPD (rapporto di lavoro o di mandato) e art. 6 par. 1 lett. f RGPD. L’interesse legittimo è la sicurezza dell’area di amministrazione.",
+
+  "basis_ch_log": "Registro del server: gestione e sicurezza del sito web. Il motivo giustificativo è l’interesse privato preponderante del titolare del trattamento (art. 31 cpv. 1 LPD).",
+  "basis_ch_cookies": "Cookie della tabella sopra: ciò che Lei ha richiesto. Come può rifiutarli è indicato alla fine di questa sezione.",
+  "basis_ch_orders": "Ordini: conclusione ed esecuzione del contratto con Lei (art. 31 cpv. 2 lett. a LPD). Senza questi dati un ordine non può essere eseguito.",
+  "basis_ch_payment": "Pagamento online: esecuzione del contratto con Lei (art. 31 cpv. 2 lett. a LPD).",
+  "basis_ch_forms": "Moduli: risposta alla Sua richiesta.",
+  "basis_ch_staff": "Account nell’area di amministrazione: lavoro al sito web e protezione dell’area di amministrazione.",
+
+  "basis_uk_log": "Registro del server: art. 6 par. 1 lett. f UK GDPR. L’interesse legittimo è la gestione e la sicurezza del sito web.",
+  "basis_uk_cookies": "Cookie della tabella sopra: art. 6 par. 1 lett. f UK GDPR, per il carrello di un ordine art. 6 par. 1 lett. b UK GDPR. Per la memorizzazione nel browser in sé vale la regola sui cookie alla fine di questa sezione.",
+  "basis_uk_orders": "Ordini: art. 6 par. 1 lett. b UK GDPR (contratto). Senza questi dati un ordine non può essere eseguito.",
+  "basis_uk_payment": "Pagamento online: art. 6 par. 1 lett. b UK GDPR (contratto).",
+  "basis_uk_forms": "Moduli: art. 6 par. 1 lett. b UK GDPR se la Sua richiesta riguarda un contratto, altrimenti art. 6 par. 1 lett. f UK GDPR. L’interesse legittimo è rispondere alla Sua richiesta.",
+  "basis_uk_staff": "Account nell’area di amministrazione: art. 6 par. 1 lett. b e f UK GDPR. L’interesse legittimo è la sicurezza dell’area di amministrazione.",
+
+  "category_us_identifiers": "Identificativi (identifiers): nome e indirizzo e-mail che Lei scrive in un modulo o nel modulo di opposizione, e gli account delle persone che lavorano al sito web.",
+  "category_us_commercial": "Informazioni commerciali (commercial information): i Suoi ordini con indirizzo, articoli e la Sua scelta di consegna e pagamento.",
+  "category_us_internet": "Attività su Internet o su altre reti elettroniche (internet or other electronic network activity): le righe del registro del server con l’indirizzo IP abbreviato."
+}
