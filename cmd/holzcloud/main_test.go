@@ -622,7 +622,7 @@ var editorOpenRoutes = []route{
 	{pattern: "GET /admin/websites/{id}/uebersetzungen"},
 	{pattern: "GET /admin/websites/{id}/pages/new"},
 	{pattern: "POST /admin/websites/{id}/pages/new"},
-	{pattern: "POST /admin/websites/{id}/datenschutz-vorlage"},
+	{pattern: "POST /admin/websites/{id}/rechtstexte"},
 	{pattern: "GET /admin/websites/{id}/pages/{pageID}/edit"},
 	{pattern: "POST /admin/websites/{id}/pages/{pageID}/edit"},
 	{pattern: "POST /admin/websites/{id}/pages/{pageID}/delete"},

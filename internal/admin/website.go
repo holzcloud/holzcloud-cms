@@ -109,14 +109,14 @@ type websiteFormData struct {
 	// MailConfigured says whether this installation can send at all, so the
 	// notification field can admit that filling it in would do nothing.
 	MailConfigured bool
-	// PrivacyHint says what the website's privacy page is, for the card that
-	// offers the current template as a draft. Its zero value has no State and
-	// the card is then not drawn.
-	PrivacyHint privacyHint
+	// Legal is the "Legal pages" card: which page each language has of every
+	// kind the chosen frameworks call for. Its zero value has no rows and the
+	// card is then not drawn.
+	Legal legalCard
 	// ReadOnly is set on the edit screen for somebody without the publishing
 	// right: the settings are online the moment they are saved, so the values
-	// stand in a disabled fieldset and there is no Save (D-05). The privacy
-	// card stays, because it only makes a draft. The create screen is the
+	// stand in a disabled fieldset and there is no Save (D-05). The legal card
+	// stays, because it only makes drafts. The create screen is the
 	// administrator's and never sets it.
 	ReadOnly bool
 }
@@ -266,7 +266,7 @@ func (h *Handler) HandleWebsiteEdit(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	hint, err := h.privacyHint(r.Context(), ws)
+	legalPages, err := h.legalCard(r.Context(), ws)
 	if err != nil {
 		return err
 	}
@@ -284,7 +284,7 @@ func (h *Handler) HandleWebsiteEdit(w http.ResponseWriter, r *http.Request) erro
 		Checks:     h.siteChecks(r.Context(), ws, domains),
 
 		MailConfigured: h.mail.EnabledFor(r.Context(), ws.ID),
-		PrivacyHint:    hint,
+		Legal:          legalPages,
 		ReadOnly:       h.readOnly(r),
 	}
 	if h.mediaStore != nil {

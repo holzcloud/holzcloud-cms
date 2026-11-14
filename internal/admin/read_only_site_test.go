@@ -166,10 +166,10 @@ func TestTheSettingsAndDesignScreensOfferNoChangeWithoutPublishing(t *testing.T)
 	}
 
 	const (
-		nameInput   = `id="name" name="name"`
-		saveButton  = "Save changes"
-		privacyForm = "/datenschutz-vorlage"
-		activate    = `/design/activate"`
+		nameInput  = `id="name" name="name"`
+		saveButton = "Save changes"
+		legalForm  = "/rechtstexte"
+		activate   = `/design/activate"`
 	)
 
 	body := getAs(t, sm, putUser(sm, editor), h.HandleWebsiteEdit, websiteSettingsAddress(ws.ID), route)
@@ -185,8 +185,8 @@ func TestTheSettingsAndDesignScreensOfferNoChangeWithoutPublishing(t *testing.T)
 	if strings.Contains(body, saveButton) {
 		t.Error("settings: Save changes is offered")
 	}
-	if !strings.Contains(body, privacyForm) {
-		t.Error("settings: the privacy template, which only makes a draft, is no longer offered")
+	if !strings.Contains(body, legalForm) {
+		t.Error("settings: the legal card, which only makes drafts, is no longer offered")
 	}
 
 	body = getAs(t, sm, putUser(sm, editor), h.HandleWebsiteDesign, websiteDesignAddress(ws.ID), route)

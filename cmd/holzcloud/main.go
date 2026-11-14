@@ -1101,8 +1101,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/uebersetzungen", adminHandler.ErrHandler(adminHandler.HandleTranslations))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/pages/new", adminHandler.ErrHandler(adminHandler.HandlePageCreate))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/pages/new", adminHandler.ErrHandler(adminHandler.HandlePageCreate))
-	// Creates the current privacy template as a new draft; open to editors like page creation (D-06).
-	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/datenschutz-vorlage", adminHandler.ErrHandler(adminHandler.HandlePrivacyDraft))
+	// Creates the missing legal pages, or one template to compare, as drafts; open to editors like page creation (D-01).
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/rechtstexte", adminHandler.ErrHandler(adminHandler.HandleLegalDrafts))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/pages/{pageID}/edit", adminHandler.ErrHandler(adminHandler.HandlePageEdit))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/pages/{pageID}/edit", adminHandler.ErrHandler(adminHandler.HandlePageEdit))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/pages/{pageID}/delete", adminHandler.ErrHandler(adminHandler.HandlePageDelete))
