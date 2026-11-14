@@ -307,18 +307,25 @@ func (h *Handler) legalChecks(ctx context.Context, ws *domain.Website, base stri
 // the page exists and only the link is missing, to the legal card of the
 // settings screen when there is no page to link yet.
 func (h *Handler) legalCheckLink(ctx context.Context, ws *domain.Website, base string, k privacy.Kind) string {
-	if p, err := h.findLegalPage(ctx, ws, k, ws.Locale); err == nil && p == nil {
+	if p, err := h.findLegalPage(ctx, ws, k, ws.Locale); err == nil && (p == nil || privacy.HasTemplateNotice(p.ContentMarkdown)) {
 		return base + "#legal-pages"
 	}
 	return base + "/menus"
 }
 
 // footerLinksRole reports whether the footer menu points at a published page
-// whose slug contains one of the slugs.
+// that is one of the role's pages and has been filled in.
 //
 // It matches on the slug rather than the title because the slug is what the
 // legal requirement is really about — a reachable address — and because a menu
-// entry can be titled anything.
+// entry can be titled anything. The slug has to BE a role slug, or one with
+// the counter CreatePage appends to a taken address ("datenschutz-2"): it used
+// to be enough to contain one, and a post "privacy-tips" or a published
+// compare draft "datenschutz-vorlage" passed (IN-06 of the 33.1 review).
+//
+// A page that still carries the template notice is not done either. The legal
+// card calls it an unfilled template, and a checklist that called it ready
+// would contradict the card on the same screen.
 func (h *Handler) footerLinksRole(ctx context.Context, websiteID int64, slugs []string) bool {
 	if h.menuStore == nil {
 		return false
@@ -331,14 +338,27 @@ func (h *Handler) footerLinksRole(ctx context.Context, websiteID int64, slugs []
 		if node.PageSlug == "" {
 			continue
 		}
-		pg, err := h.pages.GetPublishedPage(ctx, websiteID, node.PageSlug)
-		if err != nil || pg == nil {
+		if !isRoleSlug(node.PageSlug, slugs) {
 			continue
 		}
-		for _, s := range slugs {
-			if strings.Contains(node.PageSlug, s) {
-				return true
-			}
+		pg, err := h.pages.GetPublishedPage(ctx, websiteID, node.PageSlug)
+		if err != nil || pg == nil || privacy.HasTemplateNotice(pg.ContentMarkdown) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// isRoleSlug reports whether slug is one of the role slugs, bare or with the
+// numeric counter CreatePage appends when an address is taken.
+func isRoleSlug(slug string, roles []string) bool {
+	for _, s := range roles {
+		if slug == s {
+			return true
+		}
+		if rest, ok := strings.CutPrefix(slug, s+"-"); ok && rest != "" && strings.Trim(rest, "0123456789") == "" {
+			return true
 		}
 	}
 	return false

@@ -433,11 +433,23 @@ func TestNewWebsiteGetsStarterContent(t *testing.T) {
 	if imprintCheck(h.siteChecks(context.Background(), ws2, nil)) {
 		t.Error("the imprint check passes while the page is still a draft")
 	}
-	if err := store.SetPageStatus(context.Background(), mustPageID(t, store, 2, "impressum"), "published", nil); err != nil {
+	imprintID := mustPageID(t, store, 2, "impressum")
+	if err := store.SetPageStatus(context.Background(), imprintID, "published", nil); err != nil {
 		t.Fatalf("publish imprint: %v", err)
 	}
+	// Published but still the template: the legal card calls that an unfilled
+	// template, and the check agrees with it (IN-06 of the 33.1 review). It
+	// flips once the operator's own text replaces the template.
+	if imprintCheck(h.siteChecks(context.Background(), ws2, nil)) {
+		t.Error("the imprint check passes while the published page is still the unfilled template")
+	}
+	if _, err := database.Write.Exec(
+		`UPDATE pages SET content_markdown = 'Hofladen Muster, Dorfstrasse 1, 8000 Zürich, info@example.ch' WHERE id = $1`,
+		imprintID); err != nil {
+		t.Fatalf("fill in the imprint: %v", err)
+	}
 	if !imprintCheck(h.siteChecks(context.Background(), ws2, nil)) {
-		t.Error("the imprint check still fails after publishing the page")
+		t.Error("the imprint check still fails after the filled-in page was published")
 	}
 }
 

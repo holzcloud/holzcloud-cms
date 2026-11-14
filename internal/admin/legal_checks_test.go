@@ -7,6 +7,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/privacy"
 )
 
 // The labels of the legal items, as the catalogue knows them.
@@ -31,8 +32,14 @@ func legalCheckWebsite(t *testing.T, h *Handler, database *db.DB, ws *domain.Web
 // of the main language. linked false creates the page without the menu entry.
 func legalCheckFooter(t *testing.T, h *Handler, database *db.DB, websiteID int64, slug, status string, linked bool) {
 	t.Helper()
+	legalCheckFooterText(t, h, database, websiteID, slug, status, "text", linked)
+}
+
+// legalCheckFooterText is legalCheckFooter with the page's Markdown.
+func legalCheckFooterText(t *testing.T, h *Handler, database *db.DB, websiteID int64, slug, status, text string, linked bool) {
+	t.Helper()
 	ctx := context.Background()
-	p := seedPage(t, database, websiteID, "Page "+slug, slug, "text", status)
+	p := seedPage(t, database, websiteID, "Page "+slug, slug, text, status)
 	if !linked {
 		return
 	}
@@ -151,6 +158,36 @@ func TestThePrivacyCheckIsAlwaysThere(t *testing.T) {
 			c := legalCheckFind(h.siteChecks(context.Background(), stored, nil), legalCheckPrivacy)
 			if c == nil || c.OK != tc.want {
 				t.Errorf("%+v, want done = %v", c, tc.want)
+			}
+		})
+	}
+}
+
+// The legal checks want the page itself (IN-06 of the 33.1 review). A slug
+// that merely contains a role slug — a post "privacy-tips", the compare draft
+// "datenschutz-vorlage" once published — used to pass, and so did a page that
+// still carries the template notice, which the legal card calls an unfilled
+// template. A role slug with the counter CreatePage appends ("datenschutz-2")
+// is still the page.
+func TestTheLegalCheckWantsTheRealPage(t *testing.T) {
+	notice := "**" + privacy.TemplateNotice("de") + "** Rest"
+	for _, tc := range []struct {
+		name, slug, text string
+		want             bool
+	}{
+		{"the role slug", "datenschutz", "Unser Text.", true},
+		{"the role slug with a counter", "datenschutz-2", "Unser Text.", true},
+		{"a post about privacy", "privacy-tips", "Tipps.", false},
+		{"the published compare draft", "datenschutz-vorlage", "Unser Text.", false},
+		{"an unfilled template", "datenschutz", notice, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, _, database, ws := newTestAdmin(t)
+			stored := legalCheckWebsite(t, h, database, ws, "eu", "de")
+			legalCheckFooterText(t, h, database, ws.ID, tc.slug, "published", tc.text, true)
+			c := legalCheckFind(h.siteChecks(context.Background(), stored, nil), legalCheckPrivacy)
+			if c == nil || c.OK != tc.want {
+				t.Errorf("%s (%q): %+v, want done = %v", tc.name, tc.slug, c, tc.want)
 			}
 		})
 	}
