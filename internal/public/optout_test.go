@@ -3,6 +3,7 @@ package public
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // The opt-out widget, read the way a visitor reads it: a page served through
@@ -926,6 +928,22 @@ func TestTheWidgetPageIsNotRevalidatedByDate(t *testing.T) {
 	cond := optoutDo(h.HandlePage, ws, http.MethodGet, "/ueber-uns", nil, http.Header{"If-Modified-Since": {future}})
 	if cond.Code != http.StatusNotModified {
 		t.Errorf("If-Modified-Since on a page without the widget = %d; want 304 as before", cond.Code)
+	}
+}
+
+// A value cannot carry the widget in, and the reason is not escaping (IN-03):
+// HTML escaping changes no character of "[[widerspruch]]". It is that a
+// value's text holds no bracket at all — value.CleanText refuses one and the
+// CHECK of migration 00062 refuses it under that. pagedata.go's comment at
+// the widget pass rests on these two, so this test holds them from here.
+func TestAValueCannotCarryTheWidget(t *testing.T) {
+	_, database, ws := optoutSite(t, "eu,us", "")
+	if _, _, err := value.NewStore(database).Set(context.Background(), ws.ID, "formular", optoutMarker); !errors.Is(err, value.ErrTextMarker) {
+		t.Errorf("value.Store.Set with the marker = %v; want ErrTextMarker", err)
+	}
+	if _, err := database.Write.Exec(
+		`INSERT INTO site_values (website_id, key, value) VALUES ($1, 'formular', $2)`, ws.ID, optoutMarker); err == nil {
+		t.Error("the table took a value text with brackets")
 	}
 }
 

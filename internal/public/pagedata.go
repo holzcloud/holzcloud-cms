@@ -116,8 +116,11 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 	// where this stands is the decision.
 	//
 	// AFTER the values, so the page around the widget is the page a visitor
-	// reads, and so a value can never carry the marker in through the back
-	// door: a value is escaped text, and an escaped marker is not a marker.
+	// reads. A value cannot carry the marker in through the back door, and
+	// not because it is escaped — escaping changes no character of
+	// "[[widerspruch]]" — but because a value's text holds no bracket at all:
+	// value.CleanText refuses one, and the CHECK of migration 00062 refuses it
+	// under that (TestAValueCannotCarryTheWidget).
 	//
 	// BEFORE the plugins and the responsive rewrite, for the reason both give:
 	// a filter sees the page as a visitor would, form included.
