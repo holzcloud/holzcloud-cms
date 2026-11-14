@@ -117,12 +117,15 @@ func privacyRecord(key string, b order) plugin.PrivacyRecord {
 	}
 	add("sum", plugin.T("Total"), summeText(b))
 	add("currency", plugin.T("Currency"), b.Currency)
-	add("received", plugin.T("Received"), shortDate(b.Eingegangen))
+	// Times as stored, RFC 3339, under a name ending in _at: the Privacy
+	// screen shows such a field on the website's clock, which this plugin
+	// does not know.
+	add("received_at", plugin.T("Received"), b.Eingegangen)
 	if b.Done {
 		add("done", plugin.T("Status"), plugin.T("done"))
 	}
 	if rec.Erased {
-		add("erased", plugin.T("Deleted on"), shortDate(b.ErasedAt))
+		add("erased_at", plugin.T("Deleted on"), b.ErasedAt)
 	}
 	return rec
 }

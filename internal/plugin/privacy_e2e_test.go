@@ -255,6 +255,14 @@ func TestTheContactFormAnswersFind(t *testing.T) {
 			if f, ok := privacyField(rec, "consent"); !ok || !bytes.Contains([]byte(f.Value), []byte("Ich bin einverstanden.")) {
 				t.Errorf("the consent sentence is missing: %+v", f)
 			}
+			// A time inside a sentence cannot be moved to the website's clock
+			// by the host, so it says which clock it is on.
+			for _, name := range []string{"consent", "reply"} {
+				f, _ := privacyField(rec, name)
+				if !bytes.Contains([]byte(f.Label+f.Value), []byte("UTC")) {
+					t.Errorf("%s does not say its time is UTC: %+v", name, f)
+				}
+			}
 		case contactKeyAssembled:
 			if rec.Label != "Hoffest" {
 				t.Errorf("an assembled form's message is labelled %q, want its form's name", rec.Label)
@@ -541,10 +549,15 @@ func TestTheFarmShopFindsOrders(t *testing.T) {
 		if want := "name,email,phone,address"; joinStrings(rec.Correctable) != want {
 			t.Errorf("%s: correctable %v, want %s", rec.Key, rec.Correctable, want)
 		}
-		for _, name := range []string{"name", "email", "phone", "address", "note", "item_1", "sum", "currency", "received"} {
+		for _, name := range []string{"name", "email", "phone", "address", "note", "item_1", "sum", "currency", "received_at"} {
 			if f, ok := privacyField(rec, name); !ok || f.Label == "" || f.Value == "" {
 				t.Errorf("%s: field %s = %+v", rec.Key, name, f)
 			}
+		}
+		// A time goes out as RFC 3339 under a name ending in _at, so the
+		// Privacy screen shows it on the website's clock like the core's.
+		if f, _ := privacyField(rec, "received_at"); f.Value != rec.Time {
+			t.Errorf("%s: received_at = %q, want the stored time %q", rec.Key, f.Value, rec.Time)
 		}
 		if f, _ := privacyField(rec, "item_1"); !bytes.Contains([]byte(f.Value), []byte("Schafmilchseife")) {
 			t.Errorf("%s: the item does not name the product: %q", rec.Key, f.Value)

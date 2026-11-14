@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
@@ -153,6 +154,29 @@ func TestPluginRecordsJoinTheSearch(t *testing.T) {
 	}
 	if n := len(resB.BySource()["plugin:kontaktformular"]); n != 0 {
 		t.Errorf("website B found %d of A's messages", n)
+	}
+}
+
+// A plugin's section on the Privacy screen carries its name in the
+// operator's language, from the plugin's own manifest, as the plugin list
+// does.
+func TestAPluginIsNamedInTheOperatorsLanguage(t *testing.T) {
+	_, database := newTestStore(t)
+	a := website(t, database, "A")
+	m, store := plugintestManager(t, database)
+	id := plugintestInstall(t, m, "kontaktformular", a)
+	plugintestSeed(t, store, id, a, "nachricht:2026-10-01T09:00:00Z-aaaaaaaa", map[string]any{
+		"kennung": "2026-10-01T09:00:00Z-aaaaaaaa", "name": "Ada", "email": "ada@example.com",
+		"text": "x", "zeit": "2026-10-01T09:00:00Z",
+	})
+	s := NewService(database)
+	s.SetPlugins(m)
+	res, err := s.Find(i18n.WithLang(context.Background(), "de"), a, "ada@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h, _ := plugintestHolder(res, id); h.Name != "Kontaktformular" {
+		t.Errorf("holder name under German = %q, want Kontaktformular", h.Name)
 	}
 }
 

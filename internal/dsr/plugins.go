@@ -58,7 +58,25 @@ func (s *Service) pluginSources(ctx context.Context, websiteID int64) ([]Source,
 		}
 		holders = append(holders, h)
 	}
-	return sources, holders, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	rows.Close()
+	// The name the plugin list shows: the manifest's own translation in the
+	// operator's language, for a plugin that is still installed. Asked after
+	// the rows are closed, so the walk holds one read connection at a time.
+	if s.plugins != nil {
+		for i := range holders {
+			st, err := s.plugins.Get(ctx, holders[i].PluginID)
+			if err != nil || st.Manifest == nil {
+				continue
+			}
+			if name := st.Manifest.NameIn(i18n.Lang(ctx)); name != "" {
+				holders[i].Name = name
+			}
+		}
+	}
+	return sources, holders, nil
 }
 
 // pluginSource asks one plugin through its privacy hook.

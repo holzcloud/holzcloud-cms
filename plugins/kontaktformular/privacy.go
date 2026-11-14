@@ -338,15 +338,17 @@ func privacyRecord(key string, n message) plugin.PrivacyRecord {
 		// The label is the question the operator wrote.
 		add("answer_"+strconv.Itoa(i+1), a.Label, strings.TrimSpace(a.Value))
 	}
+	// A time inside a sentence cannot be moved to the website's clock by the
+	// host, so it says which clock it is on.
 	if n.Consent != "" {
-		add("consent", plugin.T("Consent"), plugin.Tf("Agreed on %s: “%s”", shortDate(n.ConsentTime), n.Consent))
+		add("consent", plugin.T("Consent"), plugin.Tf("Agreed on %s: “%s”", utcDate(n.ConsentTime), n.Consent))
 	}
 	for i, a := range n.Attachments {
 		add("attachment_"+strconv.Itoa(i+1), plugin.T("Attachment"), a.Name)
 		rec.MediaIDs = append(rec.MediaIDs, a.MediaID)
 	}
 	if n.Reply != "" {
-		add("reply", plugin.Tf("Answered on %s", shortDate(n.ReplyTime)), n.Reply)
+		add("reply", plugin.Tf("Answered on %s", utcDate(n.ReplyTime)), n.Reply)
 	}
 	if n.RefusedFor != "" {
 		why := quarantineReasons[n.RefusedFor]
@@ -359,6 +361,16 @@ func privacyRecord(key string, n message) plugin.PrivacyRecord {
 		add("read", plugin.T("Status"), plugin.T("Read"))
 	}
 	return rec
+}
+
+// utcDate is shortDate with the clock named: the stored times are UTC, and
+// the Privacy screen shows the record's own time on the website's clock right
+// beside it.
+func utcDate(s string) string {
+	if _, err := time.Parse(time.RFC3339, s); err != nil {
+		return s
+	}
+	return shortDate(s) + " UTC"
 }
 
 // walk calls f for every key under prefix, oldest first, until f says stop
