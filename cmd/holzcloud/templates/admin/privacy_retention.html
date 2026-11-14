@@ -34,11 +34,11 @@
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/datenschutz/aufbewahrung">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         {{if .ReadOnly}}<p class="text-muted">{{t .ReadOnlyNotice}}</p>{{end}}
-        <fieldset class="retention-periods"{{if .ReadOnly}} disabled{{end}}>
+        <fieldset class="read-only-fields"{{if .ReadOnly}} disabled{{end}}>
             <legend class="sr-only">{{t "Retention"}}</legend>
             {{range .Periods}}
             <div class="form-group" id="retention-{{.Kind}}">
-                <label class="form-label" for="period-{{.Kind}}">{{t .Label}}{{if .IsDefault}} <span class="badge">{{t "Default"}}</span>{{end}}</label>
+                <label class="form-label" for="period-{{.Kind}}">{{t .Label}}{{if .IsDefault}} <span class="badge badge--draft">{{t "Default"}}</span>{{end}}</label>
                 <div style="display:flex; align-items:center; gap: var(--space-1);">
                     <input type="number" id="period-{{.Kind}}" name="{{.Kind}}" class="form-input" style="max-width: 8rem;"
                            required inputmode="numeric" min="{{.Min}}" max="{{.Max}}" step="{{.Step}}" value="{{.Value}}"
