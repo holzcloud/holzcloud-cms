@@ -307,6 +307,8 @@ func main() {
 	adminHandler.SetRequestStore(requestStore)
 	// The Privacy screen finds a person's data and downloads it.
 	adminHandler.SetDataRights(dataRights)
+	// The retention job deletes the files of what it expires.
+	dataRights.SetMedia(mediaStore, cfg.DataDir)
 	adminHandler.SetWording(wordingStore)
 	adminHandler.SetProductStore(productStore)
 	adminHandler.SetOrderStore(orderStore)
@@ -647,6 +649,22 @@ func main() {
 					slog.Info("purged expired trash", "pages", n)
 				}
 				return nil
+			},
+		},
+		jobs.Job{
+			// Deletes what a website no longer needs once its period has
+			// passed (Phase 33.2, D-05, D-09). Hourly with a gate stored in
+			// the database, and not every 24 hours: the ticker starts with
+			// the process, so a service restarted more often than daily
+			// would never reach a 24-hour tick. The gate runs it once a day,
+			// at night when it can, and again at the next tick after a
+			// failure; every run is recorded and a failure is returned here
+			// so the journal says so too.
+			Name:       "retention",
+			Every:      time.Hour,
+			RunAtStart: true,
+			Fn: func(ctx context.Context) error {
+				return dataRights.RetentionTick(ctx, time.Now())
 			},
 		},
 		jobs.Job{
@@ -1195,6 +1213,12 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// nothing either, like marking an opt-out handled.
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/datenschutz/anfragen/neu", adminHandler.ErrHandler(adminHandler.HandlePrivacyRequestNew))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/datenschutz/anfragen/{requestID}/antwort", adminHandler.ErrHandler(adminHandler.HandlePrivacyRequestAnswer))
+	// The retention periods. Reading them is open to the same people;
+	// changing one deletes data at the next run of the job, so the POST asks
+	// for the password again and the handler for the publishing right
+	// (Phase 33.2, D-04).
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/datenschutz/aufbewahrung", adminHandler.ErrHandler(adminHandler.HandlePrivacyRetention))
+	adminProtectedMux.Handle("POST /admin/websites/{id}/datenschutz/aufbewahrung", requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePrivacyRetention))))
 	adminProtectedMux.Handle("GET /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	// A website's own mail account. Admins only: it holds a password, and

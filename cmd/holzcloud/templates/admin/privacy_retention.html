@@ -1,0 +1,60 @@
+{{/*
+  Die Aufbewahrungsfristen einer Website (Phase 33.2, D-04, D-05, D-09): wie
+  lange Formulareingänge, Datenschutzanfragen und Bestellungen bleiben, und
+  was der Aufbewahrungs-Job beim letzten Lauf gelöscht hat. Das Serverprotokoll
+  steht mit seiner Frist da und lässt sich hier nicht ändern: journald hält es
+  für den ganzen Server.
+
+  Eine kürzere Frist löscht beim nächsten Lauf, ohne weitere Frage. Darum fragt
+  der Server vor dem Speichern das Passwort noch einmal ab (requireFresh), und
+  es gibt keine htmx-Bestätigung (der Zähler in nojs_test.go bleibt bei 22).
+  Das Formular ist ein gewöhnlicher POST: eine abgelehnte Frist kommt als Seite
+  mit dem Fehler zurück, und htmx zeigt eine 422 nicht an.
+*/}}
+{{define "content"}}
+{{template "privacy_tabs" .}}
+{{template "privacy_retention-content" .}}
+{{end}}
+
+{{define "privacy_retention-content"}}
+<div class="card" id="retention-run" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Last run"}}</h2>
+    {{with .Run}}
+    <p>
+        <strong>{{t .StatusName}}</strong>
+        <span class="text-muted">· {{.Started.Format "02.01.2006 15:04 MST"}}</span>
+        <span>· {{tf "%d deleted" .Deleted}}</span>
+    </p>
+    {{else}}
+    <p class="text-muted">{{t "No run yet."}}</p>
+    {{end}}
+</div>
+
+<div class="card">
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/datenschutz/aufbewahrung">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        {{if .ReadOnly}}<p class="text-muted">{{t .ReadOnlyNotice}}</p>{{end}}
+        <fieldset class="retention-periods"{{if .ReadOnly}} disabled{{end}}>
+            <legend class="sr-only">{{t "Retention"}}</legend>
+            {{range .Periods}}
+            <div class="form-group" id="retention-{{.Kind}}">
+                <label class="form-label" for="period-{{.Kind}}">{{t .Label}}{{if .IsDefault}} <span class="badge">{{t "Default"}}</span>{{end}}</label>
+                <div style="display:flex; align-items:center; gap: var(--space-1);">
+                    <input type="number" id="period-{{.Kind}}" name="{{.Kind}}" class="form-input" style="max-width: 8rem;"
+                           required inputmode="numeric" min="{{.Min}}" max="{{.Max}}" step="{{.Step}}" value="{{.Value}}"
+                           {{if .Error}}aria-invalid="true" aria-describedby="period-{{.Kind}}-error"{{end}}>
+                    <span>{{t .Unit}}</span>
+                </div>
+                <p class="form-hint">{{t "Default"}}: {{.Default}} {{t .Unit}}</p>
+                {{if .Error}}<p class="form-error" id="period-{{.Kind}}-error">{{if .ErrorArg}}{{tf .Error .ErrorArg}}{{else}}{{t .Error}}{{end}}</p>{{end}}
+            </div>
+            {{end}}
+            <div class="form-group" id="retention-logs">
+                <span class="form-label">{{t "Server log"}}</span>
+                <p class="form-hint">{{tf "%d days, enforced by the system journal (deploy/journald-holzcloud.conf) for the whole server; it cannot be changed here." .LogDays}}</p>
+            </div>
+            <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
+        </fieldset>
+    </form>
+</div>
+{{end}}

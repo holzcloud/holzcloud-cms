@@ -1170,3 +1170,101 @@ func TestMigration00067DownAndUp(t *testing.T) {
 		t.Errorf("%d rows after the trip up; want 2", n)
 	}
 }
+
+// TestMigration00068DownAndUp takes the retention tables, the two order
+// columns and the installation's "retention since" off and puts them back.
+func TestMigration00068DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+	tables := []string{"retention_periods", "retention_runs", "retention_deletions"}
+	tablesPresent := func() int {
+		n := 0
+		for _, name := range tables {
+			var count int
+			if err := database.Read.QueryRowContext(ctx,
+				`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, name).Scan(&count); err != nil {
+				t.Fatalf("sqlite_master: %v", err)
+			}
+			n += count
+		}
+		return n
+	}
+	orderColumns := func() int {
+		var n int
+		if err := database.Read.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM pragma_table_info('orders') WHERE name IN ('erased_at', 'retain_until')`).Scan(&n); err != nil {
+			t.Fatalf("table_info: %v", err)
+		}
+		return n
+	}
+	since := func() int {
+		var n int
+		if err := database.Read.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM app_settings WHERE key = 'retention.since' AND value <> ''`).Scan(&n); err != nil {
+			t.Fatalf("app_settings: %v", err)
+		}
+		return n
+	}
+
+	if got := tablesPresent(); got != len(tables) {
+		t.Fatalf("%d of the %d retention tables after the migrations", got, len(tables))
+	}
+	if got := orderColumns(); got != 2 {
+		t.Fatalf("%d of the two order columns after the migrations", got)
+	}
+	if got := since(); got != 1 {
+		t.Fatalf("retention.since is not set after the migrations")
+	}
+	res, err := database.Write.ExecContext(ctx, `INSERT INTO websites (name, description) VALUES ('Hofladen', '')`)
+	if err != nil {
+		t.Fatalf("creating a website: %v", err)
+	}
+	site, _ := res.LastInsertId()
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO retention_periods (website_id, kind, months) VALUES (?, 'form_submission', 6)`, site); err != nil {
+		t.Fatalf("a period: %v", err)
+	}
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO retention_periods (website_id, kind, months) VALUES (?, 'logs', 6)`, site); err == nil {
+		t.Error("the table took a period of kind logs, which journald keeps and nobody here can change")
+	}
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO retention_periods (website_id, kind, months) VALUES (?, 'request', 0)`, site); err == nil {
+		t.Error("the table took a period of 0 months")
+	}
+
+	rollBackTo(t, ctx, provider, 67)
+	if got := tablesPresent(); got != 0 {
+		t.Errorf("%d retention tables left after rolling back to 00067, want none", got)
+	}
+	if got := orderColumns(); got != 0 {
+		t.Errorf("%d order columns left after rolling back to 00067, want none", got)
+	}
+	if got := since(); got != 0 {
+		t.Error("retention.since left after rolling back to 00067")
+	}
+
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+	if got := tablesPresent(); got != len(tables) {
+		t.Errorf("%d of the %d retention tables after the trip back up", got, len(tables))
+	}
+	if got := orderColumns(); got != 2 {
+		t.Errorf("%d of the two order columns after the trip back up", got)
+	}
+	if got := since(); got != 1 {
+		t.Error("retention.since is not set after the trip back up")
+	}
+}

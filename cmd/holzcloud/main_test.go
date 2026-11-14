@@ -692,6 +692,9 @@ var editorOpenRoutes = []route{
 	// nothing either, like marking an opt-out handled.
 	{pattern: "POST /admin/websites/{id}/datenschutz/anfragen/neu"},
 	{pattern: "POST /admin/websites/{id}/datenschutz/anfragen/{requestID}/antwort"},
+	// The retention periods are read by everybody with access to the
+	// website; changing one is decided by the handler (handlerDecidesRoutes).
+	{pattern: "GET /admin/websites/{id}/datenschutz/aufbewahrung"},
 	{pattern: "GET /admin/websites/{id}/menus"},
 	{pattern: "POST /admin/websites/{id}/menus"},
 	{pattern: "GET /admin/websites/{id}/menus/{menuID}"},
@@ -745,6 +748,11 @@ var handlerDecidesRoutes = []struct {
 			"rule about two identities and not about a role, so requireAdmin cannot express it"},
 	{"POST /admin/users/{id}/password",
 		"the same handler and the same check, on the arm that writes"},
+	{"POST /admin/websites/{id}/datenschutz/aufbewahrung",
+		"a shortened period deletes data at the next run, so changing one is a publisher's " +
+			"decision: HandlePrivacyRetention asks refuseReadOnly before it writes, and " +
+			"requireFresh stands in front of it in the router. An editor reaches the handler " +
+			"and is refused with the read-only sentence, never with a 403"},
 }
 
 // adminRoutesInSource reads the patterns straight out of newRouter.
@@ -1349,6 +1357,25 @@ func TestSensitiveRoutesAskForThePasswordAgain(t *testing.T) {
 		}
 	}
 
+	// A retention period, changed by an administrator whose second factor
+	// stands, so the request reaches the website's routes: the password is
+	// asked again before anything is stored (Phase 33.2, D-04).
+	if _, err := database.Write.Exec(`UPDATE users SET totp_secret = 'JBSWY3DPEHPK3PXP',
+		totp_confirmed_at = CURRENT_TIMESTAMP WHERE email = 'admin-fresh@test'`); err != nil {
+		t.Fatalf("confirm the second factor: %v", err)
+	}
+	if _, err := database.Write.Exec(`INSERT INTO websites (id, name, description) VALUES (1, 'Hofladen', '')`); err != nil {
+		t.Fatal(err)
+	}
+	rec := do(handler, "POST", "/admin/websites/1/datenschutz/aufbewahrung", admin)
+	if loc := rec.Header().Get("Location"); rec.Code != http.StatusSeeOther || !strings.HasPrefix(loc, auth.ConfirmPath) {
+		t.Errorf("POST the retention periods: got %d to %q, want a redirect to %s", rec.Code, loc, auth.ConfirmPath)
+	}
+	var stored int
+	if err := database.Read.QueryRow(`SELECT COUNT(*) FROM retention_periods`).Scan(&stored); err != nil || stored != 0 {
+		t.Errorf("%d periods stored without the password (%v)", stored, err)
+	}
+
 	src, err := os.ReadFile("main.go")
 	if err != nil {
 		t.Fatal(err)
@@ -1364,6 +1391,9 @@ func TestSensitiveRoutesAskForThePasswordAgain(t *testing.T) {
 		// takeovers from an unattended laptop.
 		"POST /admin/users/new", "POST /admin/users/{id}/link",
 		"POST /admin/users/{id}/sessions/revoke",
+		// Phase 33.2, D-04: a shortened retention period deletes personal
+		// data at the next run of the job, without a further question.
+		"POST /admin/websites/{id}/datenschutz/aufbewahrung",
 	} {
 		found := false
 		for _, l := range lines {

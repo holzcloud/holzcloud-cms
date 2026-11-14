@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 )
 
@@ -141,6 +142,11 @@ type Service struct {
 	plugins *plugin.Manager
 	// extra are sources a test adds after the core ones.
 	extra []Source
+	// media and dataDir delete the files of records the retention job
+	// removes. Nil means no media store: a plugin that names a file then
+	// fails its kind instead of leaving the file behind unreported.
+	media   *media.Store
+	dataDir string
 }
 
 // NewService builds the search over the database.
@@ -149,6 +155,11 @@ func NewService(database *db.DB) *Service { return &Service{db: database} }
 // SetPlugins hands the service the plugin manager. Nil, or never called,
 // means the plugins are not running on this server.
 func (s *Service) SetPlugins(m *plugin.Manager) { s.plugins = m }
+
+// SetMedia hands the service the media store and the data directory the
+// files live under, so the retention job can delete the attachments of what
+// it expires.
+func (s *Service) SetMedia(m *media.Store, dataDir string) { s.media, s.dataDir = m, dataDir }
 
 // Find searches every source of the website for the address.
 //

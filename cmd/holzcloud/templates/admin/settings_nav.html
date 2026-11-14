@@ -21,7 +21,7 @@
         <a href="/admin/websites/{{$id}}/redirects" class="settings-nav__item{{if eq .ActiveNav "redirects"}} is-active{{end}}"{{if eq .ActiveNav "redirects"}} aria-current="page"{{end}}>{{template "icon-redirect"}}<span>{{t "Redirects"}}</span></a>
         <a href="/admin/websites/{{$id}}/seo" class="settings-nav__item{{if eq .ActiveNav "seo"}} is-active{{end}}"{{if eq .ActiveNav "seo"}} aria-current="page"{{end}}>{{template "icon-seo"}}<span>{{t "SEO"}}</span></a>
         {{/* Jeder Reiter des Datenschutzes markiert denselben Eintrag. */}}
-        {{$privacy := or (eq .ActiveNav "privacy") (eq .ActiveNav "privacy-requests")}}
+        {{$privacy := or (eq .ActiveNav "privacy") (eq .ActiveNav "privacy-requests") (eq .ActiveNav "privacy-retention")}}
         <a href="/admin/websites/{{$id}}/datenschutz" class="settings-nav__item{{if $privacy}} is-active{{end}}"{{if $privacy}} aria-current="page"{{end}}>{{template "icon-privacy"}}<span>{{t "Privacy"}}</span></a>
     {{if .NavWebsite.HasUSFramework}}
         <a href="/admin/websites/{{$id}}/widersprueche" class="settings-nav__item{{if eq .ActiveNav "optouts"}} is-active{{end}}"{{if eq .ActiveNav "optouts"}} aria-current="page"{{end}}>{{template "icon-mail"}}<span>{{t "Opt-outs"}}</span></a>
@@ -107,6 +107,7 @@
     {{$id := .NavWebsite.ID}}
     <a href="/admin/websites/{{$id}}/datenschutz" class="section-tab{{if eq .ActiveNav "privacy"}} is-active{{end}}"{{if eq .ActiveNav "privacy"}} aria-current="page"{{end}}>{{t "Find a person"}}</a>
     <a href="/admin/websites/{{$id}}/datenschutz/anfragen" class="section-tab{{if eq .ActiveNav "privacy-requests"}} is-active{{end}}"{{if eq .ActiveNav "privacy-requests"}} aria-current="page"{{end}}>{{t "Requests"}}</a>
+    <a href="/admin/websites/{{$id}}/datenschutz/aufbewahrung" class="section-tab{{if eq .ActiveNav "privacy-retention"}} is-active{{end}}"{{if eq .ActiveNav "privacy-retention"}} aria-current="page"{{end}}>{{t "Retention"}}</a>
 </nav>
 {{end}}
 {{end}}
