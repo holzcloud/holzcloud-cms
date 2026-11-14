@@ -6,10 +6,10 @@ package dsr
 // How an order is erased was decided by the phase's research and then by the
 // owner (D-03, D-07, confirmed 2026-11-14), not assumed here:
 //
-//   - An order is the seller's copy of an invoice. UStG § 14b asks for the
-//     copy ("Doppel der Rechnung") to be kept, and AO § 146(4) forbids
-//     changing a record "in einer Weise …, dass der ursprüngliche Inhalt
-//     nicht mehr feststellbar ist". So the fields the invoice prints — name,
+//   - An order is the seller's copy of an invoice. UStG § 14b asks for that
+//     copy to be kept, and AO § 146(4) forbids changing a record in a way
+//     that leaves its original content no longer ascertainable. So the
+//     fields the invoice prints — name,
 //     company, VAT number, address, items, amounts, payment state, return
 //     policy and the customer's note — are never rewritten, blanked or
 //     "anonymised" by an erasure. GDPR Art. 17(3)(b) ("to the extent that

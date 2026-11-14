@@ -5,6 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -94,6 +97,9 @@ type privacyEraseData struct {
 	Answers bool
 	// Nothing is true when the address finds nothing to erase.
 	Nothing bool
+	// Snapshots are the pre-upgrade snapshots in the data directory, which
+	// still hold the data (D-08).
+	Snapshots []erasureSnapshot
 }
 
 // erasureView is one record as the erasure page and the result show it. It
@@ -160,6 +166,64 @@ type privacyErasedData struct {
 	web.LayoutData
 	WebsiteID int64
 	Report    erasedReport
+	// Snapshots are the pre-upgrade snapshots that still hold the data.
+	Snapshots []erasureSnapshot
+}
+
+// What backups and snapshots still hold (D-08).
+//
+// An erasure does not rewrite them, and that is the decision, not an
+// oversight: a pre-upgrade snapshot is the way back after a failed update,
+// and a backup is the copy a restore needs; an erasure that edited them would
+// make exactly those unreliable. What the operator is told instead is which
+// ones still hold the data and when they age out — the pre-upgrade snapshots
+// in the data directory by name and date, the nightly backups of
+// deploy/backup.sh by their period — and that an erasure made after a backup
+// has to be repeated when that backup is restored. The ICO asks for backups
+// to be kept "beyond use" and for the person to be told, which is what these
+// sentences let the operator do.
+//
+// The snapshots are listed from the data directory as the service writes
+// them (pre-upgrade-<version>-<YYYYMMDD-HHMMSS>.sqlite, the newest five kept,
+// cmd/holzcloud's snapshotBeforeMigrating); their date is the stamp in the
+// name, as db.PruneSnapshots reads it, and the modification time for a name
+// without one.
+
+// snapshotStampLayout is the UTC time at the end of a snapshot's name.
+const snapshotStampLayout = "20060102-150405"
+
+// erasureSnapshot is one pre-upgrade snapshot as the pages list it.
+type erasureSnapshot struct {
+	Name string
+	// Date is when it was written, on the UTC clock the name carries.
+	Date string
+	at   time.Time
+}
+
+// erasureSnapshots lists the pre-upgrade snapshots in the data directory,
+// newest first. A data directory that cannot be read lists none.
+func (h *Handler) erasureSnapshots() []erasureSnapshot {
+	if h.cfg == nil || h.cfg.DataDir == "" {
+		return nil
+	}
+	matches, _ := filepath.Glob(filepath.Join(h.cfg.DataDir, "pre-upgrade-*.sqlite"))
+	out := make([]erasureSnapshot, 0, len(matches))
+	for _, path := range matches {
+		info, err := os.Stat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		name := filepath.Base(path)
+		at := info.ModTime().UTC()
+		if base := strings.TrimSuffix(name, ".sqlite"); len(base) > len(snapshotStampLayout) {
+			if t, err := time.Parse(snapshotStampLayout, base[len(base)-len(snapshotStampLayout):]); err == nil {
+				at = t
+			}
+		}
+		out = append(out, erasureSnapshot{Name: name, Date: at.Format("02.01.2006 15:04 MST"), at: at})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].at.After(out[j].at) })
+	return out
 }
 
 // privacyEraseAddress is the erasure page of one website.
@@ -285,6 +349,7 @@ func (h *Handler) HandlePrivacyErase(w http.ResponseWriter, r *http.Request) err
 		data.Boxes = append(data.Boxes, erasureBox{Name: g, Label: eraseGroupLabels[g], Checked: g != dsr.EraseAccounts})
 	}
 	data.Nothing = len(data.Boxes) == 0 && len(data.Accounts) == 0
+	data.Snapshots = h.erasureSnapshots()
 	return web.RenderAdmin(w, h.templates, r, "privacy_erase", data)
 }
 
@@ -380,6 +445,7 @@ func (h *Handler) HandlePrivacyErased(w http.ResponseWriter, r *http.Request) er
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Erasure done – %s", ws.Name)),
 		WebsiteID:  ws.ID,
 		Report:     rep,
+		Snapshots:  h.erasureSnapshots(),
 	}
 	data.ActiveNav = "privacy"
 	data.CurrentWebsite = ws

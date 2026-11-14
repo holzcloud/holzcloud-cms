@@ -12,7 +12,7 @@
         <tbody>
             {{range .Orders}}
             <tr>
-                <td><a href="/admin/websites/{{$.CurrentWebsite.ID}}/bestellungen/{{.Number}}">{{.Number}}</a></td>
+                <td><a href="/admin/websites/{{$.CurrentWebsite.ID}}/bestellungen/{{.Number}}">{{.Number}}</a>{{if .ErasedAt}} <span class="badge badge--draft">{{t "Erased"}}</span>{{end}}</td>
                 <td style="white-space:nowrap">{{.CreatedAt.Format "02.01.2006"}}</td>
                 <td>
                     {{.Customer.Name}}

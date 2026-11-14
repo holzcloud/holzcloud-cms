@@ -36,11 +36,20 @@
     </dl>
 
     <h3 style="margin-block-start:var(--space-4)">{{t "Customer"}}</h3>
+    {{with .Order.ErasedAt}}
+    {{/* Die Kontaktdaten wurden auf Wunsch der Person gelöscht (Phase 33.2,
+         D-07): die Bestellung bleibt als Rechnungsbeleg bis zum Datum
+         darunter, ohne E-Mail und Telefon, und bekommt keine E-Mails mehr. */}}
+    <div class="alert" role="status" id="order-erased">
+        <p><span class="badge badge--draft">{{t "Erased"}}</span> {{tf "Personal contact data erased on %s" (.UTC.Format "02.01.2006")}}</p>
+        {{with $.Order.RetainUntil}}<p>{{tf "Kept until %s" (.UTC.Format "02.01.2006")}}</p>{{end}}
+    </div>
+    {{end}}
     <dl class="detail-list">
         <dt>{{t "Name"}}</dt><dd>{{.Order.Customer.Name}}</dd>
         {{if .Order.Customer.Company}}<dt>{{t "Company"}}</dt><dd>{{.Order.Customer.Company}}</dd>{{end}}
         {{if .Order.Customer.VATNumber}}<dt>{{t "VAT number"}}</dt><dd>{{.Order.Customer.VATNumber}}</dd>{{end}}
-        <dt>{{t "E-mail"}}</dt><dd><a href="mailto:{{.Order.Customer.Email}}">{{.Order.Customer.Email}}</a></dd>
+        {{if .Order.Customer.Email}}<dt>{{t "E-mail"}}</dt><dd><a href="mailto:{{.Order.Customer.Email}}">{{.Order.Customer.Email}}</a></dd>{{end}}
         {{if .Order.Customer.Phone}}<dt>{{t "Phone"}}</dt><dd>{{.Order.Customer.Phone}}</dd>{{end}}
         <dt>{{t "Address"}}</dt>
         <dd>{{.Order.Customer.Street}}<br>{{.Order.Customer.PostalCode}} {{.Order.Customer.City}}<br>{{.Order.Customer.Country}}</dd>

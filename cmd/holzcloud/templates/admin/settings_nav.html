@@ -145,3 +145,27 @@
     {{if .Basis}}<p class="form-hint">{{t .Basis}}</p>{{end}}
 </article>
 {{end}}
+
+{{/*
+  Was Sicherungen und Schnappschüsse noch enthalten (Phase 33.2, D-08). Eine
+  Löschung schreibt sie nicht um – sie sind der Weg zurück nach einem
+  misslungenen Update und die Kopie für eine Wiederherstellung. Darum stehen
+  hier die Schnappschüsse im Datenverzeichnis mit Namen und Datum, wann die
+  nächtlichen Sicherungen ablaufen, und dass eine Löschung nach dem
+  Wiederherstellen einer älteren Sicherung wiederholt werden muss. Vorschau
+  und Ergebnis zeigen es gleich; aufgerufen mit der Liste der Schnappschüsse.
+*/}}
+{{define "erasure_backups"}}
+<section class="card" id="erasure-backups" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Backups and snapshots"}}</h2>
+    {{if .}}
+    <p>{{t "These pre-upgrade snapshots in the data directory still hold the erased data. They are kept until they are removed: the newest five, with no age limit."}}</p>
+    <ul>{{range .}}<li><code>{{.Name}}</code> · <span class="text-muted">{{.Date}}</span></li>{{end}}</ul>
+    {{else}}
+    <p>{{t "No pre-upgrade snapshot is in the data directory."}}</p>
+    {{end}}
+    <p>{{t "Nightly backups made by deploy/backup.sh still hold the erased data until they age out: after 30 days, unless RETENTION_DAYS says otherwise. An off-site copy follows its own schedule. Backups are used only to restore."}}</p>
+    <p>{{t "After restoring a backup older than today, repeat this erasure."}}</p>
+    <p class="text-muted">{{t "Mail already sent stays in the recipient's mailbox and with the mail provider."}}</p>
+</section>
+{{end}}

@@ -216,7 +216,10 @@ func (h *Handler) HandleOrderDetail(w http.ResponseWriter, r *http.Request) erro
 				break
 			}
 			web.SetFlashSuccess(h.sm, r.Context(), "Status changed")
-			if mailErr != nil {
+			switch {
+			case errors.Is(mailErr, errAddressErased):
+				web.SetFlashWarning(h.sm, r.Context(), "No mail was sent: the customer's address was erased.")
+			case mailErr != nil:
 				web.SetFlashError(h.sm, r.Context(), "The shipping notification could not be stored.")
 			}
 		}
@@ -329,10 +332,19 @@ func (h *Handler) orderMails(ctx context.Context, orderID int64) ([]outbox.Mail,
 	return h.outbox.ForOrder(ctx, orderID)
 }
 
+// errAddressErased is the "mail error" of an order whose customer's contact
+// data was erased (Phase 33.2, D-07): the status changes, and no notice is
+// queued, because there is no address to send it to — and the order's mails
+// were deleted with the erasure, so a notice queued now would put the
+// person's name and address back into the outbox. Its text is a catalogue
+// key the screen shows as it is.
+var errAddressErased = errors.New(i18n.N("No mail was sent: the customer's address was erased."))
+
 // setOrderStatus moves an order along, and queues the dispatch notice when the
 // move is to "shipped". The screen and OpSetOrderStatus share it. queued is how
 // many messages went into the outbox; mailErr says the notice could not be
-// stored although the status did change.
+// stored although the status did change, or is errAddressErased for an order
+// whose contact data was erased.
 func (h *Handler) setOrderStatus(ctx context.Context, ws *domain.Website, order *shop.Order,
 	status, host string) (queued int, mailErr, err error) {
 
@@ -343,6 +355,9 @@ func (h *Handler) setOrderStatus(ctx context.Context, ws *domain.Website, order 
 	// change: whoever saves the status twice should not report twice that the
 	// same parcel is on its way.
 	if status == shop.OrderShipped && order.Status != shop.OrderShipped {
+		if order.ErasedAt != nil || order.Customer.Email == "" {
+			return 0, errAddressErased, nil
+		}
 		queued, mailErr = h.announceShipment(ctx, ws, order, host)
 	}
 	return queued, mailErr, nil

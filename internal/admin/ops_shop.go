@@ -220,6 +220,9 @@ func (h *Handler) OpSetOrderStatus(ctx context.Context, websiteID int64, number,
 	if err != nil {
 		return 0, "", err
 	}
+	if errors.Is(mailErr, errAddressErased) {
+		return queued, mailErr.Error(), nil
+	}
 	if mailErr != nil {
 		return queued, "The status was changed, but the shipping notification could not be stored: " +
 			mailErr.Error(), nil

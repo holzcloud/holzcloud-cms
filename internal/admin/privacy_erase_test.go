@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -321,4 +323,66 @@ func TestOnlyAnAdministratorMayEraseAnAccount(t *testing.T) {
 	if exists() {
 		t.Error("the administrator's erasure left the account")
 	}
+}
+
+// eraseBackupsSection is the part of a page from the backups heading on.
+func eraseBackupsSection(body string) string {
+	at := strings.Index(body, `id="erasure-backups"`)
+	if at < 0 {
+		return ""
+	}
+	return body[at:]
+}
+
+func TestTheResultNamesSnapshotsAndBackups(t *testing.T) {
+	h, sm, database, ws := eraseAdmin(t)
+	privacyOrder(t, database, ws.ID, "2026-0042", "ada@example.com", "Ada Lovelace")
+	c := &eraseClient{t: t, h: h, sm: sm, fresh: true}
+	preview := func() string {
+		return eraseBackupsSection(c.get(h.HandlePrivacyErase, erasePage(ws.ID)+"?email=ada%40example.com", ws.ID).Body.String())
+	}
+
+	// No snapshot yet.
+	if got := preview(); !strings.Contains(got, retentionSays("No pre-upgrade snapshot is in the data directory.")) {
+		t.Errorf("without a snapshot the page does not say so:\n%s", got)
+	}
+
+	for _, name := range []string{"pre-upgrade-0.1.4-20261101-120000.sqlite", "pre-upgrade-0.1.5-20261110-080000.sqlite"} {
+		if err := os.WriteFile(filepath.Join(h.cfg.DataDir, name), []byte("SQLite format 3"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Not a snapshot: it is not listed.
+	if err := os.WriteFile(filepath.Join(h.cfg.DataDir, "notes.sqlite"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	check := func(what, section string) {
+		t.Helper()
+		for _, want := range []string{
+			retentionSays("Backups and snapshots"),
+			"pre-upgrade-0.1.4-20261101-120000.sqlite", "01.11.2026",
+			"pre-upgrade-0.1.5-20261110-080000.sqlite", "10.11.2026",
+			retentionSays("These pre-upgrade snapshots in the data directory still hold the erased data. They are kept until they are removed: the newest five, with no age limit."),
+			retentionSays("Nightly backups made by deploy/backup.sh still hold the erased data until they age out: after 30 days, unless RETENTION_DAYS says otherwise. An off-site copy follows its own schedule. Backups are used only to restore."),
+			retentionSays("After restoring a backup older than today, repeat this erasure."),
+			retentionSays("Mail already sent stays in the recipient's mailbox and with the mail provider."),
+		} {
+			if !strings.Contains(section, want) {
+				t.Errorf("%s does not show %q", what, want)
+			}
+		}
+		if strings.Index(section, "pre-upgrade-0.1.5") > strings.Index(section, "pre-upgrade-0.1.4") {
+			t.Errorf("%s does not list the newest snapshot first", what)
+		}
+		if strings.Contains(section, "notes.sqlite") || strings.Contains(section, retentionSays("No pre-upgrade snapshot is in the data directory.")) {
+			t.Errorf("%s lists what is not a snapshot", what)
+		}
+	}
+	check("the preview", preview())
+
+	if rec, bad := c.post(ws.ID, url.Values{"email": {"ada@example.com"}, "quelle": {"orders"}}, false); rec.Code != http.StatusSeeOther || bad != "" {
+		t.Fatalf("erase: %d %q", rec.Code, bad)
+	}
+	check("the result", eraseBackupsSection(c.get(h.HandlePrivacyErased, erasedPage(ws.ID), ws.ID).Body.String()))
 }

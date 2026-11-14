@@ -72,6 +72,8 @@
 </section>
 {{end}}
 
+{{template "erasure_backups" .Snapshots}}
+
 <div class="card">
     {{if .Nothing}}
     <p>{{t "Nothing is left to erase for this address on this website."}}</p>

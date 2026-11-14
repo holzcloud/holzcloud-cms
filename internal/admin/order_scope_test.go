@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -211,5 +212,80 @@ func TestOrderRetryMailStillServesItsOwnWebsite(t *testing.T) {
 	}
 	if lastError != "" {
 		t.Errorf("the own message kept its error text %q", lastError)
+	}
+}
+
+// orderScopeAs runs one handler of the order screens as the fixture's editor
+// and returns the answer and the flashes.
+func (f *orderScopeFixture) as(t *testing.T, fn func(http.ResponseWriter, *http.Request) error, req *http.Request) (*httptest.ResponseRecorder, string) {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	var handlerErr error
+	var flashes []string
+	f.sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f.sm.Put(r.Context(), auth.SessionKeyUserID, f.editorOnlyOnA)
+		handlerErr = fn(w, r)
+		for _, key := range []string{auth.SessionKeyFlashError, auth.SessionKeyFlashWarning, auth.SessionKeyFlashSuccess} {
+			flashes = append(flashes, f.sm.GetString(r.Context(), key))
+		}
+	})).ServeHTTP(rec, req)
+	if handlerErr != nil {
+		t.Fatalf("handler: %v", handlerErr)
+	}
+	return rec, strings.Join(flashes, "|")
+}
+
+// An erased order (Phase 33.2, D-07) says so on both order screens, shows no
+// contact data, and moving it along queues no mail to an address that is no
+// longer there.
+func TestAnErasedOrderSaysSoAndGetsNoMail(t *testing.T) {
+	f := newOrderScopeFixture(t)
+	ctx := context.Background()
+	if _, err := f.db.Write.ExecContext(ctx, `UPDATE orders SET email = '', phone = '',
+		erased_at = '2026-11-14T10:00:00Z', retain_until = '2035-01-01T00:00:00Z' WHERE id = $1`, f.orderA.ID); err != nil {
+		t.Fatal(err)
+	}
+	id := strconv.FormatInt(f.siteA.ID, 10)
+	list := httptest.NewRequest(http.MethodGet, "/admin/websites/"+id+"/bestellungen", nil)
+	list.SetPathValue("id", id)
+	rec, _ := f.as(t, f.handler.HandleOrderList, list)
+	if !strings.Contains(rec.Body.String(), `<span class="badge badge--draft">Erased</span>`) {
+		t.Error("the order list does not mark the erased order")
+	}
+
+	target := "/admin/websites/" + id + "/bestellungen/" + f.orderA.Number
+	detail := httptest.NewRequest(http.MethodGet, target, nil)
+	detail.SetPathValue("id", id)
+	detail.SetPathValue("number", f.orderA.Number)
+	rec, _ = f.as(t, f.handler.HandleOrderDetail, detail)
+	body := rec.Body.String()
+	for _, want := range []string{"Personal contact data erased on 14.11.2026", "Kept until 01.01.2035"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the order screen does not say %q", want)
+		}
+	}
+	if strings.Contains(body, "mailto:") {
+		t.Error("the order screen still offers to write to the erased address")
+	}
+
+	post := httptest.NewRequest(http.MethodPost, target, strings.NewReader(url.Values{"status": {shop.OrderShipped}}.Encode()))
+	post.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	post.SetPathValue("id", id)
+	post.SetPathValue("number", f.orderA.Number)
+	_, flashes := f.as(t, f.handler.HandleOrderDetail, post)
+	var status string
+	var mails int
+	if err := f.db.Read.QueryRow(`SELECT status, (SELECT COUNT(*) FROM outbox WHERE order_id = orders.id)
+		FROM orders WHERE id = $1`, f.orderA.ID).Scan(&status, &mails); err != nil {
+		t.Fatal(err)
+	}
+	if status != shop.OrderShipped {
+		t.Errorf("status %q, want shipped", status)
+	}
+	if mails != 0 {
+		t.Errorf("%d mails queued for an erased order", mails)
+	}
+	if !strings.Contains(flashes, "No mail was sent: the customer's address was erased.") {
+		t.Errorf("flashes %q do not say why no mail went", flashes)
 	}
 }
