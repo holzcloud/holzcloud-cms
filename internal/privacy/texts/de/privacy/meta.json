@@ -1,0 +1,50 @@
+{
+  "title": "Datenschutzerklärung",
+  "slug": "datenschutz",
+  "also_slugs": ["datenschutzerklaerung"],
+  "draft_title": "Datenschutzerklärung (neue Vorlage)",
+  "draft_slug": "datenschutz-vorlage",
+
+  "cookie_header": "| Name | Zweck | Laufzeit | Warum ohne Einwilligung |",
+  "processor_header": "| Empfänger | Aufgabe | Übermittelte Daten | Vertrag |",
+  "purpose_basket": "Wird gesetzt, wenn du etwas in den Warenkorb legst. Merkt sich deinen Warenkorb, bis du bestellst oder er verfällt.",
+  "purpose_price_view": "Wird gesetzt, wenn du die Preisansicht wechselst. Merkt sich, ob dir Preise für Privatkunden oder für Geschäftskunden gezeigt werden.",
+  "purpose_unlock": "Wird gesetzt, wenn du das Passwort einer geschützten Seite eingibst. N steht für die Nummer der geschützten Seite. Merkt sich, dass du die Seite freigeschaltet hast.",
+  "why_no_consent": "Technisch erforderlich für das, was du angefragt hast",
+  "no_cookies": "Diese Website setzt keine Cookies.",
+  "cookies_some": "Dein Browser speichert nur dann etwas, wenn du eine der folgenden Handlungen ausführst. Ein solches Cookie ist technisch erforderlich für das, was du angefragt hast, und braucht deshalb weder eine Einwilligung noch ein Cookie-Banner.",
+  "processor_hosting": "| Hosting-Anbieter {fillin}, Land des Servers {fillin} | Betrieb des Servers | Verbindungsdaten wie im Abschnitt Server-Protokoll | Vertrag über die Auftragsverarbeitung, wo der Server bei einem Dritten steht |",
+  "processor_payment": "| Zahlungsanbieter Payrexx, Schweiz, Name und Anschrift {fillin} | Abwicklung der Online-Zahlung | Betrag, Währung, Bestellnummer mit dem Namen der Website, Name, E-Mail-Adresse, Straße, Postleitzahl, Ort und Land | Vertrag über die Auftragsverarbeitung, Vertragsdatum {fillin} |",
+
+  "lifetime_day_one": "{n} Tag",
+  "lifetime_day_many": "{n} Tage",
+  "lifetime_hour_one": "{n} Stunde",
+  "lifetime_hour_many": "{n} Stunden",
+  "lifetime_minute_one": "{n} Minute",
+  "lifetime_minute_many": "{n} Minuten",
+
+  "basis_eu_log": "Server-Protokoll: Art. 6 Abs. 1 lit. f DSGVO. Das berechtigte Interesse ist der Betrieb und die Sicherheit der Website.",
+  "basis_eu_cookies": "Cookies aus der Tabelle oben: Art. 6 Abs. 1 lit. f DSGVO, beim Warenkorb einer Bestellung Art. 6 Abs. 1 lit. b DSGVO. Für das Speichern im Browser selbst gilt die Cookie-Regel am Ende dieses Abschnitts.",
+  "basis_eu_orders": "Bestellungen: Art. 6 Abs. 1 lit. b DSGVO (Vertrag). Ohne diese Angaben kann eine Bestellung nicht ausgeführt werden. Für Buchungsbelege gilt zusätzlich Art. 6 Abs. 1 lit. c DSGVO (gesetzliche Aufbewahrungspflicht).",
+  "basis_eu_payment": "Online-Zahlung: Art. 6 Abs. 1 lit. b DSGVO (Vertrag).",
+  "basis_eu_forms": "Formulare: Art. 6 Abs. 1 lit. b DSGVO, wenn deine Anfrage einen Vertrag betrifft, sonst Art. 6 Abs. 1 lit. f DSGVO. Das berechtigte Interesse ist die Beantwortung deiner Anfrage.",
+  "basis_eu_staff": "Konten im Verwaltungsbereich: Art. 6 Abs. 1 lit. b DSGVO (Arbeits- oder Auftragsverhältnis) und Art. 6 Abs. 1 lit. f DSGVO. Das berechtigte Interesse ist die Sicherheit des Verwaltungsbereichs.",
+
+  "basis_ch_log": "Server-Protokoll: Betrieb und Sicherheit der Website. Rechtfertigung ist das überwiegende private Interesse der verantwortlichen Stelle (Art. 31 Abs. 1 DSG).",
+  "basis_ch_cookies": "Cookies aus der Tabelle oben: das, was du angefragt hast. Wie du sie ablehnen kannst, steht am Ende dieses Abschnitts.",
+  "basis_ch_orders": "Bestellungen: Abschluss und Abwicklung des Vertrags mit dir (Art. 31 Abs. 2 lit. a DSG). Ohne diese Angaben kann eine Bestellung nicht ausgeführt werden.",
+  "basis_ch_payment": "Online-Zahlung: Abwicklung des Vertrags mit dir (Art. 31 Abs. 2 lit. a DSG).",
+  "basis_ch_forms": "Formulare: Beantwortung deiner Anfrage.",
+  "basis_ch_staff": "Konten im Verwaltungsbereich: Arbeit an der Website und Schutz des Verwaltungsbereichs.",
+
+  "basis_uk_log": "Server-Protokoll: Art. 6 Abs. 1 lit. f UK GDPR. Das berechtigte Interesse ist der Betrieb und die Sicherheit der Website.",
+  "basis_uk_cookies": "Cookies aus der Tabelle oben: Art. 6 Abs. 1 lit. f UK GDPR, beim Warenkorb einer Bestellung Art. 6 Abs. 1 lit. b UK GDPR. Für das Speichern im Browser selbst gilt die Cookie-Regel am Ende dieses Abschnitts.",
+  "basis_uk_orders": "Bestellungen: Art. 6 Abs. 1 lit. b UK GDPR (Vertrag). Ohne diese Angaben kann eine Bestellung nicht ausgeführt werden.",
+  "basis_uk_payment": "Online-Zahlung: Art. 6 Abs. 1 lit. b UK GDPR (Vertrag).",
+  "basis_uk_forms": "Formulare: Art. 6 Abs. 1 lit. b UK GDPR, wenn deine Anfrage einen Vertrag betrifft, sonst Art. 6 Abs. 1 lit. f UK GDPR. Das berechtigte Interesse ist die Beantwortung deiner Anfrage.",
+  "basis_uk_staff": "Konten im Verwaltungsbereich: Art. 6 Abs. 1 lit. b und f UK GDPR. Das berechtigte Interesse ist die Sicherheit des Verwaltungsbereichs.",
+
+  "category_us_identifiers": "Identifikatoren (identifiers): Name und E-Mail-Adresse, die du in ein Formular oder in das Widerspruchsformular schreibst, und die Konten der Personen, die an der Website arbeiten.",
+  "category_us_commercial": "Geschäftliche Informationen (commercial information): deine Bestellungen mit Anschrift, Artikeln und deiner Wahl von Lieferung und Zahlung.",
+  "category_us_internet": "Internet- oder andere Netzwerkaktivität (internet or other electronic network activity): die Zeilen des Server-Protokolls mit gekürzter IP-Adresse."
+}

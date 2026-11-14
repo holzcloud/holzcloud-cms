@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/holzcloud/holzcloud-cms/internal/legal"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/privacy"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
@@ -16,9 +17,10 @@ type starterPage struct {
 	slug     string
 	status   string
 	markdown string
-	// compose, when set, writes the Markdown from what the website uses at the
-	// moment it is created, and markdown stays empty.
-	compose func(privacy.Features) string
+	// compose, when set, writes the Markdown from what the website uses and
+	// the frameworks it follows at the moment it is created, and markdown
+	// stays empty.
+	compose func(privacy.Request) string
 }
 
 // starterPages are what a brand-new website starts with.
@@ -29,8 +31,8 @@ type starterPage struct {
 // empty imprint would be worse than having none.
 //
 // The privacy page is composed when the website is created, from the functions
-// the website uses (internal/privacy), so it never says the site sets no
-// cookies while a shop on it does. It is a draft for the reason above: the
+// the website uses and the legal frameworks it follows (internal/privacy), so
+// it never says the site sets no cookies while a shop on it does. It is a draft for the reason above: the
 // responsible body and the processors are fill-in markers. The page types
 // are the ones that always existed; only this page's content is new.
 var starterPages = []starterPage{
@@ -89,7 +91,7 @@ verpflichtend sind, hängt von Rechtsform und Tätigkeit ab.
 		title:   "Datenschutzerklärung",
 		slug:    "datenschutz",
 		status:  "draft",
-		compose: privacy.Compose,
+		compose: privacy.ComposePrivacy,
 	},
 }
 
@@ -102,20 +104,22 @@ verpflichtend sind, hängt von Rechtsform und Tätigkeit ab.
 func (h *Handler) createStarterContent(ctx context.Context, websiteID int64, userID *int64) {
 	created := make(map[string]int64, len(starterPages))
 
-	// A brand-new website uses none of the functions, so the zero value is the
-	// true answer when it cannot be read; the log says it could not.
-	var features privacy.Features
+	// A brand-new website uses none of the functions, so the zero Features are
+	// the true answer when they cannot be read; the log says they could not.
+	// The language and the frameworks are the website's own; a website that
+	// cannot be read at all gets the German text and the default set, which is
+	// what every new website starts with.
+	req := privacy.Request{Lang: "de", Set: legal.Default()}
 	if ws, err := h.domains.GetWebsite(ctx, websiteID); err != nil || ws == nil {
 		slog.Error("read website for starter privacy page", "err", err, "website", websiteID)
-	} else if features, err = h.privacyFeatures(ctx, ws); err != nil {
+	} else if req, err = h.legalRequest(ctx, ws, ws.Locale); err != nil {
 		slog.Error("detect website functions for starter privacy page", "err", err, "website", websiteID)
-		features = privacy.Features{}
 	}
 
 	for _, sp := range starterPages {
 		markdown := sp.markdown
 		if sp.compose != nil {
-			markdown = sp.compose(features)
+			markdown = sp.compose(req)
 		}
 		html, err := page.RenderMarkdown(markdown)
 		if err != nil {

@@ -24,6 +24,10 @@ import (
 // website uses today. The operator compares the two and copies over what is
 // missing; deleting or publishing either one stays their decision.
 //
+// The draft follows the website's functions, the legal frameworks stored for
+// it and its main language; the title and the slug are those of that
+// language's texts.
+//
 // The only calls this file makes on the page store are CreatePage and
 // GetPageBySlug, and a test holds the list.
 func (h *Handler) HandlePrivacyDraft(w http.ResponseWriter, r *http.Request) error {
@@ -41,11 +45,11 @@ func (h *Handler) HandlePrivacyDraft(w http.ResponseWriter, r *http.Request) err
 		return nil
 	}
 
-	features, err := h.privacyFeatures(r.Context(), ws)
+	req, err := h.legalRequest(r.Context(), ws, ws.Locale)
 	if err != nil {
 		return err
 	}
-	markdown := privacy.Compose(features)
+	markdown := privacy.ComposePrivacy(req)
 	html, err := page.RenderMarkdown(markdown)
 	if err != nil {
 		return fmt.Errorf("render privacy draft: %w", err)
@@ -53,8 +57,8 @@ func (h *Handler) HandlePrivacyDraft(w http.ResponseWriter, r *http.Request) err
 
 	created, err := h.pages.CreatePage(r.Context(), page.PageCreate{
 		WebsiteID: ws.ID,
-		Title:     privacy.DraftTitle,
-		Slug:      privacy.DraftSlug,
+		Title:     privacy.DraftTitle(privacy.KindPrivacy, ws.Locale),
+		Slug:      privacy.DraftSlug(privacy.KindPrivacy, ws.Locale),
 		Markdown:  markdown,
 		HTML:      html,
 		Status:    "draft",
@@ -94,9 +98,10 @@ type privacyHint struct {
 	Published bool
 }
 
-// privacyHint looks at the page with the slug datenschutz.
+// privacyHint looks at the page with the privacy slug of the website's main
+// language.
 func (h *Handler) privacyHint(ctx context.Context, ws *domain.Website) (privacyHint, error) {
-	p, err := h.pages.GetPageBySlug(ctx, ws.ID, "datenschutz")
+	p, err := h.pages.GetPageBySlug(ctx, ws.ID, privacy.Slug(privacy.KindPrivacy, ws.Locale))
 	if err != nil {
 		return privacyHint{}, fmt.Errorf("look up privacy page: %w", err)
 	}

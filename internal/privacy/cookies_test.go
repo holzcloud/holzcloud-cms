@@ -180,7 +180,7 @@ func TestEveryCookieWriterIsAccountedFor(t *testing.T) {
 	}
 	sort.Strings(unknown)
 	for _, w := range unknown {
-		t.Errorf("%s writes a cookie and is not a known writer: a new cookie must be added to the register in cookies.go, to the privacy text in text.go and to this list", w)
+		t.Errorf("%s writes a cookie and is not a known writer: a new cookie must be added to the register in cookies.go, to the privacy page in privacy_page.go and texts/, and to this list", w)
 	}
 	for w := range writerFiles {
 		if !writers[w] {

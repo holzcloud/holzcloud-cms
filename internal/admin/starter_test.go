@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/holzcloud/holzcloud-cms/internal/legal"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/privacy"
 )
@@ -26,9 +27,11 @@ func TestStarterPrivacyPageIsTheComposedTemplate(t *testing.T) {
 	if p.Status != "draft" {
 		t.Errorf("status = %q, want draft (the page holds fill-in markers)", p.Status)
 	}
-	want := privacy.Compose(privacy.Features{})
+	// A new website is German, follows EU and Switzerland (D-05) and uses
+	// none of the functions yet.
+	want := privacy.ComposePrivacy(privacy.Request{Lang: "de", Set: legal.Default(), Features: privacy.Features{}})
 	if p.ContentMarkdown != want {
-		t.Error("the stored Markdown is not privacy.Compose of the zero Features")
+		t.Error("the stored Markdown is not the composed template of a new website")
 	}
 	html, err := page.RenderMarkdown(want)
 	if err != nil {
@@ -83,8 +86,8 @@ func TestStarterPrivacyPageFollowsTheWebsiteFunctions(t *testing.T) {
 		t.Fatalf("the privacy page is missing: %v", err)
 	}
 	features := privacy.Features{Shop: true, PriceChoice: true, ProtectedPages: true}
-	if p.ContentMarkdown != privacy.Compose(features) {
-		t.Error("the stored Markdown is not privacy.Compose of the website's functions")
+	if p.ContentMarkdown != privacy.ComposePrivacy(privacy.Request{Lang: "de", Set: legal.Default(), Features: features}) {
+		t.Error("the stored Markdown is not the composed template of the website's functions")
 	}
 	if p.Status != "draft" {
 		t.Errorf("status = %q, want draft", p.Status)
