@@ -234,6 +234,8 @@ func TestAnAddressIsOneAddress(t *testing.T) {
 		"ada@example.com\r\nBcc: thief@evil.example",
 		"ada%40example.com",
 		"mailto:ada@example.com",
+		"MAILTO:ada@example.com",
+		"mailto:@example.com",
 		"ada",
 		"@example.com",
 		"ada@",
@@ -249,7 +251,11 @@ func TestAnAddressIsOneAddress(t *testing.T) {
 			t.Errorf("Add(%q) = %v; want ErrBadEmail", bad, err)
 		}
 	}
-	// No address is not a wrong address.
+	// No address is not an address, and not a wrong one either: Add only
+	// asks ValidEmail when there is one.
+	if ValidEmail("") {
+		t.Error(`ValidEmail("") = true; want false`)
+	}
 	if _, err := s.Add(ctx, Request{WebsiteID: ws, Kind: KindOptOut, Name: "Ada"}); err != nil {
 		t.Errorf("a request without an address: %v", err)
 	}

@@ -35,19 +35,19 @@ import (
 // "?bcc=…" is a link that sends a copy wherever the stranger said (WR-02 of
 // the 33.1 review). A real address never needs any of these characters, and
 // the visitor who mistyped one is told and can send again.
+//
+// The character list is what net/mail lets through and a link must not
+// have: ? & # % / are ordinary characters of an address's local part there.
+// What net/mail refuses by itself is not checked again (IN-05 of the second
+// 33.1 review): an empty string, a second @, an empty local part or domain,
+// and a "mailto:" in front — the colon is no character of an address, so
+// that is not one either. TestAnAddressIsOneAddress holds every one of them.
 func ValidEmail(s string) bool {
-	if s == "" || strings.ContainsAny(s, "?&#%/,;<>\"()[]\\ \t\r\n") {
-		return false
-	}
-	if strings.Count(s, "@") != 1 {
+	if strings.ContainsAny(s, "?&#%/,;<>\"()[]\\ \t\r\n") {
 		return false
 	}
 	addr, err := mail.ParseAddress(s)
-	if err != nil || addr.Name != "" || addr.Address != s {
-		return false
-	}
-	local, domain, _ := strings.Cut(s, "@")
-	return local != "" && domain != "" && !strings.HasPrefix(local, "mailto:")
+	return err == nil && addr.Name == "" && addr.Address == s
 }
 
 // KindOptOut is a request not to sell or share personal information.
