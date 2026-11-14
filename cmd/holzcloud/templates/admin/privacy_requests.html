@@ -11,6 +11,16 @@
 {{end}}
 
 {{define "privacy_requests-content"}}
+{{/* Woher die Anfragen kommen: die öffentliche Seite „Anfrage zu meinen
+     Daten“. Die beiden ersten Sätze verwenden die Rechtsseiten-Karte und das
+     Vorschaukästchen (Plan 05) unverändert — wer einen umformuliert, muss den
+     anderen Ort mitnehmen, sonst heisst dieselbe Seite an zwei Stellen anders. */}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Request about my data"}}</h2>
+    <p class="text-muted">{{t "Visitors send requests about their personal data through the form on this page: access, correction, erasure."}}</p>
+    <p><a href="/admin/websites/{{.WebsiteID}}#legal-pages">{{t "Create or open the page on the settings screen"}}</a></p>
+</div>
+
 <div class="card">
     {{if .Requests}}
     <table class="table">

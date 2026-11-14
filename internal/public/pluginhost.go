@@ -80,10 +80,10 @@ func (h *Handler) expandForPlugin(ctx context.Context, websiteID int64, body str
 		return body
 	}
 	// A plugin reads the page's text — a search index, a summary — and gets
-	// neither the opt-out marker nor a form: nothing it does with the body
-	// posts back to /widerspruch. Removed after the snippets are expanded, as
+	// neither form marker nor a form: nothing it does with the body
+	// posts back to /widerspruch or /datenanfrage. Removed after the snippets are expanded, as
 	// the feed does it, because a snippet can carry the marker too.
-	return withoutOptOut(h.expandMarkersForPlugin(ctx, websiteID, body))
+	return withoutDataRequest(withoutOptOut(h.expandMarkersForPlugin(ctx, websiteID, body)))
 }
 
 // expandMarkersForPlugin is expandForPlugin's expansion, before the opt-out

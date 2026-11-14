@@ -110,6 +110,7 @@ const (
 	cookieTestHomeTitle    = "Startseite"
 	cookieTestPostCount    = 12
 	cookieTestOptOutSlug   = "do-not-sell-or-share"
+	cookieTestRequestSlug  = "meine-daten"
 )
 
 // cookieTestSiteName is the name of the website seeded for one theme.
@@ -199,6 +200,14 @@ func seedThemeSites(t *testing.T, database *db.DB, dataDir string) {
 		}); err != nil {
 			t.Fatalf("%s: CreatePage %s: %v", bt.Slug, cookieTestOptOutSlug, err)
 		}
+		// A published page carrying the request form of Phase 33.2, which
+		// every website may carry, so the matrix sees it on every theme.
+		if _, err := pages.CreatePage(ctx, page.PageCreate{
+			WebsiteID: ws.ID, Title: "Anfrage zu meinen Daten", Slug: cookieTestRequestSlug, Kind: "page",
+			Status: "published", Markdown: "[[datenanfrage]]", HTML: "<p>[[datenanfrage]]</p>",
+		}); err != nil {
+			t.Fatalf("%s: CreatePage %s: %v", bt.Slug, cookieTestRequestSlug, err)
+		}
 		for _, p := range []struct{ slug, title string }{
 			{cookieTestProductSlug, cookieTestProductTitle},
 			{"stuhl", "Eichenstuhl"},
@@ -271,6 +280,7 @@ var publicGetMatrix = []publicGet{
 	{"/bestellung/unbekannt", []int{404}, ""},
 	{"/zahlung/zurueck/unbekannt", []int{404}, ""},
 	{"/do-not-sell-or-share", []int{200}, "data-hc-optout"},
+	{"/meine-daten", []int{200}, "data-hc-datarequest"},
 	{"/.well-known/gpc.json", []int{200}, `"gpc"`},
 }
 
@@ -387,6 +397,43 @@ func TestTheOptOutPostSetsNoCookie(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("%d opt-outs stored on the website; want 1 — a trap caught the test, and the no-cookie check proved nothing", n)
+	}
+}
+
+// The request form of Phase 33.2 posts the same way, and leaves the same
+// nothing behind: asking a website what it holds about you must not be the
+// moment it starts holding a cookie on you.
+func TestTheDataRequestPostSetsNoCookie(t *testing.T) {
+	handler, _, database := testRouterWith(t, routerTweaks{
+		shop: true, secure: true, searchPlugin: true, seed: seedThemeSites,
+	})
+	var websiteID int64
+	if err := database.Read.QueryRow(`SELECT id FROM websites WHERE name = ?`,
+		cookieTestSiteName("default")).Scan(&websiteID); err != nil {
+		t.Fatalf("find website: %v", err)
+	}
+	stamp := public.DataRequestStamp(sharelink.New([]byte("optout")), websiteID, time.Now().Add(-10*time.Second))
+
+	rec := postForm(handler, "default.test", "/datenanfrage", url.Values{
+		"seite": {cookieTestRequestSlug}, "stempel": {stamp}, "art": {"erasure"}, "email": {"ada@example.com"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("POST /datenanfrage: status %d, want 303\n%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); loc != "/"+cookieTestRequestSlug+"?datenanfrage=eingegangen" {
+		t.Errorf("Location = %q; want the page with the recorded notice", loc)
+	}
+	if got := cookieFindings(rec); len(got) != 0 {
+		t.Errorf("POST /datenanfrage set a cookie: %q", got)
+	}
+	var n int
+	if err := database.Read.QueryRow(
+		`SELECT COUNT(*) FROM privacy_requests r JOIN websites w ON w.id = r.website_id
+		 WHERE w.name = ? AND r.kind = 'erasure' AND r.email = 'ada@example.com'`, cookieTestSiteName("default")).Scan(&n); err != nil {
+		t.Fatalf("count requests: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("%d requests stored on the website; want 1 — a trap caught the test, and the no-cookie check proved nothing", n)
 	}
 }
 

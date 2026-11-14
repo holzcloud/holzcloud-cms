@@ -12,6 +12,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 )
 
 // The Requests screen under Settings → Privacy (Phase 33.2, plan 03). Every
@@ -93,5 +94,27 @@ func TestTheRequestsScreenListsDataRequests(t *testing.T) {
 	}
 	if strings.Contains(body, "hx-confirm") {
 		t.Error("the screen carries a confirmation")
+	}
+}
+
+// The screen names the public page the requests come from, in the words the
+// legal pages card uses for it, and leads to where that page is made.
+func TestTheRequestsScreenNamesWhereRequestsComeFrom(t *testing.T) {
+	h, sm, _, ws := newTestAdmin(t)
+	body := privacyRequestsGet(t, h, sm, ws.ID).Body.String()
+	for _, key := range []string{
+		"Request about my data",
+		"Visitors send requests about their personal data through the form on this page: access, correction, erasure.",
+		"Create or open the page on the settings screen",
+	} {
+		if !strings.Contains(body, optoutSays(key)) {
+			t.Errorf("the screen lacks %q", key)
+		}
+		if i18n.T("de", key) == key {
+			t.Errorf("the German catalogue lacks %q", key)
+		}
+	}
+	if want := `href="/admin/websites/` + strconv.FormatInt(ws.ID, 10) + `#legal-pages"`; !strings.Contains(body, want) {
+		t.Errorf("the screen does not link the legal pages card: want %s", want)
 	}
 }

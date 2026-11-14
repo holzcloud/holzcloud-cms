@@ -702,8 +702,11 @@ func (h *Handler) HandleGPCJSON(w http.ResponseWriter, r *http.Request) error {
 // the visitor with an old form whose stamp had run out — the same "a source
 // that changes the page without touching the page" that contentModTime
 // documents for albums. Without one, only the ETag decides.
+//
+// The request form of Phase 33.2 (datarequest.go) carries a stamp drawn at
+// the render as well, so its page has no date either.
 func (h *Handler) optoutModTime(content []byte, modTime time.Time) time.Time {
-	if bytes.Contains(content, []byte(optoutWidgetMark)) {
+	if bytes.Contains(content, []byte(optoutWidgetMark)) || bytes.Contains(content, []byte(dataRequestWidgetMark)) {
 		return time.Time{}
 	}
 	return modTime

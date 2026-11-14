@@ -16,6 +16,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
+	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 )
 
 // The request form of Phase 33.2 (D-01): [[datenanfrage]] on any website, and
@@ -317,5 +318,60 @@ func TestTheOperatorIsToldAboutTheRequest(t *testing.T) {
 	}
 	if m.replyTo != "" {
 		t.Errorf("reply_to = %q; the visitor's address must stay in the body", m.replyTo)
+	}
+}
+
+// Neither a feed reader nor a plugin is a visitor who can send the form: the
+// marker leaves the body they get, and no form takes its place. A snippet may
+// carry the marker too, so it is taken out after the snippets are expanded.
+func TestTheRequestMarkerNeverLeavesThePage(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,ch", "")
+	optoutPage(t, database, ws.ID, "meine-daten", "<p>Seitentext</p><p>[[datenanfrage]]</p>", "")
+
+	feed := feedOf(t, h, ws)
+	if !strings.Contains(feed, "Seitentext") {
+		t.Fatalf("the page is not in the feed, so the feed says nothing here:\n%s", feed)
+	}
+	if strings.Contains(feed, "[[datenanfrage]]") || strings.Contains(feed, dataRequestWidgetMark) {
+		t.Errorf("the feed carries the marker or the form:\n%s", feed)
+	}
+
+	if _, err := snippet.NewStore(database).Create(context.Background(), ws.ID, "anfrage", "Anfrage",
+		"[[datenanfrage]]", "<p>[[datenanfrage]]</p>"); err != nil {
+		t.Fatalf("snippet: %v", err)
+	}
+	body := "<p>Text</p>[[snippet:anfrage]]<p>[[datenanfrage]]</p>"
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req = req.WithContext(domain.WebsiteToContext(req.Context(), ws))
+	for name, ctx := range map[string]context.Context{
+		"without a request": context.Background(),
+		"with a request":    withRequest(req.Context(), req),
+	} {
+		got := h.expandForPlugin(ctx, ws.ID, body)
+		if strings.Contains(got, "[[") || strings.Contains(got, dataRequestWidgetMark) {
+			t.Errorf("%s: the plugin gets the marker or the form: %q", name, got)
+		}
+		if !strings.Contains(got, "<p>Text</p>") {
+			t.Errorf("%s: the page's own text is gone: %q", name, got)
+		}
+	}
+}
+
+// The form carries a stamp drawn at each render, so the page that carries it
+// has no date validator: a revalidation by If-Modified-Since alone must not
+// hand back yesterday's form with its expired stamp (WR-07 of the 33.1
+// review, for the second form).
+func TestTheRequestPageIsNeverAnsweredWithAStaleStamp(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,ch", "")
+	optoutPage(t, database, ws.ID, "meine-daten", datarequestMarkerPage, "")
+
+	first := optoutGet(t, h, ws, "/meine-daten", nil)
+	if lm := first.Header().Get("Last-Modified"); lm != "" {
+		t.Errorf("the request page carries Last-Modified %q; its date says nothing about its stamp", lm)
+	}
+	future := time.Now().Add(24 * time.Hour).UTC().Format(http.TimeFormat)
+	again := optoutDo(h.HandlePage, ws, http.MethodGet, "/meine-daten", nil, http.Header{"If-Modified-Since": {future}})
+	if again.Code != http.StatusOK || !strings.Contains(again.Body.String(), `name="stempel"`) {
+		t.Errorf("If-Modified-Since alone on the request page = %d; want 200 with a fresh form", again.Code)
 	}
 }

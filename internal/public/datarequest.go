@@ -85,6 +85,13 @@ func (h *Handler) expandDataRequest(r *http.Request, ws *domain.Website, pg *pag
 	return placeWidget(body, dataRequestParagraph, dataRequestPattern, widget)
 }
 
+// withoutDataRequest removes the marker from a body that is not a page being
+// served — a feed entry, what a plugin reads — as withoutOptOut does for the
+// opt-out's: neither can send the form, and nobody may see the marker.
+func withoutDataRequest(body string) string {
+	return withoutWidget(body, dataRequestMarker, dataRequestParagraph, dataRequestPattern)
+}
+
 // dataRequestStampLabel is the request form's derivation on one website:
 // not the opt-out's, so a stamp drawn for one form is a forgery on the other.
 func dataRequestStampLabel(websiteID int64) string {

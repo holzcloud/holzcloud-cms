@@ -641,9 +641,9 @@ func (h *Handler) albumsFor(r *http.Request, websiteID int64, body string) album
 // here with theirs already resolved by loadSnippets. A nil map renders every
 // marker as nothing, never as the marker.
 func expandForFeed(html string, snippets snippet.Rendered, albums album.Set, words func(string) string, texts map[string]string) string {
-	// The opt-out marker goes without a widget: a feed reader is not a
+	// The form markers go without a widget: a feed reader is not a
 	// browser that sent a signal, and a form in a feed posts nowhere useful.
-	return withoutOptOut(value.Resolve(block.ResolveWords(album.Expand(snippet.Expand(html, snippets.HTML), albums), words), texts))
+	return withoutDataRequest(withoutOptOut(value.Resolve(block.ResolveWords(album.Expand(snippet.Expand(html, snippets.HTML), albums), words), texts)))
 }
 
 // contentModTime is the validator for conditional requests.
