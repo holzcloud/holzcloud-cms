@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -35,6 +36,15 @@ type Request struct {
 	CreatedAt time.Time
 	// HandledAt is when the operator answered, nil while nobody has.
 	HandledAt *time.Time
+	// Manner is how the request was made: MannerForm for what a form of the
+	// website took, another manner for a request the operator entered.
+	Manner string
+	// Outcome is how a data request was answered, empty until it was.
+	Outcome string
+	// Basis is the operator's reason for the answer — required for a
+	// refusal by the admin screen, and the "basis for the denial" of
+	// § 7101(b).
+	Basis string
 }
 
 // Store handles SQL operations for requests. Every statement carries the
@@ -47,7 +57,7 @@ type Store struct {
 // NewStore creates a request store.
 func NewStore(database *db.DB) *Store { return &Store{DB: database} }
 
-const columns = `id, website_id, kind, locale, name, email, note, gpc, created_at, handled_at`
+const columns = `id, website_id, kind, locale, name, email, note, gpc, created_at, handled_at, manner, outcome, basis`
 
 func scan(row interface{ Scan(...any) error }) (*Request, error) {
 	var r Request
@@ -55,7 +65,7 @@ func scan(row interface{ Scan(...any) error }) (*Request, error) {
 	var createdAt string
 	var handledAt sql.NullString
 	if err := row.Scan(&r.ID, &r.WebsiteID, &r.Kind, &r.Locale, &r.Name, &r.Email, &r.Note,
-		&gpc, &createdAt, &handledAt); err != nil {
+		&gpc, &createdAt, &handledAt, &r.Manner, &r.Outcome, &r.Basis); err != nil {
 		return nil, err
 	}
 	r.GPC = gpc == 1
@@ -79,8 +89,9 @@ func (s *Store) Add(ctx context.Context, r Request) (int64, error) {
 }
 
 // AddWithin stores a request as Add does, unless the website already received
-// limit requests of its kind since the given moment; then it stores nothing
-// and returns ErrLimit.
+// limit requests of its family since the given moment; then it stores nothing
+// and returns ErrLimit. The family is the kinds one form takes: an opt-out
+// counts the opt-outs, a data request all three kinds of data request.
 //
 // The count and the insert are one statement, INSERT … SELECT … WHERE count <
 // limit, on the write pool, which has one connection. A count read first and
@@ -96,8 +107,8 @@ func (s *Store) AddWithin(ctx context.Context, r Request, since time.Time, limit
 }
 
 // Check reports what Add would refuse a request for — ErrBadKind,
-// ErrTooLong, ErrEmpty or ErrBadEmail — without storing anything, and nil
-// when it would store it. The opt-out form asks it before it spends anything
+// ErrBadManner, ErrTooLong, ErrEmpty, ErrNeedsEmail or ErrBadEmail — without
+// storing anything, and nil when it would store it. The opt-out form asks it before it spends anything
 // on a request, so that what was typed wrong costs the visitor nothing but
 // the correction.
 func Check(r Request) error {
@@ -110,6 +121,12 @@ func Check(r Request) error {
 func clean(r Request) (Request, error) {
 	if !kinds[r.Kind] {
 		return r, ErrBadKind
+	}
+	if r.Manner == "" {
+		r.Manner = MannerForm
+	}
+	if !manners[r.Manner] {
+		return r, ErrBadManner
 	}
 	r.Locale = strings.TrimSpace(r.Locale)
 	r.Name = strings.TrimSpace(r.Name)
@@ -126,10 +143,29 @@ func clean(r Request) (Request, error) {
 	if r.Name == "" && r.Email == "" && !r.GPC {
 		return r, ErrEmpty
 	}
+	// A data request is answered at its address, and the address is what
+	// the operator finds the person's data by. An opt-out needs none: a
+	// name, or the browser's signal, is a request in its own right.
+	if IsDataKind(r.Kind) && r.Email == "" {
+		return r, ErrNeedsEmail
+	}
 	if r.Email != "" && !ValidEmail(r.Email) {
 		return r, ErrBadEmail
 	}
 	return r, nil
+}
+
+// kindIn is "kind IN (...)" for the family of a kind, with its placeholders
+// numbered from first, and the values that go with them.
+func kindIn(kind string, first int) (string, []any) {
+	fam := family(kind)
+	marks := make([]string, len(fam))
+	args := make([]any, len(fam))
+	for i, k := range fam {
+		marks[i] = "$" + strconv.Itoa(first+i)
+		args[i] = k
+	}
+	return "kind IN (" + strings.Join(marks, ", ") + ")", args
 }
 
 // add is Add with an optional limit; limit 0 means none.
@@ -144,21 +180,23 @@ func (s *Store) add(ctx context.Context, r Request, since time.Time, limit int) 
 	}
 	if limit == 0 {
 		res, err := s.DB.Write.ExecContext(ctx,
-			`INSERT INTO privacy_requests (website_id, kind, locale, name, email, note, gpc)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-			r.WebsiteID, r.Kind, r.Locale, r.Name, r.Email, r.Note, gpc)
+			`INSERT INTO privacy_requests (website_id, kind, locale, name, email, note, gpc, manner)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			r.WebsiteID, r.Kind, r.Locale, r.Name, r.Email, r.Note, gpc, r.Manner)
 		if err != nil {
 			return 0, fmt.Errorf("add request: %w", err)
 		}
 		return res.LastInsertId()
 	}
+	in, fam := kindIn(r.Kind, 11)
+	args := append([]any{r.WebsiteID, r.Kind, r.Locale, r.Name, r.Email, r.Note, gpc, r.Manner,
+		since.UTC().Format(timeLayout), limit}, fam...)
 	res, err := s.DB.Write.ExecContext(ctx,
-		`INSERT INTO privacy_requests (website_id, kind, locale, name, email, note, gpc)
-		 SELECT $1, $2, $3, $4, $5, $6, $7
+		`INSERT INTO privacy_requests (website_id, kind, locale, name, email, note, gpc, manner)
+		 SELECT $1, $2, $3, $4, $5, $6, $7, $8
 		 WHERE (SELECT COUNT(*) FROM privacy_requests
-		        WHERE website_id = $1 AND kind = $2 AND created_at >= $8) < $9`,
-		r.WebsiteID, r.Kind, r.Locale, r.Name, r.Email, r.Note, gpc,
-		since.UTC().Format(timeLayout), limit)
+		        WHERE website_id = $1 AND `+in+` AND created_at >= $9) < $10`,
+		args...)
 	if err != nil {
 		return 0, fmt.Errorf("add request: %w", err)
 	}
@@ -234,6 +272,10 @@ func (s *Store) ListAll(ctx context.Context, websiteID int64) ([]Request, error)
 // that could undo it (WR-02 of the second 33.1 review). The manifest it comes
 // from is a file anybody can edit, and a clock that runs ahead does the same
 // without anybody meaning it.
+//
+// How the request was made and answered comes along when the archive carries
+// it: an empty manner is the form's, and a manner or an outcome the record
+// does not know is ErrBadManner or ErrBadOutcome.
 func (s *Store) Restore(ctx context.Context, r Request) (int64, error) {
 	if !kinds[r.Kind] {
 		return 0, ErrBadKind
@@ -257,6 +299,18 @@ func (s *Store) Restore(ctx context.Context, r Request) (int64, error) {
 	if r.Name == "" && r.Email == "" && !r.GPC {
 		return 0, ErrEmpty
 	}
+	if r.Manner == "" {
+		r.Manner = MannerForm
+	}
+	if !manners[r.Manner] {
+		return 0, ErrBadManner
+	}
+	if r.Outcome != "" && !outcomes[r.Outcome] {
+		return 0, ErrBadOutcome
+	}
+	if utf8.RuneCountInString(r.Basis) > MaxBasis {
+		return 0, ErrTooLong
+	}
 	gpc := 0
 	if r.GPC {
 		gpc = 1
@@ -266,10 +320,11 @@ func (s *Store) Restore(ctx context.Context, r Request) (int64, error) {
 		handled = r.HandledAt.UTC().Format(timeLayout)
 	}
 	res, err := s.DB.Write.ExecContext(ctx,
-		`INSERT INTO privacy_requests (website_id, kind, locale, name, email, note, gpc, created_at, handled_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		`INSERT INTO privacy_requests (website_id, kind, locale, name, email, note, gpc, created_at, handled_at,
+		                               manner, outcome, basis)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
 		r.WebsiteID, r.Kind, r.Locale, r.Name, r.Email, r.Note, gpc,
-		r.CreatedAt.UTC().Format(timeLayout), handled)
+		r.CreatedAt.UTC().Format(timeLayout), handled, r.Manner, r.Outcome, r.Basis)
 	if err != nil {
 		return 0, fmt.Errorf("restore request: %w", err)
 	}
@@ -315,18 +370,95 @@ func (s *Store) MarkHandled(ctx context.Context, websiteID, id int64) error {
 	return nil
 }
 
-// CountSince counts the requests of one kind a website received since a
-// moment. The opt-out form asks it on every submission for its hourly limit,
-// which is why it is a count in the database and not something a process
-// remembers: a restart must not reset it.
+// CountSince counts the requests of a kind's family (AddWithin) a website
+// received since a moment. The forms ask it after every stored request for
+// their hourly mail cap, which is why it is a count in the database and not
+// something a process remembers: a restart must not reset it.
 func (s *Store) CountSince(ctx context.Context, websiteID int64, kind string, since time.Time) (int, error) {
 	var n int
+	in, fam := kindIn(kind, 3)
+	args := append([]any{websiteID, since.UTC().Format(timeLayout)}, fam...)
 	err := s.DB.Read.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM privacy_requests
-		 WHERE website_id = $1 AND kind = $2 AND created_at >= $3`,
-		websiteID, kind, since.UTC().Format(timeLayout)).Scan(&n)
+		 WHERE website_id = $1 AND `+in+` AND created_at >= $2`,
+		args...).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("count requests: %w", err)
 	}
 	return n, nil
+}
+
+// ListData returns the data requests of one website — access, correction and
+// erasure, not the opt-outs — newest first.
+func (s *Store) ListData(ctx context.Context, websiteID int64) ([]Request, error) {
+	in, fam := kindIn(KindAccess, 2)
+	rows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT `+columns+` FROM privacy_requests
+		 WHERE website_id = $1 AND `+in+`
+		 ORDER BY created_at DESC, id DESC`, append([]any{websiteID}, fam...)...)
+	if err != nil {
+		return nil, fmt.Errorf("list data requests: %w", err)
+	}
+	defer rows.Close()
+	var out []Request
+	for rows.Next() {
+		r, err := scan(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan request: %w", err)
+		}
+		out = append(out, *r)
+	}
+	return out, rows.Err()
+}
+
+// Answer records how a data request was answered: the outcome, the basis the
+// operator gives for it, and — when the request has no answer date yet — now
+// as that date.
+//
+// Once. The answer is the record § 7101 asks for, and a record that can be
+// rewritten afterwards records nothing; a second answer is ErrAnswered and
+// changes nothing. The check and the write are one statement, so two answers
+// sent at the same moment cannot both pass it.
+//
+// An outcome other than granted, partly or refused is ErrBadOutcome, a basis
+// longer than MaxBasis ErrTooLong. An opt-out is ErrBadKind — it is marked
+// handled (MarkHandled), not answered — and a request that is not on this
+// website is ErrNotFound.
+func (s *Store) Answer(ctx context.Context, websiteID, id int64, outcome, basis string) error {
+	if !outcomes[outcome] {
+		return ErrBadOutcome
+	}
+	basis = strings.TrimSpace(basis)
+	if utf8.RuneCountInString(basis) > MaxBasis {
+		return ErrTooLong
+	}
+	in, fam := kindIn(KindAccess, 5)
+	res, err := s.DB.Write.ExecContext(ctx,
+		`UPDATE privacy_requests
+		 SET outcome = $3, basis = $4,
+		     handled_at = COALESCE(handled_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+		 WHERE id = $1 AND website_id = $2 AND outcome = '' AND `+in,
+		append([]any{id, websiteID, outcome, basis}, fam...)...)
+	if err != nil {
+		return fmt.Errorf("answer request: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("answer request: %w", err)
+	}
+	if n == 1 {
+		return nil
+	}
+	// Nothing changed: say why.
+	r, err := s.Get(ctx, websiteID, id)
+	switch {
+	case err != nil:
+		return err
+	case r == nil:
+		return ErrNotFound
+	case !IsDataKind(r.Kind):
+		return ErrBadKind
+	default:
+		return ErrAnswered
+	}
 }

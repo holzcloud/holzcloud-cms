@@ -1188,6 +1188,9 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// already and changes nothing (Phase 33.2, DSR-01).
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/datenschutz", adminHandler.ErrHandler(adminHandler.HandlePrivacyPerson))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/datenschutz/export.json", adminHandler.ErrHandler(adminHandler.HandlePrivacyExport))
+	// The requests people sent about their data, beside the search: open to
+	// the same people, because reading them publishes nothing (D-01).
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/datenschutz/anfragen", adminHandler.ErrHandler(adminHandler.HandlePrivacyRequests))
 	adminProtectedMux.Handle("GET /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	// A website's own mail account. Admins only: it holds a password, and
@@ -1487,6 +1490,9 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// The opt-out form of a website that follows US law. Like /freischalten
 	// it takes no CSRF token, because it rides no session (D-03).
 	publicMux.HandleFunc("POST /widerspruch", publicHandler.ErrHandler(publicHandler.HandleOptOut))
+	// The request form of every website ([[datenanfrage]], Phase 33.2 D-01),
+	// on the opt-out form's machinery and, like it, without a CSRF token.
+	publicMux.HandleFunc("POST /datenanfrage", publicHandler.ErrHandler(publicHandler.HandleDataRequest))
 	// The Global Privacy Control statement of a website that follows US law;
 	// 404 on every other.
 	publicMux.HandleFunc("GET /.well-known/gpc.json", publicHandler.ErrHandler(publicHandler.HandleGPCJSON))

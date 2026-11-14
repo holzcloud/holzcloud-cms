@@ -140,11 +140,21 @@ func (h *Handler) expandOptOut(r *http.Request, ws *domain.Website, pg *page.Pag
 	if !strings.Contains(body, optoutMarker) {
 		return body
 	}
-	body = marker.OnlyInText(body, optoutPattern)
 	widget := ""
 	if h.optoutOffered(ws) {
 		widget = h.optoutWidget(r, ws, pg)
 	}
+	return placeWidget(body, optoutParagraph, optoutPattern, widget)
+}
+
+// placeWidget puts a form widget where a body carries its marker, by the
+// rules expandOptOut gives: only a marker in text counts, the paragraph
+// around a marker on its own line goes with it, and the first marker gets
+// the widget while every further one renders as nothing. The request form
+// (datarequest.go) places its widget through here too, so the two forms
+// cannot come to follow different rules.
+func placeWidget(body string, paragraph, pattern *regexp.Regexp, widget string) string {
+	body = marker.OnlyInText(body, pattern)
 	placed := false
 	place := func(string) string {
 		if placed {
@@ -153,19 +163,24 @@ func (h *Handler) expandOptOut(r *http.Request, ws *domain.Website, pg *page.Pag
 		placed = true
 		return widget
 	}
-	body = optoutParagraph.ReplaceAllStringFunc(body, place)
-	return optoutPattern.ReplaceAllStringFunc(body, place)
+	body = paragraph.ReplaceAllStringFunc(body, place)
+	return pattern.ReplaceAllStringFunc(body, place)
 }
 
 // withoutOptOut removes the marker from a body that is not a page being
 // served — a feed entry, what a plugin reads. Neither has a request to answer
 // and neither should carry a form, but a visitor must never see the marker.
 func withoutOptOut(body string) string {
-	if !strings.Contains(body, optoutMarker) {
+	return withoutWidget(body, optoutMarker, optoutParagraph, optoutPattern)
+}
+
+// withoutWidget removes a form's marker, and the paragraph it stands in.
+func withoutWidget(body, mark string, paragraph, pattern *regexp.Regexp) string {
+	if !strings.Contains(body, mark) {
 		return body
 	}
-	body = optoutParagraph.ReplaceAllString(body, "")
-	return optoutPattern.ReplaceAllString(body, "")
+	body = paragraph.ReplaceAllString(body, "")
+	return pattern.ReplaceAllString(body, "")
 }
 
 // optoutLang is the language the widget speaks: the page's, except Spanish.
@@ -270,22 +285,8 @@ func (h *Handler) optoutWidget(r *http.Request, ws *domain.Website, pg *page.Pag
 
 // HandleOptOut takes the opt-out form (POST /widerspruch).
 //
-// No session, no cookie, no CSRF token — gorilla/csrf needs a cookie, and the
-// public side sets none before a visitor asks for one (D-03). The answer is
-// always a 303 back to the page the form stood on, with the outcome in the
-// query, so a reload never posts twice.
-//
-// The order of the checks is the order of their cost. A cross-site POST is
-// refused before anything is read: with no cookie there is nothing for a
-// classic CSRF to ride, but a forged opt-out would still fill the operator's
-// list and inbox. The body is bounded before it is parsed. The honeypot and
-// a stamp this page did not draw answer exactly like a success and store
-// nothing, because a robot must not learn which trap caught it. A stamp this
-// page did draw, but too long ago or a moment ago, belongs to a person, who
-// is asked to send again rather than told "recorded" about a request that
-// was not (CCPA regs § 7026(a)(1) makes this form a way the request must be
-// taken). The hourly limit is the other refusal a visitor sees, because a
-// person can act on it.
+// The steps are takeRequest's, shared with the request form: what is the
+// opt-out's own is the kind, the signal the browser sent, and the mail.
 func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	ws := domain.WebsiteFromContext(r.Context())
 	if ws == nil {
@@ -295,6 +296,61 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	if !h.optoutOffered(ws) {
 		return h.serve404(w, r, ws)
 	}
+	return h.takeRequest(w, r, ws, requestForm{
+		query:      "widerspruch",
+		stampLabel: optoutStampLabel(ws.ID),
+		build: func(r *http.Request) (dsr.Request, error) {
+			return dsr.Request{
+				Kind:  dsr.KindOptOut,
+				Name:  strings.TrimSpace(r.PostFormValue("name")),
+				Email: strings.TrimSpace(r.PostFormValue("email")),
+				Note:  strings.TrimSpace(r.PostFormValue("note")),
+				GPC:   legal.GPC(r.Header),
+			}, nil
+		},
+		notify: h.optoutNotify,
+	})
+}
+
+// requestForm is what tells one public request form from the other. Every
+// step of taking it is takeRequest's; the opt-out form (HandleOptOut) and the
+// request form (HandleDataRequest) differ only here.
+type requestForm struct {
+	// query is the name of the outcome in the address the visitor is sent
+	// back to.
+	query string
+	// stampLabel is the derivation of the form's stamp on this website
+	// (formStamp). Each form has its own, so a stamp drawn for one is a
+	// forgery on the other.
+	stampLabel string
+	// build reads the request from the posted form. An error is a refusal
+	// the visitor is shown (requestRefusal).
+	build func(r *http.Request) (dsr.Request, error)
+	// notify mails the operator about a stored request.
+	notify func(ctx context.Context, ws *domain.Website, req dsr.Request)
+}
+
+// takeRequest takes one public request form: the anti-abuse machinery the
+// opt-out form of 33.1 built, held in one place for every form that takes a
+// request from a stranger.
+//
+// No session, no cookie, no CSRF token — gorilla/csrf needs a cookie, and the
+// public side sets none before a visitor asks for one (D-03). The answer is
+// always a 303 back to the page the form stood on, with the outcome in the
+// query, so a reload never posts twice.
+//
+// The order of the checks is the order of their cost. A cross-site POST is
+// refused before anything is read: with no cookie there is nothing for a
+// classic CSRF to ride, but a forged request would still fill the operator's
+// list and inbox. The body is bounded before it is parsed. The honeypot and
+// a stamp this page did not draw answer exactly like a success and store
+// nothing, because a robot must not learn which trap caught it. A stamp this
+// page did draw, but too long ago or a moment ago, belongs to a person, who
+// is asked to send again rather than told "recorded" about a request that
+// was not (CCPA regs § 7026(a)(1) makes the opt-out form a way the request
+// must be taken). The hourly limit is the other refusal a visitor sees,
+// because a person can act on it.
+func (h *Handler) takeRequest(w http.ResponseWriter, r *http.Request, ws *domain.Website, f requestForm) error {
 	if !optoutSameOrigin(r) {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return nil
@@ -315,30 +371,30 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	answer := func(outcome string) {
+		http.Redirect(w, r, back+"?"+f.query+"="+outcome, http.StatusSeeOther)
+	}
 
 	// The honeypot before the stamp's age: a robot that kept a real stamp
 	// must still learn nothing from the answer.
-	verdict := h.optoutStampCheck(ws, r.PostFormValue("stempel"), now)
+	verdict := h.stampCheck(f.stampLabel, r.PostFormValue("stempel"), now)
 	if r.PostFormValue("website") != "" || verdict == stampForged {
-		optoutRedirect(w, r, back, "eingegangen")
+		answer("eingegangen")
 		return nil
 	}
 	if verdict == stampStale {
-		optoutRedirect(w, r, back, "abgelaufen")
+		answer("abgelaufen")
 		return nil
 	}
-	lang := LocaleFrom(ctx)
-	if lang == "" {
-		lang = ws.Locale
+	req, err := f.build(r)
+	if outcome, refused := requestRefusal(err); refused {
+		answer(outcome)
+		return nil
 	}
-	req := dsr.Request{
-		WebsiteID: ws.ID,
-		Kind:      dsr.KindOptOut,
-		Locale:    lang,
-		Name:      strings.TrimSpace(r.PostFormValue("name")),
-		Email:     strings.TrimSpace(r.PostFormValue("email")),
-		Note:      strings.TrimSpace(r.PostFormValue("note")),
-		GPC:       legal.GPC(r.Header),
+	req.WebsiteID = ws.ID
+	req.Locale = LocaleFrom(ctx)
+	if req.Locale == "" {
+		req.Locale = ws.Locale
 	}
 	// What was typed before any budget, and with the store's own rules
 	// (IN-01 of the second 33.1 review). A person who mistypes an address is
@@ -350,20 +406,23 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	// honeypot and a forged stamp, above, spend nothing either — they store
 	// nothing and mail nobody, and a robot that ran out of budget there
 	// would learn from the changed answer which trap had caught it.
-	if outcome, refused := optoutRefusal(dsr.Check(req)); refused {
-		optoutRedirect(w, r, back, outcome)
+	if outcome, refused := requestRefusal(dsr.Check(req)); refused {
+		answer(outcome)
 		return nil
 	}
 	// The network's budget before the website's ceiling, so that one
 	// network that spent its own never reaches the one everybody shares.
+	// One budget for every form: a network that spent it on one form does
+	// not go on with the other.
 	networks, budgeted := h.optoutNetworks(r)
 	budgeted = budgeted && h.optoutNets != nil
 	if budgeted && !h.optoutNets.take(networks, now) {
-		optoutRedirect(w, r, back, "spaeter")
+		answer("spaeter")
 		return nil
 	}
 	// The hourly limit is counted inside the insert, not before it: a count
 	// read first lets a burst of parallel posts all read the same number.
+	// It counts the form's family of kinds (dsr.Store.AddWithin).
 	hourAgo := now.Add(-time.Hour)
 	_, err = h.requests.AddWithin(ctx, req, hourAgo, optoutSiteLimit)
 	// A request that was not stored spends nothing: once the ceiling is
@@ -372,21 +431,21 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	if budgeted && err != nil {
 		h.optoutNets.give(networks, now)
 	}
-	if outcome, refused := optoutRefusal(err); refused {
-		optoutRedirect(w, r, back, outcome)
+	if outcome, refused := requestRefusal(err); refused {
+		answer(outcome)
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("store opt-out: %w", err)
+		return fmt.Errorf("store %s request: %w", req.Kind, err)
 	}
-	h.optoutNotifyWithin(ctx, ws, req, hourAgo)
-	optoutRedirect(w, r, back, "eingegangen")
+	h.notifyWithin(ctx, ws, req, hourAgo, f.notify)
+	answer("eingegangen")
 	return nil
 }
 
-// optoutRefusal is the outcome the visitor is shown for a request the store
+// requestRefusal is the outcome the visitor is shown for a request the store
 // refuses, and false for an error that is not a refusal (nil among them).
-func optoutRefusal(err error) (string, bool) {
+func requestRefusal(err error) (string, bool) {
 	switch {
 	case errors.Is(err, dsr.ErrLimit):
 		return "spaeter", true
@@ -394,26 +453,30 @@ func optoutRefusal(err error) (string, bool) {
 		return "leer", true
 	case errors.Is(err, dsr.ErrTooLong):
 		return "zulang", true
-	case errors.Is(err, dsr.ErrBadEmail):
+	case errors.Is(err, dsr.ErrBadEmail), errors.Is(err, dsr.ErrNeedsEmail):
 		return "adresse", true
+	case errors.Is(err, dsr.ErrBadKind):
+		return "art", true
 	}
 	return "", false
 }
 
-// optoutNotifyWithin mails the operator about a stored request unless the
-// website already took optoutMailLimit of them this hour. The count is read
-// after this request's own insert, so it is never below this request's place
-// in the hour: a burst can only send fewer mails than the limit, never more.
-func (h *Handler) optoutNotifyWithin(ctx context.Context, ws *domain.Website, req dsr.Request, since time.Time) {
-	n, err := h.requests.CountSince(ctx, ws.ID, dsr.KindOptOut, since)
+// notifyWithin mails the operator about a stored request unless the website
+// already took optoutMailLimit requests of its family this hour. The count is
+// read after this request's own insert, so it is never below this request's
+// place in the hour: a burst can only send fewer mails than the limit, never
+// more.
+func (h *Handler) notifyWithin(ctx context.Context, ws *domain.Website, req dsr.Request, since time.Time,
+	notify func(context.Context, *domain.Website, dsr.Request)) {
+	n, err := h.requests.CountSince(ctx, ws.ID, req.Kind, since)
 	if err != nil {
-		slog.Error("count opt-outs for the notification", "err", err, "website", ws.ID)
+		slog.Error("count requests for the notification", "err", err, "website", ws.ID)
 		return
 	}
 	if n > optoutMailLimit {
 		return
 	}
-	h.optoutNotify(ctx, ws, req)
+	notify(ctx, ws, req)
 }
 
 // optoutSameOrigin reports whether a POST may have come from this website's
@@ -494,10 +557,6 @@ func (h *Handler) optoutBack(r *http.Request, ws *domain.Website, seite string) 
 	return h.localePath(r, ws, "/"+pg.Slug), nil
 }
 
-func optoutRedirect(w http.ResponseWriter, r *http.Request, back, outcome string) {
-	http.Redirect(w, r, back+"?widerspruch="+outcome, http.StatusSeeOther)
-}
-
 // What the form's time stamp says about who sent it.
 type stampVerdict int
 
@@ -514,30 +573,41 @@ const (
 )
 
 // OptOutStamp is the time stamp the opt-out form of a website carries, drawn
-// at issued: the issue time in the id slot of a share-link token, signed so
-// that a robot cannot back-date it, and checked for its age when the form
-// comes back.
-//
-// The signer is derived per website, so a stamp drawn on one website is a
-// forgery on every other: one signer for all of them let a single GET feed
-// posts to every website of the installation (WR-01).
+// at issued (formStamp).
 func OptOutStamp(signer *sharelink.Signer, websiteID int64, issued time.Time) string {
-	return optoutStampSigner(signer, websiteID).Token(issued.Unix(), issued.Add(optoutMaxAge))
+	return formStamp(signer, optoutStampLabel(websiteID), issued)
 }
 
-func optoutStampSigner(signer *sharelink.Signer, websiteID int64) *sharelink.Signer {
-	return signer.Derive("website:" + strconv.FormatInt(websiteID, 10))
+// optoutStampLabel is the opt-out form's derivation on one website. It is
+// the one 33.1 drew its stamps with, so a page served before the request form
+// existed still posts.
+func optoutStampLabel(websiteID int64) string {
+	return "website:" + strconv.FormatInt(websiteID, 10)
 }
 
-// optoutStampCheck tells the three kinds of stamp apart.
+// formStamp is the time stamp a public request form carries, drawn at issued:
+// the issue time in the id slot of a share-link token, signed so that a robot
+// cannot back-date it, and checked for its age when the form comes back
+// (stampCheck).
+//
+// The signer is derived per form and per website — label names both — so a
+// stamp drawn on one website is a forgery on every other, and a stamp drawn
+// for one form a forgery on the other: one signer for all of them let a
+// single GET feed posts to every website of the installation (WR-01).
+func formStamp(signer *sharelink.Signer, label string, issued time.Time) string {
+	return signer.Derive(label).Token(issued.Unix(), issued.Add(optoutMaxAge))
+}
+
+// stampCheck tells the three kinds of stamp apart, for the form whose
+// derivation is label.
 //
 // The signature decides between a person and a robot, and the age only
 // between "now" and "please again": a stamp that verifies proves it came from
 // this website's page, so answering its sender honestly tells a robot nothing
 // it did not already know. sharelink checks expiry after the signature for
 // exactly this distinction.
-func (h *Handler) optoutStampCheck(ws *domain.Website, stamp string, now time.Time) stampVerdict {
-	issued, err := optoutStampSigner(h.optoutSigner, ws.ID).Check(stamp, now)
+func (h *Handler) stampCheck(label, stamp string, now time.Time) stampVerdict {
+	issued, err := h.optoutSigner.Derive(label).Check(stamp, now)
 	switch {
 	case errors.Is(err, sharelink.ErrExpired):
 		return stampStale

@@ -1080,3 +1080,93 @@ func TestMigration00066DownAndUp(t *testing.T) {
 		t.Errorf("%d of the %d indexes after the trip back up", got, len(indexes))
 	}
 }
+
+// TestMigration00067DownAndUp takes the three columns of the § 7101 record —
+// manner, outcome, basis — off privacy_requests and puts them back. The rows
+// stay either way: they are the record.
+func TestMigration00067DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+	columns := func() map[string]bool {
+		rows, err := database.Read.QueryContext(ctx, `SELECT name FROM pragma_table_info('privacy_requests')`)
+		if err != nil {
+			t.Fatalf("table_info: %v", err)
+		}
+		defer rows.Close()
+		got := map[string]bool{}
+		for rows.Next() {
+			var name string
+			if err := rows.Scan(&name); err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			got[name] = true
+		}
+		return got
+	}
+	count := func() int {
+		var n int
+		if err := database.Read.QueryRowContext(ctx, `SELECT COUNT(*) FROM privacy_requests`).Scan(&n); err != nil {
+			t.Fatalf("count: %v", err)
+		}
+		return n
+	}
+	res, err := database.Write.ExecContext(ctx, `INSERT INTO websites (name, description) VALUES ('Hofladen', '')`)
+	if err != nil {
+		t.Fatalf("creating a website: %v", err)
+	}
+	site, _ := res.LastInsertId()
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO privacy_requests (website_id, kind, email, manner, outcome, basis)
+		 VALUES (?, 'access', 'ada@example.com', 'post', 'refused', 'not the person')`, site); err != nil {
+		t.Fatalf("a request with an answer: %v", err)
+	}
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO privacy_requests (website_id, kind, email, manner) VALUES (?, 'access', 'bea@example.com', 'fax')`, site); err == nil {
+		t.Error("the table took manner fax")
+	}
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO privacy_requests (website_id, kind, email, outcome) VALUES (?, 'access', 'bea@example.com', 'maybe')`, site); err == nil {
+		t.Error("the table took outcome maybe")
+	}
+
+	rollBackTo(t, ctx, provider, 66)
+	cols := columns()
+	for _, name := range []string{"manner", "outcome", "basis"} {
+		if cols[name] {
+			t.Errorf("column %s left after rolling back to 00066", name)
+		}
+	}
+	if n := count(); n != 1 {
+		t.Errorf("%d rows after rolling back; want the one kept", n)
+	}
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO privacy_requests (website_id, kind, name) VALUES (?, 'optout', 'Cleo')`, site); err != nil {
+		t.Fatalf("a request without the columns: %v", err)
+	}
+
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+	var manner, outcome, basis string
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT manner, outcome, basis FROM privacy_requests WHERE name = 'Cleo'`).Scan(&manner, &outcome, &basis); err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if manner != "form" || outcome != "" || basis != "" {
+		t.Errorf("defaults after the trip up: %q %q %q; want form, nothing, nothing", manner, outcome, basis)
+	}
+	if n := count(); n != 2 {
+		t.Errorf("%d rows after the trip up; want 2", n)
+	}
+}

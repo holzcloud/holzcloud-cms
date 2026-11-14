@@ -8,10 +8,12 @@
 // § 7025(c)(2)).
 //
 // Phase 33.1 writes one kind, KindOptOut, from the "Do Not Sell or Share"
-// page. Phase 33.2 adds the data requests (access, correction, erasure) to the
-// same table and this package (33.2 D-09); the kind is validated here rather
-// than by a CHECK list in the schema so that adding one needs no table
-// rebuild.
+// page. Phase 33.2 adds the data requests of D-01 — access, correction and
+// erasure — to the same table (33.2 D-09): a visitor sends one through the
+// [[datenanfrage]] form, or the operator enters one that arrived by e-mail,
+// letter or telephone, and records how it was answered. The kind is
+// validated here rather than by a CHECK list in the schema so that adding
+// one needs no table rebuild.
 //
 // Since Phase 33.2 the package also finds a person's data across the stores
 // of one website (Service, source.go). It does so through one list of
@@ -30,6 +32,8 @@ import (
 	"errors"
 	"net/mail"
 	"strings"
+
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 )
 
 // ValidEmail reports whether s is one bare e-mail address: what net/mail
@@ -60,19 +64,96 @@ func ValidEmail(s string) bool {
 // KindOptOut is a request not to sell or share personal information.
 const KindOptOut = "optout"
 
+// The data requests of Phase 33.2 (D-01): a person asks for a copy of their
+// data, for it to be corrected, or for it to be erased.
+const (
+	KindAccess     = "access"
+	KindCorrection = "correction"
+	KindErasure    = "erasure"
+)
+
+// DataKinds are the kinds of data request, in the order a form offers them.
+var DataKinds = []string{KindAccess, KindCorrection, KindErasure}
+
+// kindNames are the names of the data request kinds, catalogue keys.
+var kindNames = map[string]string{
+	KindAccess:     i18n.N("Access"),
+	KindCorrection: i18n.N("Correction"),
+	KindErasure:    i18n.N("Erasure"),
+}
+
+// KindName is the name of a kind of request, a catalogue key; an unknown
+// kind is its own name.
+func KindName(kind string) string {
+	if name, ok := kindNames[kind]; ok {
+		return name
+	}
+	return kind
+}
+
+// IsDataKind reports whether kind is one of the data requests, and not an
+// opt-out.
+func IsDataKind(kind string) bool {
+	return kind == KindAccess || kind == KindCorrection || kind == KindErasure
+}
+
+// The manners in which a request is made (CCPA regs § 7101(b)): through a
+// form of the website, or by e-mail, letter, telephone or otherwise, entered
+// by the operator. The schema checks the same list.
+const (
+	MannerForm  = "form"
+	MannerEmail = "email"
+	MannerPost  = "post"
+	MannerPhone = "phone"
+	MannerOther = "other"
+)
+
+// manners are the values the manner column takes.
+var manners = map[string]bool{
+	MannerForm: true, MannerEmail: true, MannerPost: true, MannerPhone: true, MannerOther: true,
+}
+
+// The answers a data request gets (§ 7101(b), "the nature of the response").
+// An empty outcome means nobody has answered yet. The schema checks the same
+// list.
+const (
+	OutcomeGranted = "granted"
+	OutcomePartly  = "partly"
+	OutcomeRefused = "refused"
+)
+
+// outcomes are the answers Answer records.
+var outcomes = map[string]bool{OutcomeGranted: true, OutcomePartly: true, OutcomeRefused: true}
+
+// family is the kinds a form's hourly ceiling and mail cap count together:
+// the data request form takes all three data kinds, so a ceiling per kind
+// would be three ceilings; the opt-out form takes opt-outs. One form flooded
+// does not close the other.
+func family(kind string) []string {
+	if IsDataKind(kind) {
+		return DataKinds
+	}
+	return []string{kind}
+}
+
 // The longest values the table accepts, in characters. The schema enforces
 // the same numbers.
 const (
 	MaxName  = 200
 	MaxEmail = 254
 	MaxNote  = 2000
+	// MaxBasis is the longest basis of an answer.
+	MaxBasis = 2000
 	// maxLocale is a BCP 47 tag's practical length.
 	maxLocale = 35
 )
 
 // kinds are the kinds this program writes. Phase 33.2 adds its own here.
 var kinds = map[string]bool{
-	KindOptOut: true,
+	KindOptOut:     true,
+	KindAccess:     true,
+	KindCorrection: true,
+	KindErasure:    true,
 }
 
 var (
@@ -99,4 +180,15 @@ var (
 	// ErrLimit means the website already received as many requests of the
 	// kind as AddWithin allows in its window, and this one was not stored.
 	ErrLimit = errors.New("dsr: too many requests in the window")
+	// ErrNeedsEmail means a data request names no address: the operator
+	// answers it there, and has nothing else to find the person's data by.
+	ErrNeedsEmail = errors.New("dsr: a data request needs an e-mail address")
+	// ErrBadManner means the manner is not one the record knows, or a
+	// request entered by hand claims to have come through the form.
+	ErrBadManner = errors.New("dsr: unknown manner of request")
+	// ErrBadOutcome means the answer is not granted, partly or refused.
+	ErrBadOutcome = errors.New("dsr: unknown outcome")
+	// ErrAnswered means the request already has its answer, and the record
+	// keeps the first one.
+	ErrAnswered = errors.New("dsr: the request is already answered")
 )

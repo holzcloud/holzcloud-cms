@@ -129,6 +129,8 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 	// the browser sent the Global Privacy Control signal — and a widget frozen
 	// into content_html could only ever give one of the two answers.
 	body = h.expandOptOut(r, domain.WebsiteFromContext(r.Context()), pg, body)
+	// The request form of any website, in the same slot for the same reasons.
+	body = h.expandDataRequest(r, domain.WebsiteFromContext(r.Context()), pg, body)
 	// Plugins last: they see the page as a visitor would, with the snippets
 	// already in place and the form already drawn. A filter that ran earlier
 	// would be filtering markers instead of text.

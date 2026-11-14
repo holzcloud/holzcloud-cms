@@ -685,6 +685,9 @@ var editorOpenRoutes = []route{
 	// already, and changes nothing (Phase 33.2, DSR-01).
 	{pattern: "GET /admin/websites/{id}/datenschutz"},
 	{pattern: "GET /admin/websites/{id}/datenschutz/export.json"},
+	// The requests people sent about their data, like the opt-out list:
+	// reading them publishes nothing (Phase 33.2, D-01).
+	{pattern: "GET /admin/websites/{id}/datenschutz/anfragen"},
 	{pattern: "GET /admin/websites/{id}/menus"},
 	{pattern: "POST /admin/websites/{id}/menus"},
 	{pattern: "GET /admin/websites/{id}/menus/{menuID}"},
