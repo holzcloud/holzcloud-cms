@@ -2,7 +2,8 @@
   Datenschutz einer Website: eine Person finden (Phase 33.2, DSR-01). Man gibt
   eine E-Mail-Adresse ein und sieht, was diese Website darunter aufbewahrt, und
   lädt es als JSON herunter. Die Suche ändert nichts — darum ein GET-Formular,
-  keine Bestätigung und hier kein Löschen. Was nicht durchsucht werden konnte,
+  keine Bestätigung und hier kein Löschen; das Löschen hat eine eigene Seite
+  hinter dem Passwort (privacy_erase.html). Was nicht durchsucht werden konnte,
   steht vor dem Gefundenen: eine unvollständige Antwort muss das zuerst sagen.
 */}}
 {{define "content"}}
@@ -67,7 +68,10 @@
     {{else}}
     <p>{{t "Nothing found for this address on this website."}}</p>
     {{end}}
-    <p><a href="{{.ExportURL}}" class="btn" download>{{t "Download as JSON"}}</a></p>
+    <p>
+        <a href="{{.ExportURL}}" class="btn" download>{{t "Download as JSON"}}</a>
+        {{if .Count}}<a href="{{.EraseURL}}" class="btn btn--danger" style="margin-left:var(--space-1)">{{t "Erase…"}}</a>{{end}}
+    </p>
 </div>
 
 {{range .Groups}}

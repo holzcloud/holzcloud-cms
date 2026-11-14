@@ -1,0 +1,46 @@
+{{/*
+  Das Ergebnis einer Löschung (Phase 33.2, DSR-03, D-08): was gelöscht wurde,
+  was gekürzt oder ganz blieb und bis wann. Die Seite wird einmal gezeigt; der
+  POST hat das Ergebnis ohne Adresse in die Sitzung gelegt, und ein Neuladen
+  führt zurück zum Datenschutz-Bildschirm.
+*/}}
+{{define "content"}}
+{{template "privacy_tabs" .}}
+{{template "privacy_erased-content" .}}
+{{end}}
+
+{{define "privacy_erased-content"}}
+{{with .Report}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Erasure done"}}</h2>
+    <ul>
+        {{if eq .Orders 1}}<li>{{t "One order reduced"}}</li>{{else if .Orders}}<li>{{tf "%d orders reduced" .Orders}}</li>{{end}}
+        {{range .Deleted}}<li>{{t .Heading}}: {{tf "%d deleted" .Count}}</li>{{end}}
+    </ul>
+    {{if not (or .Orders .Deleted .Reduced)}}<p class="text-muted">{{t "Nothing was erased."}}</p>{{end}}
+</div>
+
+{{if .Failed}}
+<div class="card privacy-incomplete" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Not erased"}}</h2>
+    <ul>{{range .Failed}}<li>{{t .Heading}}: {{t .Sentence}}</li>{{end}}</ul>
+</div>
+{{end}}
+
+{{if .Reduced}}
+<section class="card" id="erased-reduced" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Reduced"}}</h2>
+    {{range .Reduced}}{{template "erasure_item" .}}{{end}}
+</section>
+{{end}}
+
+{{if .Kept}}
+<section class="card" id="erased-kept" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Kept"}}</h2>
+    {{range .Kept}}{{template "erasure_item" .}}{{end}}
+</section>
+{{end}}
+{{end}}
+
+<p><a href="/admin/websites/{{.WebsiteID}}/datenschutz" class="btn">{{t "Back to the Privacy screen"}}</a></p>
+{{end}}

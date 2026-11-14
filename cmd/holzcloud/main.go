@@ -1220,6 +1220,15 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// nothing either, like marking an opt-out handled.
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/datenschutz/anfragen/neu", adminHandler.ErrHandler(adminHandler.HandlePrivacyRequestNew))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/datenschutz/anfragen/{requestID}/antwort", adminHandler.ErrHandler(adminHandler.HandlePrivacyRequestAnswer))
+	// Erasing a person's data (Phase 33.2, DSR-03, D-09). The preview is a
+	// page and the erasure its POST, both behind the password asked again:
+	// the page is the confirmation, so it works without JavaScript and needs
+	// no hx-confirm. The handler refuses the POST to somebody without the
+	// publishing right and keeps the staff account to administrators. The
+	// result is shown once to whoever made the erasure, in their session.
+	adminProtectedMux.Handle("GET /admin/websites/{id}/datenschutz/loeschen", requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePrivacyErase))))
+	adminProtectedMux.Handle("POST /admin/websites/{id}/datenschutz/loeschen", requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePrivacyErase))))
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/datenschutz/geloescht", adminHandler.ErrHandler(adminHandler.HandlePrivacyErased))
 	// The retention periods. Reading them is open to the same people;
 	// changing one deletes data at the next run of the job, so the POST asks
 	// for the password again and the handler for the publishing right

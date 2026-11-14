@@ -1,0 +1,79 @@
+{{/*
+  Die Daten einer Person auf einer Website löschen (Phase 33.2, DSR-03, D-03,
+  D-07, D-08, D-09). Diese Seite ist die Bestätigung: sie zeigt jeden Eintrag,
+  der geht, und jeden, der gekürzt oder ganz bleibt – mit den Feldern, dem
+  Grund samt Gesetz und dem Datum, an dem er gelöscht wird. Erst der Knopf
+  darunter löscht.
+
+  Seite und POST stehen hinter der erneuten Passwortabfrage (requireFresh).
+  Es gibt keine htmx-Rückfrage: die Seite ist die Bestätigung und geht ohne
+  JavaScript, der Zähler in nojs_test.go bleibt bei 22. Das Formular schickt
+  nur die Adresse, die Anfrage und die angekreuzten Gruppen – nie einen
+  Schlüssel oder eine Id; der Server sucht neu.
+*/}}
+{{define "content"}}
+{{template "privacy_tabs" .}}
+{{template "privacy_erase-content" .}}
+{{end}}
+
+{{define "privacy_erase-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Erase this person's data"}}</h2>
+    <p>{{tf "Everything this website keeps under %s, and what an erasure does with it." .Email}}</p>
+    <p><a href="{{.Back}}">{{t "Back to the search"}}</a></p>
+</div>
+
+{{if .Failed}}
+<div class="card privacy-incomplete" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Could not be searched"}}</h2>
+    <p class="text-muted">{{t "These stores did not answer, so nothing of theirs is erased. Try again later."}}</p>
+    <ul>{{range .Failed}}<li>{{t .}}</li>{{end}}</ul>
+</div>
+{{end}}
+
+{{if .Reduce}}
+<section class="card" id="erase-reduce" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Will be reduced"}}</h2>
+    {{range .Reduce}}{{template "erasure_item" .}}{{end}}
+</section>
+{{end}}
+
+{{if .Delete}}
+<section class="card" id="erase-delete" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Will be deleted"}}</h2>
+    <ul>
+        {{range .Delete}}<li>{{t .Heading}}: {{t .Label}} {{.Key}}</li>{{end}}
+    </ul>
+</section>
+{{end}}
+
+{{if .Keep}}
+<section class="card" id="erase-keep" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Will be kept"}}</h2>
+    {{range .Keep}}{{template "erasure_item" .}}{{end}}
+</section>
+{{end}}
+
+<div class="card">
+    {{if .Nothing}}
+    <p>{{t "Nothing is left to erase for this address on this website."}}</p>
+    {{else if .ReadOnly}}
+    <p class="text-muted">{{t .ReadOnlyNotice}}</p>
+    {{else}}
+    <form method="post" action="{{.Action}}" hx-post="{{.Action}}">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <input type="hidden" name="email" value="{{.Email}}">
+        {{if .RequestID}}<input type="hidden" name="anfrage" value="{{.RequestID}}">{{end}}
+        <fieldset class="form-group">
+            <legend class="form-label">{{t "Erase"}}</legend>
+            {{range .Boxes}}
+            <label style="display:block"><input type="checkbox" name="quelle" value="{{.Name}}"{{if .Checked}} checked{{end}}> {{t .Label}}</label>
+            {{end}}
+        </fieldset>
+        <p><strong>{{t "This cannot be undone."}}</strong></p>
+        <button type="submit" class="btn btn--danger" hx-disabled-elt="this">{{t "Erase now"}}</button>
+        <a href="{{.Back}}" class="btn" style="margin-left:var(--space-1)">{{t "Cancel"}}</a>
+    </form>
+    {{end}}
+</div>
+{{end}}

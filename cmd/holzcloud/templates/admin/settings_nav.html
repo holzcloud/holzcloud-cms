@@ -127,3 +127,21 @@
 </div>
 {{end}}
 {{end}}
+
+{{/*
+  Ein Eintrag einer Löschung, der gekürzt wird oder bleibt: was geht, was
+  bleibt, warum und bis wann (Phase 33.2, DSR-03). Die Vorschau und die
+  Ergebnisseite zeigen ihn gleich, darum hier und nicht zweimal.
+*/}}
+{{define "erasure_item"}}
+<article style="margin-block-start: var(--space-3);">
+    <h3>{{t .Heading}}: {{t .Label}} {{.Key}}</h3>
+    <dl class="detail-list">
+        {{if .Gone}}<dt>{{t "Goes"}}</dt><dd>{{range $i, $f := .Gone}}{{if $i}}, {{end}}{{t $f}}{{end}}</dd>{{end}}
+        {{if .Kept}}<dt>{{t "Stays"}}</dt><dd>{{range $i, $f := .Kept}}{{if $i}}, {{end}}{{t $f}}{{end}}</dd>{{end}}
+        {{if .Until}}<dt>{{t "Retention"}}</dt><dd>{{tf "Kept until %s" .Until}}</dd>{{end}}
+    </dl>
+    {{if .Reason}}<p class="form-hint">{{t .Reason}}</p>{{end}}
+    {{if .Basis}}<p class="form-hint">{{t .Basis}}</p>{{end}}
+</article>
+{{end}}

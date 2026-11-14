@@ -374,3 +374,44 @@ func TestOrderTokenIsUniqueAndTheNumberIsNotAToken(t *testing.T) {
 		t.Error("a token opened an order of another website")
 	}
 }
+
+// An erased order says so, and until when it is kept (Phase 33.2, D-07): the
+// order screens read both from the row.
+func TestAnErasedOrderReadsItsDates(t *testing.T) {
+	orders, carts, products, ws := newOrders(t)
+	ctx := context.Background()
+	p := seedProduct(t, products, ws, "hocker", StatusPublished, nil)
+	erased, err := orders.Place(ctx, ws, settings(), Private, filled(t, carts, ws, p, 1), customer(), PayInvoice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept, err := orders.Place(ctx, ws, settings(), Private, filled(t, carts, ws, p, 1), customer(), PayInvoice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := products.DB.Write.Exec(`UPDATE orders SET erased_at = '2026-11-14T10:00:00Z',
+		retain_until = '2035-01-01T00:00:00Z' WHERE id = $1`, erased.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := orders.ByNumber(ctx, ws, erased.Number)
+	if err != nil || got == nil {
+		t.Fatalf("ByNumber: %v %v", got, err)
+	}
+	if got.ErasedAt == nil || !got.ErasedAt.Equal(time.Date(2026, 11, 14, 10, 0, 0, 0, time.UTC)) {
+		t.Errorf("ErasedAt = %v, want 2026-11-14 10:00 UTC", got.ErasedAt)
+	}
+	if got.RetainUntil == nil || !got.RetainUntil.Equal(time.Date(2035, 1, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("RetainUntil = %v, want 2035-01-01", got.RetainUntil)
+	}
+
+	list, err := orders.List(ctx, ws, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range list {
+		if o.ID == kept.ID && (o.ErasedAt != nil || o.RetainUntil != nil) {
+			t.Errorf("a normal order reads as erased: %v %v", o.ErasedAt, o.RetainUntil)
+		}
+	}
+}

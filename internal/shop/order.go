@@ -81,6 +81,15 @@ type Order struct {
 	Items     []OrderItem
 	CreatedAt time.Time
 	UpdatedAt time.Time
+
+	// ErasedAt is when the customer's contact data was erased (Phase 33.2,
+	// D-07): the order stays as the record of the invoice, without e-mail
+	// and phone, and its confirmation link no longer opens it. Nil for an
+	// order that was not erased.
+	ErasedAt *time.Time
+	// RetainUntil is the date the erasure told the person the order is kept
+	// until; the retention job deletes it from then on. Nil when not erased.
+	RetainUntil *time.Time
 }
 
 // OrderItem is one frozen line.
@@ -280,13 +289,14 @@ const orderColumns = `id, website_id, number, token, audience, currency,
 	shipping_net, shipping_tax, shipping_gross,
 	total_net, total_tax, total_gross, vat_exempt,
 	status, payment_method, payment_status, payment_reference, return_policy,
-	created_at, updated_at`
+	created_at, updated_at, erased_at, retain_until`
 
 func scanOrder(row interface{ Scan(...any) error }) (*Order, error) {
 	var o Order
 	var audience string
 	var exempt int
 	var createdAt, updatedAt string
+	var erasedAt, retainUntil sql.NullString
 
 	err := row.Scan(&o.ID, &o.WebsiteID, &o.Number, &o.Token, &audience, &o.Currency,
 		&o.Customer.Email, &o.Customer.Name, &o.Customer.Company,
@@ -297,7 +307,7 @@ func scanOrder(row interface{ Scan(...any) error }) (*Order, error) {
 		&o.Totals.ShippingNet, &o.Totals.ShippingTax, &o.Totals.ShippingGross,
 		&o.Totals.TotalNet, &o.Totals.TotalTax, &o.Totals.TotalGross, &exempt,
 		&o.Status, &o.PaymentMethod, &o.PaymentStatus, &o.PaymentReference,
-		&o.ReturnPolicy, &createdAt, &updatedAt)
+		&o.ReturnPolicy, &createdAt, &updatedAt, &erasedAt, &retainUntil)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +315,22 @@ func scanOrder(row interface{ Scan(...any) error }) (*Order, error) {
 	o.VATExempt = exempt == 1
 	o.CreatedAt, _ = time.Parse(timeLayout, createdAt)
 	o.UpdatedAt, _ = time.Parse(timeLayout, updatedAt)
+	o.ErasedAt = optionalTime(erasedAt)
+	o.RetainUntil = optionalTime(retainUntil)
 	return &o, nil
+}
+
+// optionalTime reads a nullable stored time; NULL, and a value that is not a
+// stored time, are nil.
+func optionalTime(v sql.NullString) *time.Time {
+	if !v.Valid {
+		return nil
+	}
+	t, err := time.Parse(timeLayout, v.String)
+	if err != nil {
+		return nil
+	}
+	return &t
 }
 
 // newOrderToken returns 16 random bytes as 32 lower-case hex characters.

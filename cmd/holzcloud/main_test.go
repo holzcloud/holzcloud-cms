@@ -697,6 +697,9 @@ var editorOpenRoutes = []route{
 	// The retention periods are read by everybody with access to the
 	// website; changing one is decided by the handler (handlerDecidesRoutes).
 	{pattern: "GET /admin/websites/{id}/datenschutz/aufbewahrung"},
+	// The result of an erasure: it shows what the person who erased left in
+	// their own session, once, and changes nothing (Phase 33.2, DSR-03).
+	{pattern: "GET /admin/websites/{id}/datenschutz/geloescht"},
 	{pattern: "GET /admin/websites/{id}/menus"},
 	{pattern: "POST /admin/websites/{id}/menus"},
 	{pattern: "GET /admin/websites/{id}/menus/{menuID}"},
@@ -755,6 +758,15 @@ var handlerDecidesRoutes = []struct {
 			"decision: HandlePrivacyRetention asks refuseReadOnly before it writes, and " +
 			"requireFresh stands in front of it in the router. An editor reaches the handler " +
 			"and is refused with the read-only sentence, never with a 403"},
+	{"GET /admin/websites/{id}/datenschutz/loeschen",
+		"the erasure preview: requireFresh stands in front of it in the router, and anybody with " +
+			"access to the website may read what an erasure would do; HandlePrivacyErase shows the " +
+			"button only to somebody with the publishing right and the account box only to an administrator"},
+	{"POST /admin/websites/{id}/datenschutz/loeschen",
+		"erasing a person's data cannot be undone: requireFresh stands in front of it in the router, " +
+			"HandlePrivacyErase asks refuseReadOnly before anything is erased, so an editor without the " +
+			"publishing right is refused with the read-only sentence, and it ignores the account box for " +
+			"anybody who is not an administrator (Phase 33.2, D-09)"},
 }
 
 // adminRoutesInSource reads the patterns straight out of newRouter.
@@ -1407,6 +1419,10 @@ func TestSensitiveRoutesAskForThePasswordAgain(t *testing.T) {
 		"POST /admin/websites/{id}/datenschutz/aufbewahrung",
 		// Phase 33.2, D-09: a shorter account period deletes staff accounts.
 		"POST /admin/aufbewahrung/konten",
+		// Phase 33.2, DSR-03, D-09: erasing a person's data cannot be undone;
+		// the preview stands behind the same question.
+		"GET /admin/websites/{id}/datenschutz/loeschen",
+		"POST /admin/websites/{id}/datenschutz/loeschen",
 	} {
 		found := false
 		for _, l := range lines {

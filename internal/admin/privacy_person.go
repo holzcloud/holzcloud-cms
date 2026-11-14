@@ -73,6 +73,9 @@ type privacyPersonData struct {
 	Failed []string
 	// ExportURL is the download of what was found.
 	ExportURL string
+	// EraseURL is the erasure page of the address, with the request the
+	// search came from.
+	EraseURL string
 }
 
 // privacyGroup is the records of one source.
@@ -215,6 +218,8 @@ func (h *Handler) HandlePrivacyPerson(w http.ResponseWriter, r *http.Request) er
 			data.Failed = append(data.Failed, privacyHeading(f.Source, res.Holders))
 		}
 		data.ExportURL = privacyAddress(ws.ID) + "/export.json?email=" + url.QueryEscape(res.Email)
+		requestID, _ := strconv.ParseInt(r.URL.Query().Get("anfrage"), 10, 64)
+		data.EraseURL = privacyEraseAddress(ws.ID) + "?" + eraseQuery(res.Email, max(requestID, 0))
 	}
 	return web.RenderAdmin(w, h.templates, r, "privacy_person", data)
 }
