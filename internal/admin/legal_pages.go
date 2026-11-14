@@ -6,10 +6,13 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/legal"
+	"github.com/holzcloud/holzcloud-cms/internal/locale"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/privacy"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
@@ -38,6 +41,8 @@ type legalCell struct {
 type legalRow struct {
 	// Tag is the language tag as the website names it, the main one included.
 	Tag string
+	// Name is the language's name, a catalogue key.
+	Name string
 	// Main marks the website's main language, whose pages carry no locale.
 	Main  bool
 	Cells []legalCell
@@ -58,6 +63,28 @@ type legalCard struct {
 	// NoFrameworks says that none is chosen, which the card reports instead of
 	// naming them.
 	NoFrameworks bool
+}
+
+// Columns is the number of columns of the card's table: the language and
+// one per kind.
+func (c legalCard) Columns() int { return len(c.Kinds) + 1 }
+
+// legalRowHint is what the card says under a language whose templates are not
+// what its name suggests, or empty.
+//
+// A Spanish page gets the English texts (D-16), and the operator should know
+// that before publishing an English page on a Spanish website. The Romansh
+// texts were written by a machine (D-07); the page itself says so as well, but
+// the card is where the decision to create it is made.
+func legalRowHint(tag string) string {
+	base, _, _ := strings.Cut(tag, "-")
+	switch strings.ToLower(base) {
+	case "es":
+		return i18n.N("Spanish pages get the English template.")
+	case "rm":
+		return i18n.N("The Romansh template was written by a machine — have it checked by a Romansh speaker before publishing.")
+	}
+	return ""
 }
 
 // legalKinds are the pages a website's frameworks call for: the privacy page
@@ -87,7 +114,8 @@ func pageLocale(ws *domain.Website, tag string) string {
 	return tag
 }
 
-// legalCard looks at the legal pages of every language the card shows.
+// legalCard looks at the legal pages of every language of the website, the
+// main one first (D-08).
 //
 // An existing page is found by any of the slugs its kind has in any language
 // (privacy.RoleSlugs), its own language's slug first. An operator who called
@@ -99,8 +127,8 @@ func (h *Handler) legalCard(ctx context.Context, ws *domain.Website) (legalCard,
 		Frameworks:   ws.Frameworks().List(),
 		NoFrameworks: ws.Frameworks().Empty(),
 	}
-	for _, tag := range []string{ws.Locale} {
-		row := legalRow{Tag: tag, Main: tag == ws.Locale}
+	for _, tag := range ws.AllLocales() {
+		row := legalRow{Tag: tag, Name: locale.Name(tag), Main: tag == ws.Locale, Hint: legalRowHint(tag)}
 		for _, k := range card.Kinds {
 			p, err := h.findLegalPage(ctx, ws, k, tag)
 			if err != nil {
@@ -184,6 +212,10 @@ func (h *Handler) HandleLegalDrafts(w http.ResponseWriter, r *http.Request) erro
 
 // createCompareDraft makes the current template of one kind and language as a
 // new draft next to the existing page.
+//
+// The draft is not filed into the translation group: the group already has its
+// page in that language, and the draft is there to be compared and thrown
+// away, not to stand in for it.
 func (h *Handler) createCompareDraft(w http.ResponseWriter, r *http.Request, ws *domain.Website) error {
 	k := privacy.Kind(r.PostForm.Get("art"))
 	tag := r.PostForm.Get("sprache")
@@ -204,21 +236,41 @@ func (h *Handler) createCompareDraft(w http.ResponseWriter, r *http.Request, ws 
 }
 
 // createMissingLegalPages makes every page the card shows as missing.
+//
+// It walks the main language first, so that a page in a further language can
+// be filed as a translation of the main-language page of the same kind (D-08):
+// the one that was found, or the one this request just made. With neither the
+// draft stands alone. The link is set through PageCreate.TranslationOf rather
+// than the page store's separate linking call, which checks a target that
+// arrives from a form: here the target is a page of the same website that this
+// handler has just found or made, and the list of page-store calls that a test
+// holds stays at two.
 func (h *Handler) createMissingLegalPages(w http.ResponseWriter, r *http.Request, ws *domain.Website) error {
 	card, err := h.legalCard(r.Context(), ws)
 	if err != nil {
 		return err
 	}
+	mainPage := map[privacy.Kind]int64{}
 	var created []*page.Page
 	for _, row := range card.Rows {
 		for _, cell := range row.Cells {
 			if cell.State != legalMissing {
+				if row.Main {
+					mainPage[cell.Kind] = cell.PageID
+				}
 				continue
 			}
+			var of int64
+			if !row.Main {
+				of = mainPage[cell.Kind]
+			}
 			p, err := h.createLegalDraft(r, ws, cell.Kind, row.Tag,
-				privacy.Title(cell.Kind, row.Tag), privacy.Slug(cell.Kind, row.Tag), 0)
+				privacy.Title(cell.Kind, row.Tag), privacy.Slug(cell.Kind, row.Tag), of)
 			if err != nil {
 				return err
+			}
+			if row.Main {
+				mainPage[cell.Kind] = p.ID
 			}
 			created = append(created, p)
 		}

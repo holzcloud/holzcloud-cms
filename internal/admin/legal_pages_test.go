@@ -54,7 +54,7 @@ func draftTitle() string { return privacy.DraftTitle(privacy.KindPrivacy, "de") 
 // prefix, in every status and every language.
 func pagesWithSlugPrefix(t *testing.T, h *Handler, websiteID int64, prefix string) []page.Page {
 	t.Helper()
-	all, _, err := h.pages.ListPages(context.Background(), websiteID, page.ListFilter{PerPage: 200})
+	all, _, err := h.pages.ListPages(context.Background(), websiteID, page.ListFilter{PerPage: 200, Locale: "*"})
 	if err != nil {
 		t.Fatalf("ListPages: %v", err)
 	}
@@ -278,7 +278,7 @@ func TestLegalDraftsBelongToTheWebsiteOfThePath(t *testing.T) {
 	if got := legalPagesExact(t, h, b.ID, privacy.Slug(privacy.KindImprint, "de")); len(got) != 1 {
 		t.Errorf("website B has %d imprints, want 1", len(got))
 	}
-	all, _, err := h.pages.ListPages(context.Background(), a.ID, page.ListFilter{PerPage: 200})
+	all, _, err := h.pages.ListPages(context.Background(), a.ID, page.ListFilter{PerPage: 200, Locale: "*"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +380,7 @@ func TestMissingLegalPagesAreCreatedAsDrafts(t *testing.T) {
 	if good != "No legal page was missing." {
 		t.Errorf("second POST: flash %q, want that nothing was missing", good)
 	}
-	all, _, err := h.pages.ListPages(context.Background(), ws.ID, page.ListFilter{PerPage: 200})
+	all, _, err := h.pages.ListPages(context.Background(), ws.ID, page.ListFilter{PerPage: 200, Locale: "*"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -704,5 +704,206 @@ func TestASwissWebsiteGetsSwissSpelling(t *testing.T) {
 	}
 	if !req.Swiss {
 		t.Error("a de-CH page does not get the Swiss spelling")
+	}
+}
+
+// legalPagesSetLanguages stores the main and the further languages directly.
+func legalPagesSetLanguages(t *testing.T, database *db.DB, websiteID int64, main, extra string) {
+	t.Helper()
+	if _, err := database.Write.Exec(`UPDATE websites SET locale = ?, extra_locales = ? WHERE id = ?`, main, extra, websiteID); err != nil {
+		t.Fatalf("set the languages: %v", err)
+	}
+}
+
+// legalPagesIn is the one page of a website at the slug in the stored locale.
+func legalPagesIn(t *testing.T, h *Handler, websiteID int64, loc, slug string) *page.Page {
+	t.Helper()
+	var found []page.Page
+	for _, p := range legalPagesExact(t, h, websiteID, slug) {
+		if p.Locale == loc {
+			found = append(found, p)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("pages at %q in %q: %d, want 1", slug, loc, len(found))
+	}
+	return &found[0]
+}
+
+func TestEveryLanguageGetsItsDraftLinkedAsATranslation(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+	legalPagesSetFrameworks(t, database, ws.ID, "eu,ch")
+	legalPagesSetLanguages(t, database, ws.ID, "de", "fr, rm")
+
+	rec, _, good := albumFlash(t, h, sm, h.HandleLegalDrafts, draftRequest(idOf(ws.ID), nil))
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status %d, want 303", rec.Code)
+	}
+	if good != "6 legal pages created as drafts" {
+		t.Errorf("flash %q, want six", good)
+	}
+
+	for _, k := range []privacy.Kind{privacy.KindPrivacy, privacy.KindImprint} {
+		main := legalPagesIn(t, h, ws.ID, "", privacy.Slug(k, "de"))
+		if main.TranslationOf != 0 {
+			t.Errorf("%s: the main-language page translates %d, want none", k, main.TranslationOf)
+		}
+		for _, tag := range []string{"fr", "rm"} {
+			p := legalPagesIn(t, h, ws.ID, tag, privacy.Slug(k, tag))
+			if p.Status != "draft" {
+				t.Errorf("%s/%s: status %q, want draft", k, tag, p.Status)
+			}
+			if p.TranslationOf != main.ID {
+				t.Errorf("%s/%s: translation of %d, want the main-language page %d", k, tag, p.TranslationOf, main.ID)
+			}
+			if p.Title != privacy.Title(k, tag) {
+				t.Errorf("%s/%s: title %q, want %q", k, tag, p.Title, privacy.Title(k, tag))
+			}
+			if p.ContentMarkdown != legalPagesComposed(t, h, ws.ID, k, tag) {
+				t.Errorf("%s/%s: the draft is not the composition in its language", k, tag)
+			}
+			if !strings.Contains(p.ContentMarkdown, privacy.TemplateNotice(tag)) {
+				t.Errorf("%s/%s: the draft lacks its language's template notice", k, tag)
+			}
+			if privacy.TextLang(k, tag) != tag {
+				t.Errorf("%s/%s: text language %q", k, tag, privacy.TextLang(k, tag))
+			}
+		}
+	}
+	if privacy.Slug(privacy.KindPrivacy, "fr") == privacy.Slug(privacy.KindPrivacy, "de") {
+		t.Errorf("the French privacy page has the German slug")
+	}
+
+	// Drafts are not public, so the group is read as the editor reads it.
+	main := legalPagesIn(t, h, ws.ID, "", privacy.Slug(privacy.KindPrivacy, "de"))
+	group, err := h.pages.TranslationsForEditor(ctx, ws.ID, main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	locales := map[string]bool{}
+	for _, p := range group {
+		locales[p.Locale] = true
+	}
+	if !locales["fr"] || !locales["rm"] {
+		t.Errorf("the translation group of the privacy page holds %v, want fr and rm", locales)
+	}
+
+	// Every cell has a page now; nothing more is created.
+	_, _, good = albumFlash(t, h, sm, h.HandleLegalDrafts, draftRequest(idOf(ws.ID), nil))
+	if good != "No legal page was missing." {
+		t.Errorf("second POST: flash %q", good)
+	}
+}
+
+func TestAnExistingMainPageIsTheTranslationTarget(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+	legalPagesSetFrameworks(t, database, ws.ID, "eu,ch")
+	legalPagesSetLanguages(t, database, ws.ID, "de", "fr")
+	before := seedPage(t, database, ws.ID, "Datenschutz", "datenschutzerklaerung", "Unser **eigener** Text.", "published")
+
+	serve(t, h, sm, h.HandleLegalDrafts, draftRequest(idOf(ws.ID), nil))
+
+	fr := legalPagesIn(t, h, ws.ID, "fr", privacy.Slug(privacy.KindPrivacy, "fr"))
+	if fr.TranslationOf != before.ID {
+		t.Errorf("the French draft translates %d, want the existing German page %d", fr.TranslationOf, before.ID)
+	}
+	after, err := h.pages.GetPage(ctx, before.ID)
+	if err != nil || after == nil {
+		t.Fatalf("GetPage: %v", err)
+	}
+	if after.ContentMarkdown != before.ContentMarkdown || after.Status != before.Status ||
+		after.Slug != before.Slug || after.Locale != before.Locale || after.TranslationOf != before.TranslationOf ||
+		!after.UpdatedAt.Equal(before.UpdatedAt) {
+		t.Errorf("the existing German page changed:\nbefore %+v\nafter  %+v", before, after)
+	}
+	if got := legalPagesExact(t, h, ws.ID, "datenschutz"); len(got) != 0 {
+		t.Errorf("a second German privacy page was created")
+	}
+}
+
+func TestASpanishWebsiteGetsTheEnglishTemplateAndIsTold(t *testing.T) {
+	const hint = "Spanish pages get the English template."
+	h, sm, database, ws := newTestAdmin(t)
+	legalPagesSetFrameworks(t, database, ws.ID, "eu")
+	legalPagesSetLanguages(t, database, ws.ID, "es", "")
+
+	body := websiteGet(t, h, sm, h.HandleWebsiteEdit, ws.ID).Body.String()
+	if !strings.Contains(body, hint) {
+		t.Errorf("the card does not say that Spanish pages get the English template")
+	}
+
+	serve(t, h, sm, h.HandleLegalDrafts, draftRequest(idOf(ws.ID), nil))
+	if privacy.TextLang(privacy.KindPrivacy, "es") != "en" {
+		t.Fatalf("Spanish reads %q", privacy.TextLang(privacy.KindPrivacy, "es"))
+	}
+	p := legalPagesIn(t, h, ws.ID, "", privacy.Slug(privacy.KindPrivacy, "es"))
+	if p.ContentMarkdown != legalPagesComposed(t, h, ws.ID, privacy.KindPrivacy, "en") {
+		t.Errorf("the Spanish website's privacy draft is not the English composition")
+	}
+	if p.Title != privacy.Title(privacy.KindPrivacy, "en") {
+		t.Errorf("title %q, want the English one", p.Title)
+	}
+
+	// A German website says nothing of the kind.
+	h2, sm2, _, ws2 := newTestAdmin(t)
+	if strings.Contains(websiteGet(t, h2, sm2, h2.HandleWebsiteEdit, ws2.ID).Body.String(), hint) {
+		t.Errorf("a German website is told about Spanish pages")
+	}
+}
+
+func TestTheRomanshRowSaysItIsMachineWritten(t *testing.T) {
+	const hint = "The Romansh template was written by a machine — have it checked by a Romansh speaker before publishing."
+	for _, tc := range []struct {
+		extra string
+		want  int
+	}{{"rm", 1}, {"fr", 0}} {
+		t.Run(tc.extra, func(t *testing.T) {
+			h, sm, database, ws := newTestAdmin(t)
+			legalPagesSetLanguages(t, database, ws.ID, "de", tc.extra)
+			body := websiteGet(t, h, sm, h.HandleWebsiteEdit, ws.ID).Body.String()
+			if got := strings.Count(body, hint); got != tc.want {
+				t.Errorf("the machine-written sentence stands %d times, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// legalPagesRowRE finds the rows of the card in their order.
+var legalPagesRowRE = regexp.MustCompile(`<tr data-legal-row="([^"]*)"( data-legal-main)?>`)
+
+func TestTheCardHasARowPerLanguage(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	legalPagesSetFrameworks(t, database, ws.ID, "eu,ch,us")
+	legalPagesSetLanguages(t, database, ws.ID, "de", "fr, it-CH, rm")
+
+	body := websiteGet(t, h, sm, h.HandleWebsiteEdit, ws.ID).Body.String()
+	var rows []string
+	for _, m := range legalPagesRowRE.FindAllStringSubmatch(body, -1) {
+		if (m[2] != "") != (m[1] == "de") {
+			t.Errorf("row %s: main marker %q", m[1], m[2])
+		}
+		rows = append(rows, m[1])
+	}
+	want := readWebsite(t, h, ws.ID).AllLocales()
+	if !slices.Equal(rows, want) {
+		t.Errorf("rows %v, want %v", rows, want)
+	}
+	cells := legalPagesCells(body)
+	if len(cells) != len(want)*3 {
+		t.Errorf("%d cells, want %d", len(cells), len(want)*3)
+	}
+	for _, tag := range want {
+		for _, k := range []string{"privacy", "imprint", "dns"} {
+			if c, ok := cells[tag+"/"+k]; !ok || c.State != "missing" {
+				t.Errorf("%s/%s: %+v", tag, k, c)
+			}
+		}
+	}
+	for _, name := range []string{"German", "French", "Italian (CH)", "Romansh", "(main language)"} {
+		if !strings.Contains(body, name) {
+			t.Errorf("the card does not name %q", name)
+		}
 	}
 }

@@ -328,8 +328,8 @@
         </thead>
         <tbody>
             {{range $row := .Legal.Rows}}
-            <tr>
-                <th scope="row">{{$row.Tag}}</th>
+            <tr data-legal-row="{{$row.Tag}}"{{if $row.Main}} data-legal-main{{end}}>
+                <td><strong>{{t $row.Name}}</strong>{{if $row.Main}} <span class="text-muted">{{t "(main language)"}}</span>{{end}}</td>
                 {{range $row.Cells}}
                 <td data-legal-lang="{{$row.Tag}}" data-legal-kind="{{.Kind}}" data-legal-state="{{.State}}">
                     {{- if eq .State "missing"}}<span class="badge badge--warning">{{t "Missing"}}</span>
@@ -348,6 +348,11 @@
                 </td>
                 {{end}}
             </tr>
+            {{if $row.Hint}}
+            <tr>
+                <td colspan="{{$.Legal.Columns}}" class="text-muted">{{t $row.Hint}}</td>
+            </tr>
+            {{end}}
             {{end}}
         </tbody>
     </table>
