@@ -202,6 +202,8 @@ func (h *Handler) optoutWidget(r *http.Request, ws *domain.Website, pg *page.Pag
 		result, isError = i18n.T(lang, "Please give a name or an e-mail address so that the request can be recorded."), true
 	case "zulang":
 		result, isError = i18n.T(lang, "An entry is longer than the form allows."), true
+	case "adresse":
+		result, isError = i18n.T(lang, "This is not an e-mail address the request can be answered at. Please check it, or leave the field empty."), true
 	case "spaeter":
 		result, isError = i18n.T(lang, "Too many requests at the moment. Please try again in an hour."), true
 	case "abgelaufen":
@@ -341,6 +343,8 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 		optoutRedirect(w, r, back, "leer")
 	case errors.Is(err, dsr.ErrTooLong):
 		optoutRedirect(w, r, back, "zulang")
+	case errors.Is(err, dsr.ErrBadEmail):
+		optoutRedirect(w, r, back, "adresse")
 	case err != nil:
 		return fmt.Errorf("store opt-out: %w", err)
 	default:

@@ -3,6 +3,7 @@ package admin
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
@@ -50,6 +51,22 @@ type optoutView struct {
 	dsr.Request
 	// Language is the name of the page's language, a catalogue key.
 	Language string
+	// MailTo is the mailto: link to the visitor's address, and empty when the
+	// address is not one bare address (dsr.ValidEmail) — then the screen shows
+	// it as text. A row stored before the form checked addresses may carry
+	// "?bcc=…", and a link made of it would send the operator's answer
+	// wherever the stranger said.
+	MailTo string
+}
+
+// optoutMailTo is the link to an address, or "" when it gets none. The
+// address is escaped as a path even though a valid one needs no escaping:
+// the link is built from what a stranger typed, and that is reason enough.
+func optoutMailTo(email string) string {
+	if !dsr.ValidEmail(email) {
+		return ""
+	}
+	return "mailto:" + url.PathEscape(email)
 }
 
 // optoutListAddress is the screen of one website.
@@ -89,7 +106,7 @@ func (h *Handler) HandleOptOutList(w http.ResponseWriter, r *http.Request) error
 	}
 	views := make([]optoutView, 0, len(list))
 	for _, req := range list {
-		views = append(views, optoutView{Request: req, Language: locale.Name(req.Locale)})
+		views = append(views, optoutView{Request: req, Language: locale.Name(req.Locale), MailTo: optoutMailTo(req.Email)})
 	}
 
 	data := optoutListData{

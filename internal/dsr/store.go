@@ -110,6 +110,9 @@ func (s *Store) add(ctx context.Context, r Request, since time.Time, limit int) 
 	if r.Name == "" && r.Email == "" && !r.GPC {
 		return 0, ErrEmpty
 	}
+	if r.Email != "" && !ValidEmail(r.Email) {
+		return 0, ErrBadEmail
+	}
 	gpc := 0
 	if r.GPC {
 		gpc = 1

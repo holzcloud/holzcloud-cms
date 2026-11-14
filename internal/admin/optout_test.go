@@ -140,6 +140,33 @@ func TestTheOptOutListShowsThisWebsitesRequests(t *testing.T) {
 	}
 }
 
+// A visitor's address becomes a mailto: link only when it is one bare
+// address. A row from before the form checked addresses, carrying header
+// fields after a "?", is shown as text: clicked to answer the request it
+// would have sent a copy wherever the stranger said (WR-02).
+func TestOnlyAValidAddressBecomesALink(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	optoutFrameworks(t, database, ws.ID, "eu,us")
+	optoutAdd(t, database, dsr.Request{WebsiteID: ws.ID, Name: "Ada", Email: "ada@example.com"}, "2026-01-10T09:00:00Z")
+	if _, err := database.Write.Exec(
+		`INSERT INTO privacy_requests (website_id, kind, name, email) VALUES ($1, 'optout', 'Mallory', $2)`,
+		ws.ID, "op@example.com?bcc=thief@evil.example&subject=Re"); err != nil {
+		t.Fatal(err)
+	}
+	body := optoutGet(t, h, sm, strconv.FormatInt(ws.ID, 10)).Body.String()
+
+	if ada := optoutRow(body, "Ada"); !strings.Contains(ada, `href="mailto:ada@example.com"`) {
+		t.Errorf("a valid address is not a link:\n%s", ada)
+	}
+	mallory := optoutRow(body, "Mallory")
+	if strings.Contains(mallory, "href=") || strings.Contains(mallory, "mailto:") {
+		t.Errorf("an address with header fields became a link:\n%s", mallory)
+	}
+	if !strings.Contains(mallory, "op@example.com?bcc=thief@evil.example&amp;subject=Re") {
+		t.Errorf("the address is not shown as text:\n%s", mallory)
+	}
+}
+
 func TestTheOptOutListOfAnUnknownWebsiteIs404(t *testing.T) {
 	h, sm, _, _ := newTestAdmin(t)
 	for _, id := range []string{"9999", "abc"} {

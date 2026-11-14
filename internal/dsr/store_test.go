@@ -206,6 +206,55 @@ func TestListIsNewestFirstAndByKind(t *testing.T) {
 	}
 }
 
+// TestAnAddressIsOneAddress is WR-02 of the 33.1 review: the e-mail field
+// took any string, and the admin list made it a mailto: link — so
+// "op@example.com?bcc=…" became a link that, clicked to answer the request,
+// sent a copy to an address the stranger chose. An address is now one bare
+// address, or the request is refused.
+func TestAnAddressIsOneAddress(t *testing.T) {
+	s, database := newTestStore(t)
+	ctx := context.Background()
+	ws := website(t, database, "A")
+
+	for _, good := range []string{"ada@example.com", "ada.lovelace+opt@mail.example.ch", "o'brien@example.ie", "jürg@beispiel.ch"} {
+		if !ValidEmail(good) {
+			t.Errorf("ValidEmail(%q) = false; want true", good)
+		}
+		if _, err := s.Add(ctx, Request{WebsiteID: ws, Kind: KindOptOut, Email: good}); err != nil {
+			t.Errorf("Add(%q): %v", good, err)
+		}
+	}
+	for _, bad := range []string{
+		"op@example.com?bcc=thief@evil.example&subject=Re",
+		"op@example.com&bcc=thief@evil.example",
+		"a@example.com, b@example.com",
+		"a@example.com;b@example.com",
+		"Ada <ada@example.com>",
+		"ada @example.com",
+		"ada@example.com\r\nBcc: thief@evil.example",
+		"ada%40example.com",
+		"mailto:ada@example.com",
+		"ada",
+		"@example.com",
+		"ada@",
+		"a@b@example.com",
+		`"a b"@example.com`,
+		"ada@example.com#x",
+		"ada@exa/mple.com",
+	} {
+		if ValidEmail(bad) {
+			t.Errorf("ValidEmail(%q) = true; want false", bad)
+		}
+		if _, err := s.Add(ctx, Request{WebsiteID: ws, Kind: KindOptOut, Name: "Ada", Email: bad}); !errors.Is(err, ErrBadEmail) {
+			t.Errorf("Add(%q) = %v; want ErrBadEmail", bad, err)
+		}
+	}
+	// No address is not a wrong address.
+	if _, err := s.Add(ctx, Request{WebsiteID: ws, Kind: KindOptOut, Name: "Ada"}); err != nil {
+		t.Errorf("a request without an address: %v", err)
+	}
+}
+
 // TestAddWithinHoldsTheLimitUnderConcurrency: the limit used to be a count
 // through the read pool followed, later, by an insert through the write pool,
 // and a burst read the same count many times over — 120 parallel posts stored

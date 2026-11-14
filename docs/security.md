@@ -299,7 +299,10 @@ database, table `privacy_requests` (migration `00064_privacy_requests.sql`,
 
 - what the visitor typed, as they typed it: a name, an e-mail address, a
   note — each optional, but a request must carry a name, an address or the
-  signal;
+  signal. An address must be one bare address (`dsr.ValidEmail`): no display
+  name, and none of `? & # % / , ;` or white space, which in a `mailto:` link
+  would add a copy recipient or a prefilled text. The admin list links only
+  an address that passes the same check and shows anything else as text;
 - the language of the page it was sent from;
 - whether the browser sent Global Privacy Control;
 - when it arrived, and when the operator marked it handled.

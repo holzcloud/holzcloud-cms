@@ -19,7 +19,36 @@
 // that by accident, so there is none.
 package dsr
 
-import "errors"
+import (
+	"errors"
+	"net/mail"
+	"strings"
+)
+
+// ValidEmail reports whether s is one bare e-mail address: what net/mail
+// reads as a single address with no display name, no comment, no quoting, and
+// none of the characters that mean something in a mailto: link or a header
+// (? & # % / , ; < > and white space).
+//
+// Strict on purpose. The address is what the operator answers the request
+// at, and the admin list makes it a mailto: link: an address that carries
+// "?bcc=…" is a link that sends a copy wherever the stranger said (WR-02 of
+// the 33.1 review). A real address never needs any of these characters, and
+// the visitor who mistyped one is told and can send again.
+func ValidEmail(s string) bool {
+	if s == "" || strings.ContainsAny(s, "?&#%/,;<>\"()[]\\ \t\r\n") {
+		return false
+	}
+	if strings.Count(s, "@") != 1 {
+		return false
+	}
+	addr, err := mail.ParseAddress(s)
+	if err != nil || addr.Name != "" || addr.Address != s {
+		return false
+	}
+	local, domain, _ := strings.Cut(s, "@")
+	return local != "" && domain != "" && !strings.HasPrefix(local, "mailto:")
+}
 
 // KindOptOut is a request not to sell or share personal information.
 const KindOptOut = "optout"
@@ -49,6 +78,9 @@ var (
 	ErrBadKind = errors.New("dsr: unknown kind of request")
 	// ErrNotFound means there is no such request on this website.
 	ErrNotFound = errors.New("dsr: no such request")
+	// ErrBadEmail means the e-mail field holds something other than one bare
+	// address (ValidEmail).
+	ErrBadEmail = errors.New("dsr: not one e-mail address")
 	// ErrLimit means the website already received as many requests of the
 	// kind as AddWithin allows in its window, and this one was not stored.
 	ErrLimit = errors.New("dsr: too many requests in the window")

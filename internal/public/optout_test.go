@@ -377,6 +377,31 @@ func TestASubmissionIsStored(t *testing.T) {
 	}
 }
 
+// An e-mail field that is not one bare address is refused with a sentence
+// the visitor can act on, and nothing is stored (WR-02).
+func TestAWrongAddressIsRefused(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+
+	form := optoutForm(ws, "do-not-sell")
+	form.Set("email", "op@example.com?bcc=thief@evil.example&subject=Re")
+	rec := optoutPost(h, ws, form, nil)
+	if loc := rec.Header().Get("Location"); loc != "/do-not-sell?widerspruch=adresse" {
+		t.Errorf("a mailto query as the address: %q; want ?widerspruch=adresse", loc)
+	}
+	if n := optoutRows(t, database, ws.ID); n != 0 {
+		t.Errorf("%d rows stored; want none", n)
+	}
+	body := optoutGet(t, h, ws, "/do-not-sell?widerspruch=adresse", nil).Body.String()
+	say := i18n.T(ws.Locale, "This is not an e-mail address the request can be answered at. Please check it, or leave the field empty.")
+	if say == "This is not an e-mail address the request can be answered at. Please check it, or leave the field empty." {
+		t.Fatalf("the German catalogue lacks the sentence")
+	}
+	if !strings.Contains(body, htmlText(say)) || !strings.Contains(body, "contact-form__notice--error") {
+		t.Errorf("the page does not say what was wrong (%q):\n%s", say, body)
+	}
+}
+
 func TestSpanishPagesGetEnglishWidgetWords(t *testing.T) {
 	h, database, ws := optoutSite(t, "eu,us", "es")
 	main := optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")

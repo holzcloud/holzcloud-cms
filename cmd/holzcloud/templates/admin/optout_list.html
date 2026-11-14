@@ -36,7 +36,7 @@
             <tr>
                 <td class="text-muted" style="white-space:nowrap">{{.CreatedAt.Format "02.01.2006 15:04"}}</td>
                 <td>{{if .Name}}{{.Name}}{{else}}<span class="text-muted">–</span>{{end}}</td>
-                <td>{{if .Email}}<a href="mailto:{{.Email}}">{{.Email}}</a>{{else}}<span class="text-muted">–</span>{{end}}</td>
+                <td>{{if .MailTo}}<a href="{{.MailTo}}">{{.Email}}</a>{{else if .Email}}{{.Email}}{{else}}<span class="text-muted">–</span>{{end}}</td>
                 <td style="white-space:pre-line">{{if .Note}}{{.Note}}{{else}}<span class="text-muted">–</span>{{end}}</td>
                 <td style="white-space:nowrap">{{if .GPC}}<span class="badge badge--primary">{{t "Signal sent"}}</span>{{else}}<span class="text-muted">–</span>{{end}}</td>
                 <td class="text-muted">{{if .Language}}{{t .Language}}{{else}}–{{end}}</td>
