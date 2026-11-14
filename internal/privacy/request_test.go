@@ -390,10 +390,52 @@ func TestFrenchAndItalianHaveTheirOwnRequestPage(t *testing.T) {
 	}
 }
 
+// The Romansh page (plan 06) was written by a machine in Rumantsch Grischun
+// and no Romansh speaker has checked it. Every composition says so in bold,
+// right after the template notice and before the form (33.1 D-07,
+// T-33.2-29), so publishing it unchecked is a choice the operator makes
+// knowingly.
+func TestRomanshRequestPageIsMarkedAsMachineWritten(t *testing.T) {
+	text := ownRequestPage(t, "rm", "mias-datas", "dumonda-mias-datas", "Dumonda davart mias datas", "mias-datas-model")
+	if text == "" {
+		return
+	}
+	machine := langFile(t, "rm")["machine_notice"]
+	if strings.TrimSpace(machine) == "" {
+		t.Fatal("texts/rm/lang.json has no machine notice")
+	}
+	notice, bold := "**"+TemplateNotice("rm")+"**", "**"+machine+"**"
+	for _, set := range sets() {
+		for _, f := range []Features{{}, {Shop: true}} {
+			c := ComposeRequest(Request{Lang: "rm", Set: set, Features: f})
+			where := set.String() + " " + featureString(f)
+			if n := strings.Count(c, machine); n != 1 {
+				t.Errorf("%s: the machine notice occurs %d times, want 1", where, n)
+				continue
+			}
+			if !strings.Contains(c, notice+" "+bold) {
+				t.Errorf("%s: the machine notice does not follow the template notice in bold", where)
+			}
+			if strings.Index(c, bold) > strings.Index(c, requestMarker) {
+				t.Errorf("%s: the machine notice comes after the form", where)
+			}
+		}
+	}
+	// Romansh addresses the visitor with Vus, as its privacy page does.
+	if !strings.Contains(text, "Vossa dumonda") || strings.Contains(text, " tias ") || strings.Contains(text, " tia ") {
+		t.Errorf("the Romansh page does not address the visitor with Vus")
+	}
+	for _, w := range []string{"RGPD", "LPD", "UK GDPR", "§ 7021"} {
+		if !strings.Contains(text, w) {
+			t.Errorf("the Romansh page does not cite %q", w)
+		}
+	}
+}
+
 // requestLanguagesRead are the languages TestEveryLanguageStatesTheSameDeadlines
 // compares; a language with request texts that is not among them fails it, so
 // that no translation escapes the comparison.
-var requestLanguagesRead = []string{"de", "en", "fr", "it"}
+var requestLanguagesRead = []string{"de", "en", "fr", "it", "rm"}
 
 // Every language states the deadlines the German and the English page state,
 // with the same citations (T-33.2-28): the numbers of each framework's

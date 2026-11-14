@@ -1,0 +1,3 @@
+## Quai che resta d’ina empustaziun
+
+Sche Vus pretendais che Vossas datas vegnian stizzadas ed avais empustà qua, vegnan l’adressa dad e-mail ed il numer da telefon stizzads da Vossa empustaziun, sco er ils e-mails davart ella. Quai che stat sin il quint, sto il venditur conservar: num, firma, adressa, ils artitgels empustads, ils imports, il stadi dal pajament, las cundiziuns da return e Vossa remartga tar l’empustaziun. Questas indicaziuns restan, fin che la durada legala da conservaziun en il pajais dal venditur è passada, quintà da la fin da l’onn chalendar da l’empustaziun. Lura vegnan ellas stizzadas. Fin lura na vegnan ellas utilisadas per nagut auter. La resposta a Vossa dumonda numna la data.

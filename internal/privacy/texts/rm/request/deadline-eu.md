@@ -1,0 +1,3 @@
+### Termin tenor il RGPD (Uniun europeica)
+
+Il responsabel respunda a Vossa dumonda senza retard, en mintga cas entaifer in mais suenter la retschavida (art. 12 al. 3 RGPD). Sche la cumplexitad u il dumber da las dumondas pretenda quai, po el prolungar quest termin per dus ulteriurs mais. El communitgescha quai a Vus entaifer l’emprim mais e declera pertge. La resposta è gratuita, nun ch’ina dumonda saja evidentamain nunfundada u exagerada (art. 12 al. 5 RGPD). Sch’il responsabel ha dubis fundads che la dumonda derivia da Vus, po el dumandar ulteriuras infurmaziuns che confermian quai (art. 12 al. 6 RGPD).

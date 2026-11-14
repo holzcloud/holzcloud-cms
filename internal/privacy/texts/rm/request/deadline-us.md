@@ -1,0 +1,3 @@
+### Termin tenor il CCPA (California ed auters stadis federals)
+
+La retschavida d’ina dumonda d’infurmaziun (right to know), da correctura (right to correct) u d’annullaziun (right to delete) vegn confermada entaifer 10 dis da lavur. La resposta suonda entaifer 45 dis chalendars suenter la retschavida. Sche quai è necessari, po quest termin vegnir prolungà per maximalmain 45 ulteriurs dis chalendars. Quai vegn communitgà a Vus cun ina motivaziun (§ 7021 da las prescripziuns CCPA, Cal. Code Regs. tit. 11). Ina dumonda vegn controllada, cun cumparegliar las indicaziuns en la dumonda cun las datas memorisadas, per exempel cun l’adressa dad e-mail d’ina empustaziun (§ 7060 ss. da las prescripziuns CCPA).

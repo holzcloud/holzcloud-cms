@@ -150,6 +150,48 @@ Romansh reviewer should look at:
   are built from the sourced title; `also_slugs` is empty because no other
   usual Romansh spelling was found
 
+## The request page (`texts/rm/request/`)
+
+The "request about my data" page of phase 33.2 (plan 06) is written by the
+same method and carries the same machine notice
+(`TestRomanshRequestPageIsMarkedAsMachineWritten`); its human review is
+deferred with the rest. What each block says and which source it rests on
+stands in `sources/request.md`; it says sentence for sentence what the German
+block says and carries the same numbers in the same order
+(`TestEveryLanguageStatesTheSameDeadlines`). It addresses the visitor with
+Vus, as the privacy page does. Where the privacy page already has a word for
+something (responsabel, elavurar, stizzar, rectifitgar, dretg d’infurmaziun,
+dretg da correctura, dretg d’annullaziun, retschavida, termin, prolungar,
+memoria da lavur, adressa da rait, gestiunari, empustaziun, remartga,
+prescripziuns CCPA), the request page uses that word. The Swiss ordinance is
+named in words and not by an abbreviation, because no Romansh abbreviation
+for it was found and an invented one would look like a quotation; it is not
+cited by its SR number either, so that the page carries the same numbers as
+the other languages.
+
+Words the request page adds that rest on no source checked for this plan
+(the Pledari Grond was not searched again), the first things a Romansh
+reviewer should look at:
+
+- ordinaziun davart la protecziun da datas (Datenschutzverordnung, DSV) and
+  "la medema ordinaziun" for its second citation
+- mesiras adequatas (angemessene Massnahmen)
+- nun ch’ina dumonda saja evidentamain nunfundada u exagerada (es sei denn,
+  ein Antrag ist offenkundig unbegründet oder exzessiv)
+- dubis fundads (begründete Zweifel)
+- dis da lavur (Geschäftstage) and dis chalendars (Kalendertage); onn
+  chalendar (Kalenderjahr)
+- motivaziun (Begründung)
+- copia (Kopie); en detagl (im Einzelnen)
+- dar ora (herausgeben)
+- quint (Rechnung); venditur (Verkäufer); cundiziuns da return
+  (Rückgabebedingungen); durada legala da conservaziun (gesetzliche
+  Aufbewahrungsfrist)
+- vegnir a savair (erfahren); independentamain da (unabhängig von)
+- the title "Dumonda davart mias datas", the slug `mias-datas`, the also_slug
+  `dumonda-mias-datas` and the draft slug `mias-datas-model`, built from the
+  title as the privacy page's slugs are
+
 ## Open assumptions
 
 | Assumption | Where | What the text does about it |
