@@ -87,7 +87,7 @@
             <p class="form-hint text-muted">
                 {{t "The privacy page, the imprint and the legal checks of this website follow from this choice. Templates only — they replace no legal advice."}}
             </p>
-            <div class="form-group">
+            <div class="form-group form-knopfreihe" role="group" aria-label="{{t "Legal frameworks"}}">
                 <label class="form-check">
                     <input type="checkbox" name="legal_frameworks" value="eu"{{if .Website.HasFramework "eu"}} checked{{end}}>
                     <span class="form-check-label">{{t "European Union (GDPR, ePrivacy)"}}</span>
