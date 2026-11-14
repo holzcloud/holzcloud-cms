@@ -327,14 +327,6 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 		optoutRedirect(w, r, back, "abgelaufen")
 		return nil
 	}
-	// The network's budget before the website's ceiling, so that one
-	// network that spent its own never reaches the one everybody shares.
-	networks, budgeted := h.optoutNetworks(r)
-	budgeted = budgeted && h.optoutNets != nil
-	if budgeted && !h.optoutNets.take(networks, now) {
-		optoutRedirect(w, r, back, "spaeter")
-		return nil
-	}
 	lang := LocaleFrom(ctx)
 	if lang == "" {
 		lang = ws.Locale
@@ -348,32 +340,64 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 		Note:      strings.TrimSpace(r.PostFormValue("note")),
 		GPC:       legal.GPC(r.Header),
 	}
+	// What was typed before any budget, and with the store's own rules
+	// (IN-01 of the second 33.1 review). A person who mistypes an address is
+	// told so and sends again; if the typo spent the budget, ten of them
+	// would lock that household out for an hour and the corrected request
+	// would be told to try later. Only what may be stored spends: the
+	// budget is there to keep one network from filling the ceiling everybody
+	// shares, and only a stored request fills it. For the same reason the
+	// honeypot and a forged stamp, above, spend nothing either — they store
+	// nothing and mail nobody, and a robot that ran out of budget there
+	// would learn from the changed answer which trap had caught it.
+	if outcome, refused := optoutRefusal(dsr.Check(req)); refused {
+		optoutRedirect(w, r, back, outcome)
+		return nil
+	}
+	// The network's budget before the website's ceiling, so that one
+	// network that spent its own never reaches the one everybody shares.
+	networks, budgeted := h.optoutNetworks(r)
+	budgeted = budgeted && h.optoutNets != nil
+	if budgeted && !h.optoutNets.take(networks, now) {
+		optoutRedirect(w, r, back, "spaeter")
+		return nil
+	}
 	// The hourly limit is counted inside the insert, not before it: a count
 	// read first lets a burst of parallel posts all read the same number.
 	hourAgo := now.Add(-time.Hour)
 	_, err = h.requests.AddWithin(ctx, req, hourAgo, optoutSiteLimit)
-	// A request the ceiling refused cost nothing, so it spends nothing: once
-	// the ceiling is reached, every further post would otherwise add a
-	// network to the budget for no purpose.
-	if budgeted && errors.Is(err, dsr.ErrLimit) {
+	// A request that was not stored spends nothing: once the ceiling is
+	// reached, every further post would otherwise add a network to the
+	// budget for no purpose.
+	if budgeted && err != nil {
 		h.optoutNets.give(networks, now)
 	}
+	if outcome, refused := optoutRefusal(err); refused {
+		optoutRedirect(w, r, back, outcome)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("store opt-out: %w", err)
+	}
+	h.optoutNotifyWithin(ctx, ws, req, hourAgo)
+	optoutRedirect(w, r, back, "eingegangen")
+	return nil
+}
+
+// optoutRefusal is the outcome the visitor is shown for a request the store
+// refuses, and false for an error that is not a refusal (nil among them).
+func optoutRefusal(err error) (string, bool) {
 	switch {
 	case errors.Is(err, dsr.ErrLimit):
-		optoutRedirect(w, r, back, "spaeter")
+		return "spaeter", true
 	case errors.Is(err, dsr.ErrEmpty):
-		optoutRedirect(w, r, back, "leer")
+		return "leer", true
 	case errors.Is(err, dsr.ErrTooLong):
-		optoutRedirect(w, r, back, "zulang")
+		return "zulang", true
 	case errors.Is(err, dsr.ErrBadEmail):
-		optoutRedirect(w, r, back, "adresse")
-	case err != nil:
-		return fmt.Errorf("store opt-out: %w", err)
-	default:
-		h.optoutNotifyWithin(ctx, ws, req, hourAgo)
-		optoutRedirect(w, r, back, "eingegangen")
+		return "adresse", true
 	}
-	return nil
+	return "", false
 }
 
 // optoutNotifyWithin mails the operator about a stored request unless the

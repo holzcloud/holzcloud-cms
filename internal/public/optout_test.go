@@ -688,6 +688,39 @@ func TestOneDelegationCannotCloseTheForm(t *testing.T) {
 	}
 }
 
+// A request the form refuses for what was typed into it spends no budget
+// (IN-01 of the second 33.1 review). Ten typos used to lock a household out
+// for an hour, and the corrected request was then told to try later.
+func TestRefusedInputSpendsNoBudget(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+
+	refusals := []struct {
+		outcome string
+		change  func(url.Values)
+	}{
+		{"adresse", func(f url.Values) { f.Set("email", "ada@exa mple.com") }},
+		{"zulang", func(f url.Values) { f.Set("note", strings.Repeat("x", dsr.MaxNote+1)) }},
+		{"leer", func(f url.Values) { f.Set("name", ""); f.Set("email", "") }},
+	}
+	for i := 0; i < 2*optoutBlockLimit; i++ {
+		tc := refusals[i%len(refusals)]
+		form := optoutForm(ws, "do-not-sell")
+		tc.change(form)
+		rec := optoutPost(h, ws, form, optoutFrom("203.0.113.9:1"))
+		if loc, want := rec.Header().Get("Location"), "/do-not-sell?widerspruch="+tc.outcome; loc != want {
+			t.Fatalf("refused post %d: %q; want %q", i+1, loc, want)
+		}
+	}
+	rec := optoutPost(h, ws, optoutForm(ws, "do-not-sell"), optoutFrom("203.0.113.9:1"))
+	if loc := rec.Header().Get("Location"); loc != "/do-not-sell?widerspruch=eingegangen" {
+		t.Errorf("the corrected request after %d refused ones: %q; want recorded", 2*optoutBlockLimit, loc)
+	}
+	if n := optoutRows(t, database, ws.ID); n != 1 {
+		t.Errorf("%d rows; want the corrected request's", n)
+	}
+}
+
 // The budget forgets nothing within the hour and grows with every network
 // that posts, so it has a size: past it the network spent from longest ago
 // is forgotten first.

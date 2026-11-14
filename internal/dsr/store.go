@@ -95,10 +95,21 @@ func (s *Store) AddWithin(ctx context.Context, r Request, since time.Time, limit
 	return s.add(ctx, r, since, limit)
 }
 
-// add is Add with an optional limit; limit 0 means none.
-func (s *Store) add(ctx context.Context, r Request, since time.Time, limit int) (int64, error) {
+// Check reports what Add would refuse a request for — ErrBadKind,
+// ErrTooLong, ErrEmpty or ErrBadEmail — without storing anything, and nil
+// when it would store it. The opt-out form asks it before it spends anything
+// on a request, so that what was typed wrong costs the visitor nothing but
+// the correction.
+func Check(r Request) error {
+	_, err := clean(r)
+	return err
+}
+
+// clean trims a request's values and checks them the way the table checks
+// them.
+func clean(r Request) (Request, error) {
 	if !kinds[r.Kind] {
-		return 0, ErrBadKind
+		return r, ErrBadKind
 	}
 	r.Locale = strings.TrimSpace(r.Locale)
 	r.Name = strings.TrimSpace(r.Name)
@@ -110,13 +121,22 @@ func (s *Store) add(ctx context.Context, r Request, since time.Time, limit int) 
 		utf8.RuneCountInString(r.Email) > MaxEmail ||
 		utf8.RuneCountInString(r.Note) > MaxNote ||
 		utf8.RuneCountInString(r.Locale) > maxLocale {
-		return 0, ErrTooLong
+		return r, ErrTooLong
 	}
 	if r.Name == "" && r.Email == "" && !r.GPC {
-		return 0, ErrEmpty
+		return r, ErrEmpty
 	}
 	if r.Email != "" && !ValidEmail(r.Email) {
-		return 0, ErrBadEmail
+		return r, ErrBadEmail
+	}
+	return r, nil
+}
+
+// add is Add with an optional limit; limit 0 means none.
+func (s *Store) add(ctx context.Context, r Request, since time.Time, limit int) (int64, error) {
+	r, err := clean(r)
+	if err != nil {
+		return 0, err
 	}
 	gpc := 0
 	if r.GPC {

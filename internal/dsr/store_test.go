@@ -315,6 +315,29 @@ func TestAddWithinHoldsTheLimitUnderConcurrency(t *testing.T) {
 	}
 }
 
+// Check answers what Add would, without storing anything: the opt-out form
+// asks it before it spends a network's budget on a request.
+func TestCheckRefusesWhatAddRefuses(t *testing.T) {
+	s, database := newTestStore(t)
+	ctx := context.Background()
+	ws := website(t, database, "A")
+	for _, r := range []Request{
+		{WebsiteID: ws, Kind: "unbekannt", Name: "Ada"},
+		{WebsiteID: ws, Kind: KindOptOut, Name: " "},
+		{WebsiteID: ws, Kind: KindOptOut, Name: strings.Repeat("n", MaxName+1)},
+		{WebsiteID: ws, Kind: KindOptOut, Email: "ada@example.com?bcc=x@example.com"},
+		{WebsiteID: ws, Kind: KindOptOut, Name: " Ada ", Email: " ada@example.com "},
+	} {
+		_, want := s.Add(ctx, r)
+		if got := Check(r); !errors.Is(got, want) || (got == nil) != (want == nil) {
+			t.Errorf("Check(%+v) = %v; Add said %v", r, got, want)
+		}
+	}
+	if n, err := s.CountSince(ctx, ws, KindOptOut, time.Time{}); err != nil || n != 1 {
+		t.Errorf("%d requests stored, %v; want only the one Add stored", n, err)
+	}
+}
+
 // A restored request's dates are the record, and every limit counts from
 // them: the hourly ceiling of the form, the mail cap, and the 24 months that
 // keep a website from being deleted (migration 00065). A request dated in the
