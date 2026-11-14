@@ -588,3 +588,46 @@ func TestARequestByPostIsEntered(t *testing.T) {
 		t.Errorf("%d requests stored; want the one", len(list))
 	}
 }
+
+// TestRestoreKeepsHowARequestWasMadeAndAnswered: a website moved by bundle
+// keeps the § 7101 record of how each request came in and how it was
+// answered (Phase 33.2, plan 07). What the record cannot hold is refused.
+func TestRestoreKeepsHowARequestWasMadeAndAnswered(t *testing.T) {
+	s, database := newTestStore(t)
+	ctx := context.Background()
+	ws := website(t, database, "A")
+	created := time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
+	handled := time.Date(2026, 3, 20, 9, 0, 0, 0, time.UTC)
+
+	id, err := s.Restore(ctx, Request{WebsiteID: ws, Kind: KindErasure, Name: "Ada", Email: "ada@example.com",
+		CreatedAt: created, HandledAt: &handled, Manner: MannerPost, Outcome: OutcomePartly, Basis: "invoice kept"})
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	got, err := s.Get(ctx, ws, id)
+	if err != nil || got == nil {
+		t.Fatalf("Get: %v, %v", got, err)
+	}
+	if got.Manner != MannerPost || got.Outcome != OutcomePartly || got.Basis != "invoice kept" {
+		t.Errorf("restored as manner %q, outcome %q, basis %q", got.Manner, got.Outcome, got.Basis)
+	}
+	if !got.CreatedAt.Equal(created) || got.HandledAt == nil || !got.HandledAt.Equal(handled) {
+		t.Errorf("restored dates %v, %v", got.CreatedAt, got.HandledAt)
+	}
+
+	for _, c := range []struct {
+		what string
+		r    Request
+		want error
+	}{
+		{"manner fax", Request{Kind: KindAccess, Name: "Bea", Manner: "fax"}, ErrBadManner},
+		{"outcome maybe", Request{Kind: KindAccess, Name: "Bea", Outcome: "maybe", HandledAt: &handled}, ErrBadOutcome},
+		// Opt-outs are marked handled, not answered.
+		{"an opt-out with an outcome", Request{Kind: KindOptOut, Name: "Bea", Outcome: OutcomeGranted, HandledAt: &handled}, ErrBadOutcome},
+	} {
+		c.r.WebsiteID, c.r.CreatedAt = ws, created
+		if _, err := s.Restore(ctx, c.r); !errors.Is(err, c.want) {
+			t.Errorf("%s: %v, want %v", c.what, err, c.want)
+		}
+	}
+}

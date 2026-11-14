@@ -58,6 +58,9 @@ type Report struct {
 	Values int
 	// Requests counts the privacy requests the import took over.
 	Requests int
+	// Periods counts the retention periods the import set, a raised one
+	// included.
+	Periods int
 	// Warnings are the things that did not come through. Each one names what
 	// was lost and why; none of them stops the import.
 	//
@@ -181,8 +184,74 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 	// Nothing on the website depends on its privacy requests, and nothing in
 	// them on the website's content.
 	importRequests(ctx, s, websiteID, manifest, report)
+	// After the settings, which carry the country the order period's floor
+	// follows.
+	importRetention(ctx, s, websiteID, manifest, report)
 
 	return report, nil
+}
+
+// importRetention sets the retention periods the website had chosen
+// (Phase 33.2, D-04). Without them the moved website would fall back to the
+// defaults, and a default shorter than the operator's choice deletes earlier
+// than the operator decided.
+//
+// A manifest is a file anybody can edit, so every period goes through
+// dsr.Service.SetPeriods with the floors of the screen: a period below the
+// floor is raised to it and the report says so — the law's minimum wins, as
+// it does on the screen when a website's country changes. A kind this
+// release has no period for, and a period it cannot keep (more than fifty
+// years, an order period that is not whole years), is skipped and named.
+func importRetention(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) {
+	if len(m.Site.RetentionPeriods) == 0 {
+		return
+	}
+	if s.Retention == nil {
+		report.warnf(i18n.N("%d retention periods were not taken over: this installation has no place for them."), len(m.Site.RetentionPeriods))
+		return
+	}
+	ws, err := s.Domains.GetWebsite(ctx, websiteID)
+	if err == nil && ws == nil {
+		err = fmt.Errorf("website %d does not exist", websiteID)
+	}
+	var periods []dsr.Period
+	if err == nil {
+		periods, err = s.Retention.Periods(ctx, websiteID, ws.Country)
+	}
+	if err != nil {
+		report.warnf(i18n.N("The retention periods could not be taken over: %v"), err)
+		return
+	}
+	byKind := map[string]dsr.Period{}
+	for _, p := range periods {
+		byKind[p.Kind] = p
+	}
+	kinds := make([]string, 0, len(m.Site.RetentionPeriods))
+	for kind := range m.Site.RetentionPeriods {
+		kinds = append(kinds, kind)
+	}
+	sort.Strings(kinds)
+	for _, kind := range kinds {
+		months := m.Site.RetentionPeriods[kind]
+		p, ok := byKind[kind]
+		if !ok {
+			report.warnf(i18n.N("retention period for %q is not known here and was skipped."), kind)
+			continue
+		}
+		if months < p.Floor {
+			report.warnf(i18n.N("retention period for %s: %d months is below the minimum and was raised to %d."), kind, months, p.Floor)
+			months = p.Floor
+		}
+		if err := s.Retention.SetPeriods(ctx, websiteID, ws.Country, map[string]int{kind: months}); err != nil {
+			if errors.Is(err, dsr.ErrBadPeriod) {
+				report.warnf(i18n.N("retention period for %s: %d months is not a period this installation can keep and was skipped."), kind, months)
+				continue
+			}
+			report.warnf(i18n.N("The retention periods could not be taken over: %v"), err)
+			return
+		}
+		report.Periods++
+	}
 }
 
 // importRequests takes over the website's privacy requests with the dates
@@ -218,9 +287,13 @@ func importRequests(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			report.warnf(i18n.N("privacy request %d: the date it arrived, %q, is not a date."), i+1, pr.CreatedAt)
 			continue
 		}
+		// How it was made and answered travels too (Phase 33.2); a bundle
+		// without them restores a request from the form with no outcome,
+		// and Restore refuses what the record cannot hold.
 		req := dsr.Request{
 			WebsiteID: websiteID, Kind: pr.Kind, Locale: pr.Locale,
 			Name: pr.Name, Email: pr.Email, Note: pr.Note, GPC: pr.GPC, CreatedAt: created,
+			Manner: pr.Manner, Outcome: pr.Outcome, Basis: pr.Basis,
 		}
 		if pr.HandledAt != "" {
 			handled, err := time.Parse(time.RFC3339, pr.HandledAt)

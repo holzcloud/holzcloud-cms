@@ -82,6 +82,14 @@ type PrivacyRequest struct {
 	GPC       bool   `json:"gpc,omitempty"`
 	CreatedAt string `json:"created_at"`
 	HandledAt string `json:"handled_at,omitempty"`
+	// Manner is how the request was made, Outcome how it was answered and
+	// Basis the operator's reason — the rest of the § 7101 record (Phase
+	// 33.2). All three omitempty: a request from the form ("form", written
+	// as nothing) with no answer looks byte for byte like one from before,
+	// and a bundle without them imports as such a request.
+	Manner  string `json:"manner,omitempty"`
+	Outcome string `json:"outcome,omitempty"`
+	Basis   string `json:"basis,omitempty"`
 }
 
 // SiteValue is one named text of the website: the key a page writes between
@@ -172,6 +180,15 @@ type Site struct {
 	Country      string `json:"country,omitempty"`
 	Phone        string `json:"phone,omitempty"`
 	OpeningHours string `json:"opening_hours,omitempty"`
+
+	// RetentionPeriods are the periods the website chose itself, kind to
+	// months (Phase 33.2, D-04). Without them an imported website falls back
+	// to the defaults, and a default shorter than what the operator chose
+	// deletes earlier than the operator decided. Only chosen periods travel:
+	// a default is the release's, and one written into the archive would
+	// stop following a default a later release changes. An import goes
+	// through the same floors as the screen.
+	RetentionPeriods map[string]int `json:"retention_periods,omitempty"`
 
 	Design Design `json:"design,omitempty"`
 }

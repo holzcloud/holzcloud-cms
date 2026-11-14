@@ -54,7 +54,11 @@ type Stores struct {
 	// Requests are the website's privacy requests. Nil means a bundle carries
 	// none, and an import of one that does reports them as not taken over.
 	Requests *dsr.Store
-	DataDir  string
+	// Retention reads and sets the website's retention periods. Nil means
+	// a bundle carries none, and an import of one that does reports them
+	// as not taken over.
+	Retention *dsr.Service
+	DataDir   string
 }
 
 // maxExportPages bounds an export.
@@ -193,6 +197,9 @@ func buildManifest(ctx context.Context, s Stores, ws *domain.Website, version st
 		return nil, err
 	}
 	if err := exportRequests(ctx, s, ws.ID, m); err != nil {
+		return nil, err
+	}
+	if err := exportRetention(ctx, s, ws, m); err != nil {
 		return nil, err
 	}
 	if err := exportFields(ctx, s, ws.ID, m); err != nil {
@@ -377,7 +384,37 @@ func exportRequests(ctx context.Context, s Stores, websiteID int64, m *Manifest)
 		if r.HandledAt != nil {
 			out.HandledAt = r.HandledAt.UTC().Format(time.RFC3339)
 		}
+		// The form's manner is what an import assumes without one, so it is
+		// left out: a website whose requests all came from the form writes
+		// the manifest it wrote before the manner existed.
+		if r.Manner != dsr.MannerForm {
+			out.Manner = r.Manner
+		}
+		out.Outcome, out.Basis = r.Outcome, r.Basis
 		m.PrivacyRequests = append(m.PrivacyRequests, out)
+	}
+	return nil
+}
+
+// exportRetention writes the retention periods the website chose itself.
+// A kind on its default is left out, so it follows the default of whatever
+// release imports it.
+func exportRetention(ctx context.Context, s Stores, ws *domain.Website, m *Manifest) error {
+	if s.Retention == nil {
+		return nil
+	}
+	periods, err := s.Retention.Periods(ctx, ws.ID, ws.Country)
+	if err != nil {
+		return fmt.Errorf("read retention periods: %w", err)
+	}
+	for _, p := range periods {
+		if !p.Stored {
+			continue
+		}
+		if m.Site.RetentionPeriods == nil {
+			m.Site.RetentionPeriods = map[string]int{}
+		}
+		m.Site.RetentionPeriods[p.Kind] = p.Months
 	}
 	return nil
 }

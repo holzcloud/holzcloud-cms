@@ -35,7 +35,10 @@ func (h *Handler) bundleStores() bundle.Stores {
 		BlockTypes: h.blockTypes,
 		Values:     h.valueStore,
 		Requests:   h.requests,
-		DataDir:    h.cfg.DataDir,
+		// The retention periods the website chose travel with it (Phase
+		// 33.2); nil when the privacy service is not wired.
+		Retention: h.dataRights,
+		DataDir:   h.cfg.DataDir,
 	}
 }
 

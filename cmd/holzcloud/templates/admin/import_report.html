@@ -10,6 +10,9 @@
         <li>{{tf "%d values" .Report.Values}}</li>
         <li>{{tf "%d albums" .Report.Albums}}</li>
         {{if .Report.Requests}}<li>{{tf "%d privacy requests" .Report.Requests}}</li>{{end}}
+        {{/* Die Fristen, die die Website selbst gewählt hatte. Eine unter der
+             Mindestfrist ist angehoben und steht unten bei den Hinweisen. */}}
+        {{if .Report.Periods}}<li>{{tf "%d retention periods" .Report.Periods}}</li>{{end}}
     </ul>
 
     <p class="callout callout--warning">

@@ -275,7 +275,8 @@ func (s *Store) ListAll(ctx context.Context, websiteID int64) ([]Request, error)
 //
 // How the request was made and answered comes along when the archive carries
 // it: an empty manner is the form's, and a manner or an outcome the record
-// does not know is ErrBadManner or ErrBadOutcome.
+// does not know is ErrBadManner or ErrBadOutcome — as is an outcome on an
+// opt-out, which is marked handled and never answered.
 func (s *Store) Restore(ctx context.Context, r Request) (int64, error) {
 	if !kinds[r.Kind] {
 		return 0, ErrBadKind
@@ -306,6 +307,12 @@ func (s *Store) Restore(ctx context.Context, r Request) (int64, error) {
 		return 0, ErrBadManner
 	}
 	if r.Outcome != "" && !outcomes[r.Outcome] {
+		return 0, ErrBadOutcome
+	}
+	// An opt-out is marked handled, not answered: an outcome on one is a
+	// record nothing in this program writes, so a manifest that carries it
+	// was edited by hand.
+	if r.Outcome != "" && !IsDataKind(r.Kind) {
 		return 0, ErrBadOutcome
 	}
 	if utf8.RuneCountInString(r.Basis) > MaxBasis {
