@@ -352,3 +352,41 @@ func TestTwoPluginsFilterInAStableOrder(t *testing.T) {
 
 // waitABit is a short sleep, so that the intent stays readable in the test.
 func waitABit() { time.Sleep(10 * time.Millisecond) }
+
+func TestServesNeedsTheHookTheWebsiteAndTheModule(t *testing.T) {
+	var none *Manager
+	if none.Serves("echo", HookContent, 1) {
+		t.Error("a nil manager serves a hook")
+	}
+
+	m, _, site := neuerManager(t)
+	ctx := context.Background()
+	einspielen(t, m, echoArchive(t, nil))
+	if m.Serves("echo", HookContent, site) {
+		t.Error("an installed plugin that is not switched on serves a hook")
+	}
+	if err := m.Enable(ctx, "echo"); err != nil {
+		t.Fatalf("Enable: %v", err)
+	}
+	if m.Serves("echo", HookContent, site) {
+		t.Error("a plugin serves a website it does not act on")
+	}
+	if err := m.SetWebsites(ctx, "echo", []int64{site}); err != nil {
+		t.Fatal(err)
+	}
+	if !m.Serves("echo", HookContent, site) {
+		t.Error("a plugin does not serve a hook it declares on a website it acts on")
+	}
+	if m.Serves("echo", "privacy", site) {
+		t.Error("a plugin serves a hook it does not declare")
+	}
+	if !m.ActsOn("echo", site) || m.ActsOn("echo", site+1) || none.ActsOn("echo", site) {
+		t.Error("ActsOn does not follow the websites the plugin was switched on for")
+	}
+	if m.Serves("unknown", HookContent, site) {
+		t.Error("an unknown plugin serves a hook")
+	}
+	if m.Serves("echo", HookContent, site+1) {
+		t.Error("a plugin serves another website")
+	}
+}

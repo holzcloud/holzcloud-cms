@@ -217,6 +217,43 @@ func (m *Manager) Active(hook string, websiteID int64) bool {
 	return len(m.forHook(hook, websiteID)) > 0
 }
 
+// Serves reports whether one plugin is loaded, acts on the website and
+// declares the hook. A nil manager serves nothing.
+//
+// This is the question the privacy search asks before it calls a plugin
+// (Phase 33.2). It is asked per plugin rather than per hook, unlike Active,
+// because the answer the search needs is not "does anybody answer here" but
+// "does THIS plugin, which keeps data for the website, answer": a plugin that
+// holds a person's data and does not answer has to be named on the screen,
+// not silently skipped.
+func (m *Manager) Serves(id, hook string, websiteID int64) bool {
+	if m == nil {
+		return false
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if !m.snap.sites[id][websiteID] {
+		return false
+	}
+	for _, p := range m.snap.byHook[hook] {
+		if p == id {
+			return true
+		}
+	}
+	return false
+}
+
+// ActsOn reports whether a plugin is running and switched on for the
+// website, whatever hooks it declares. A nil manager acts on nothing.
+func (m *Manager) ActsOn(id string, websiteID int64) bool {
+	if m == nil {
+		return false
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.snap.sites[id][websiteID]
+}
+
 // Allows reports whether one plugin declared a permission.
 //
 // For the caller that has to prepare something BEFORE the plugin is called and

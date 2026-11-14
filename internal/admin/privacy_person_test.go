@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,9 +13,11 @@ import (
 	"github.com/alexedwards/scs/v2"
 
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
+	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
+	"github.com/holzcloud/holzcloud-cms/internal/user"
 )
 
 // The Privacy screen (Phase 33.2, plan 01). Every helper of this file starts
@@ -140,5 +143,120 @@ func TestThePrivacyExportIsADownload(t *testing.T) {
 		if rec.Body.Len() != 0 {
 			t.Errorf("%q: the refusal carries a body: %q", bad, rec.Body.String())
 		}
+	}
+}
+
+// privacyDrive runs one request through the chain main.go builds: the
+// session with the given account, RequireWebsiteAccess, and the two routes
+// registered as main.go registers them.
+func privacyDrive(t *testing.T, h *Handler, sm *scs.SessionManager, database *db.DB, userID int64, target string) *httptest.ResponseRecorder {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /admin/websites/{id}/datenschutz", h.ErrHandler(h.HandlePrivacyPerson))
+	mux.HandleFunc("GET /admin/websites/{id}/datenschutz/export.json", h.ErrHandler(h.HandlePrivacyExport))
+	guarded := auth.RequireWebsiteAccess(sm, NewWebsiteAccessLookup(database))(mux)
+	rec := httptest.NewRecorder()
+	sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sm.Put(r.Context(), auth.SessionKeyUserID, userID)
+		guarded.ServeHTTP(w, r)
+	})).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+	return rec
+}
+
+func TestThePrivacyScreenOfAnotherWebsiteShowsNothing(t *testing.T) {
+	h, sm, database, a := privacyAdmin(t)
+	ctx := context.Background()
+	b, err := h.domains.CreateWebsite(ctx, "Andere", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	privacyOrder(t, database, a.ID, "2026-0501", "ada@example.com", "Ada auf A")
+	privacyOrder(t, database, b.ID, "2026-0502", "ada@example.com", "Ada auf B")
+
+	users := user.NewStore(database, cheapHashing)
+	editorID, err := users.Create(ctx, "Nur B", "nur-b@example.com", "passwort123", user.RoleEditor)
+	if err != nil {
+		t.Fatalf("create editor: %v", err)
+	}
+	if err := users.SetRights(ctx, editorID, user.Rights{MayPublish: true, Websites: []int64{b.ID}}); err != nil {
+		t.Fatalf("SetRights: %v", err)
+	}
+
+	for _, target := range []string{
+		privacyScreen(a.ID) + "?email=ada@example.com",
+		privacyScreen(a.ID) + "/export.json?email=ada@example.com",
+	} {
+		rec := privacyDrive(t, h, sm, database, editorID, target)
+		if rec.Code != http.StatusForbidden && rec.Code != http.StatusNotFound {
+			t.Errorf("%s: status %d for an editor of B only, want a refusal", target, rec.Code)
+		}
+		if strings.Contains(rec.Body.String(), "Ada auf A") || strings.Contains(rec.Body.String(), "2026-0501") {
+			t.Errorf("%s: the refusal shows website A's order", target)
+		}
+	}
+
+	// The negative control: the same editor on B gets B's order and nothing
+	// of A's, through the same chain.
+	for _, target := range []string{
+		privacyScreen(b.ID) + "?email=ada@example.com",
+		privacyScreen(b.ID) + "/export.json?email=ada@example.com",
+	} {
+		rec := privacyDrive(t, h, sm, database, editorID, target)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status %d, want 200", target, rec.Code)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "2026-0502") {
+			t.Errorf("%s: B's order is missing", target)
+		}
+		if strings.Contains(body, "Ada auf A") || strings.Contains(body, "2026-0501") {
+			t.Errorf("%s: B's screen shows website A's order", target)
+		}
+	}
+}
+
+func TestThePrivacyScreenNamesWhatItCouldNotSearch(t *testing.T) {
+	h, sm, database, ws := privacyAdmin(t)
+	if _, err := database.Write.Exec(`INSERT INTO plugins (id, name, version, manifest, sha256, installed_at, updated_at)
+		VALUES ('kontaktformular', 'Kontaktformular', '1.0.0', '{}', '', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 4; i++ {
+		if _, err := database.Write.Exec(`INSERT INTO plugin_store (plugin_id, website_id, key, value, updated_at)
+			VALUES ('kontaktformular', $1, $2, '{}', '2026-01-01T00:00:00Z')`, ws.ID, "nachricht:"+strconv.Itoa(i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rec := privacyGet(t, h, sm, h.HandlePrivacyPerson, privacyScreen(ws.ID)+"?email=ada@example.com", ws.ID)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, optoutSays("Not searched")) {
+		t.Fatal("the screen has no Not searched section")
+	}
+	section := body[strings.Index(body, optoutSays("Not searched")):]
+	if !strings.Contains(section, "Kontaktformular") {
+		t.Error("the plugin's name is not under Not searched")
+	}
+	if !strings.Contains(section, optoutSays("4 entries")) && !strings.Contains(section, ">4 ") {
+		t.Error("the plugin's entry count is not under Not searched")
+	}
+	if !strings.Contains(section, optoutSays("The plugin is not running on this server.")) {
+		t.Error("the screen does not say why the plugin was not searched")
+	}
+	if strings.Index(body, optoutSays("Not searched")) > strings.Index(body, optoutSays("Download as JSON")) {
+		t.Error("what was not searched comes after the result; it has to come first")
+	}
+
+	// The export says it too.
+	exp := privacyGet(t, h, sm, h.HandlePrivacyExport, privacyScreen(ws.ID)+"/export.json?email=ada@example.com", ws.ID)
+	var got dsr.Export
+	if err := json.Unmarshal(exp.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.NotCovered) != 1 || got.NotCovered[0].Plugin != "kontaktformular" || got.NotCovered[0].Entries != 4 {
+		t.Errorf("not_covered = %+v", got.NotCovered)
 	}
 }
