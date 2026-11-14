@@ -351,3 +351,44 @@ func TestTheCoreNamesNoLegalBasis(t *testing.T) {
 		}
 	}
 }
+
+// Each German framework section names its authority and the provisions a
+// reader looks for, with that framework chosen alone.
+func TestTheGermanSectionsNameTheirAuthorities(t *testing.T) {
+	want := map[legal.Framework][]string{
+		legal.EU: {"Art. 77", "Art. 21", "Art. 28"},
+		legal.CH: {"Eidgenössischer Datenschutz- und Öffentlichkeitsbeauftragter (EDÖB)", "Art. 45c", "30 Tagen"},
+		legal.UK: {"Information Commission", "164A", "Schedule A1"},
+		legal.US: {"45 Tagen", "Global Privacy Control", "Sec-GPC: 1", "nicht verkauft", "Do Not Track"},
+	}
+	for _, fw := range frameworkBlocks {
+		text := ComposePrivacy(Request{Lang: "de", Set: legal.ParseSet(string(fw)), Features: allFeatures()})
+		for _, w := range want[fw] {
+			if !strings.Contains(text, w) {
+				t.Errorf("with %s chosen the German text lacks %q", fw, w)
+			}
+		}
+	}
+}
+
+// What Global Privacy Control changes, said in the US section (D-10, D-11,
+// D-12): the signal is an opt-out of sale and sharing, nothing on the website
+// changes because nothing is sold or shared, the Do Not Sell or Share page
+// confirms it, and the opt-out form keeps no IP address and has a retention
+// fill-in.
+func TestTheUSSectionSaysWhatGPCChanges(t *testing.T) {
+	text := ComposePrivacy(Request{Lang: "de", Set: legal.ParseSet("us"), Features: allFeatures()})
+	us := text[strings.Index(text, heading(t, "de", "us")):]
+	for _, w := range []string{
+		"als Widerspruch gegen den Verkauf und das Teilen deiner Daten",
+		"Auf der Website ändert sich dadurch nichts, weil nichts verkauft oder geteilt wird",
+		"zeigt an, dass das Signal erkannt wurde",
+		"Name, E-Mail-Adresse und Anmerkung",
+		"weder deine IP-Adresse noch eine Kennung deines Browsers",
+		"aufbewahrt " + Fillin("de"),
+	} {
+		if !strings.Contains(us, w) {
+			t.Errorf("the US section lacks %q", w)
+		}
+	}
+}

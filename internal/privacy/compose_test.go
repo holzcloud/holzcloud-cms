@@ -244,9 +244,6 @@ func TestEveryLanguageHasEveryBlock(t *testing.T) {
 		}
 		var want []string
 		for _, b := range registry[k].blocks {
-			if k == KindPrivacy && slices.Contains(frameworkBlocks, legal.Framework(b.name)) && skipAbsentFramework("de", legal.Framework(b.name)) {
-				continue
-			}
 			want = append(want, b.name+".md")
 		}
 		want = append(want, "meta.json")
@@ -274,13 +271,6 @@ func TestEveryLanguageHasEveryBlock(t *testing.T) {
 // allSet is every framework chosen.
 func allSet() legal.Set { return legal.ParseSet("eu,ch,uk,us") }
 
-// skipAbsentFramework is the one allowance of the first commit, in which only
-// the EU section exists. The commit that writes the other three deletes it.
-func skipAbsentFramework(lang string, fw legal.Framework) bool {
-	_, err := fs.Stat(textFS, path.Join("texts", lang, string(KindPrivacy), string(fw)+".md"))
-	return err != nil
-}
-
 // frameworkBlocks are the framework sections of the privacy page, in their
 // order.
 var frameworkBlocks = []legal.Framework{legal.EU, legal.CH, legal.UK, legal.US}
@@ -300,9 +290,6 @@ func TestEachChosenFrameworkHasItsSectionOnce(t *testing.T) {
 	for _, lang := range languagesOf(t, KindPrivacy) {
 		heading := map[legal.Framework]string{}
 		for _, fw := range frameworkBlocks {
-			if skipAbsentFramework(lang, fw) {
-				continue
-			}
 			h := firstLine(t, lang, KindPrivacy, string(fw))
 			if !strings.HasPrefix(h, "## ") {
 				t.Errorf("%s/%s.md opens with %q, want a ## heading", lang, fw, h)
@@ -318,9 +305,6 @@ func TestEachChosenFrameworkHasItsSectionOnce(t *testing.T) {
 			}
 			end := strings.LastIndex(text, "\n---\n")
 			for _, fw := range frameworkBlocks {
-				if heading[fw] == "" {
-					continue
-				}
 				n := strings.Count(text, heading[fw])
 				want := 0
 				if set.Has(fw) {
@@ -354,9 +338,6 @@ func TestFrameworkSectionsCiteTheirLaw(t *testing.T) {
 	}
 	for _, lang := range languagesOf(t, KindPrivacy) {
 		for _, fw := range frameworkBlocks {
-			if skipAbsentFramework(lang, fw) {
-				continue
-			}
 			text := strings.ToLower(ComposePrivacy(Request{Lang: lang, Set: legal.ParseSet(string(fw)), Features: allFeatures()}))
 			for _, a := range anchors[fw] {
 				if !strings.Contains(text, a) {
