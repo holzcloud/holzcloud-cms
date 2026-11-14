@@ -98,6 +98,39 @@ func TestABrokenPrivacyRequestIsReported(t *testing.T) {
 	}
 }
 
+// A manifest edited by hand, or two put together, can list one request
+// twice, and the § 7101 record then held it twice (IN-04 of the second 33.1
+// review). The same request — same kind, moment, language, name, address,
+// note and signal — is restored once and the repetition is named.
+func TestADuplicatePrivacyRequestIsRestoredOnce(t *testing.T) {
+	s := newStores(t)
+	s.Requests = dsr.NewStore(s.Domains.DB)
+	archive := legalBundleRawWith(t, `{"name": "Von Hand", "locale": "de"}`,
+		`"privacy_requests": [
+		  {"kind": "optout", "name": "Ada", "email": "ada@example.com", "note": "bitte", "created_at": "2026-03-01T10:00:00Z"},
+		  {"kind": "optout", "name": "Bea", "created_at": "2026-03-01T10:00:00Z"},
+		  {"kind": "optout", "name": "Ada", "email": "ada@example.com", "note": "bitte", "created_at": "2026-03-01T11:00:00+01:00", "handled_at": "2026-03-02T10:00:00Z"},
+		  {"kind": "optout", "name": "Ada", "email": "ada@example.com", "note": "bitte", "created_at": "2026-03-01T10:00:01Z"}
+		]`)
+	report, err := Import(context.Background(), s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if report.Requests != 3 || len(report.Warnings) != 1 {
+		t.Fatalf("%d requests, warnings %q; want 3 and one warning", report.Requests, report.Warnings)
+	}
+	if w := report.Warnings[0]; !strings.Contains(w, "privacy request 3") || !strings.Contains(w, "request 1") {
+		t.Errorf("warning %q; want it to name request 3 as a repetition of request 1", w)
+	}
+	got, err := s.Requests.List(context.Background(), report.WebsiteID, dsr.KindOptOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 {
+		t.Errorf("restored %d requests; want 3: %+v", len(got), got)
+	}
+}
+
 // A request dated in the future counted in every limit until that date: the
 // form's hourly ceiling, the mail cap and the 24 months that keep a website
 // from being deleted (WR-02 of the second 33.1 review). Such a request, and

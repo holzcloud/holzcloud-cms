@@ -2126,6 +2126,7 @@
 "posts only": "solo entradas",
 "previous row": "fila anterior",
 "privacy request %d could not be taken over: %v": "No se pudo tomar la solicitud de privacidad %d: %v",
+"privacy request %d repeats privacy request %d and was taken over once.": "La solicitud de privacidad %d repite la solicitud %d y se tomó una sola vez.",
 "privacy request %d was not taken over: the date it arrived, %q, lies in the future.": "La solicitud de privacidad %d no se tomó: la fecha de llegada, %q, está en el futuro.",
 "privacy request %d was not taken over: the date it was answered, %q, lies in the future or before the date it arrived, %q.": "La solicitud de privacidad %d no se tomó: la fecha de respuesta, %q, está en el futuro o es anterior a la fecha de llegada, %q.",
 "privacy request %d: the date it arrived, %q, is not a date.": "Solicitud de privacidad %d: la fecha de llegada, %q, no es una fecha.",

@@ -191,6 +191,14 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 // unknown kind, a request that names nobody, a date that is not one, or one
 // that cannot have happened yet — is named in the report, and the import
 // goes on.
+//
+// A request the manifest lists twice is restored once (IN-04 of the second
+// 33.1 review). A manifest is a file anybody can edit, and two put together
+// repeat what both held; the § 7101 record would then show one person's
+// request as two. The same request is the same kind, arriving at the same
+// second, from a page in the same language, with the same name, address,
+// note and signal — every value the person gave. When it was answered is
+// not part of it: that is the operator's, and the first entry's stands.
 func importRequests(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) {
 	if len(m.PrivacyRequests) == 0 {
 		return
@@ -199,6 +207,11 @@ func importRequests(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		report.warnf(i18n.N("%d privacy requests were not taken over: this installation has no place for them."), len(m.PrivacyRequests))
 		return
 	}
+	type sameRequest struct {
+		kind, created, locale, name, email, note string
+		gpc                                      bool
+	}
+	restored := map[sameRequest]int{}
 	for i, pr := range m.PrivacyRequests {
 		created, err := time.Parse(time.RFC3339, pr.CreatedAt)
 		if err != nil {
@@ -217,6 +230,11 @@ func importRequests(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			}
 			req.HandledAt = &handled
 		}
+		key := sameRequest{pr.Kind, created.UTC().Format(time.RFC3339), pr.Locale, pr.Name, pr.Email, pr.Note, pr.GPC}
+		if first, ok := restored[key]; ok {
+			report.warnf(i18n.N("privacy request %d repeats privacy request %d and was taken over once."), i+1, first)
+			continue
+		}
 		_, err = s.Requests.Restore(ctx, req)
 		switch {
 		case errors.Is(err, dsr.ErrFutureTime):
@@ -229,6 +247,7 @@ func importRequests(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			report.warnf(i18n.N("privacy request %d could not be taken over: %v"), i+1, err)
 			continue
 		}
+		restored[key] = i + 1
 		report.Requests++
 	}
 }
