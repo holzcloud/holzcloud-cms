@@ -2,14 +2,15 @@
   "id": "bestellung",
   "abi": 1,
   "name": "Farm shop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "An order form over your own products. Every page that filled in a price field is a product; [[bestellung]] puts the list with quantity fields into a page, /bestellung takes the order, and the orders are in the administration. Nothing is paid here: the operator writes an invoice or the goods are collected.",
   "author": "Holzcloud",
   "license": "MIT",
   "hooks": [
     "content",
     "route",
-    "admin"
+    "admin",
+    "privacy"
   ],
   "routes": [
     "/bestellung"

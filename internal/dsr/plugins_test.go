@@ -155,3 +155,33 @@ func TestPluginRecordsJoinTheSearch(t *testing.T) {
 		t.Errorf("website B found %d of A's messages", n)
 	}
 }
+
+func TestFarmShopOrdersJoinTheSearch(t *testing.T) {
+	_, database := newTestStore(t)
+	a := website(t, database, "A")
+	m, store := plugintestManager(t, database)
+	id := plugintestInstall(t, m, "bestellung", a)
+	plugintestSeed(t, store, id, a, "bestellung:20261001T090000-aaaaaaaa", map[string]any{
+		"id": "20261001T090000-aaaaaaaa", "eingegangen": "2026-10-01T09:00:00Z",
+		"name": "Ada Lovelace", "email": "Ada@Example.com", "adresse": "Bahnhofstrasse 1",
+		"posten":   []map[string]any{{"slug": "seife", "titel": "Schafmilchseife", "menge": 2, "preis": "8,50"}},
+		"waehrung": "CHF", "summe": 17, "summe_bekannt": true,
+	})
+
+	s := NewService(database)
+	s.SetPlugins(m)
+	res, err := s.Find(context.Background(), a, "ada@example.com")
+	if err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if len(res.Failed) != 0 {
+		t.Fatalf("Failed = %+v", res.Failed)
+	}
+	recs := res.BySource()["plugin:bestellung"]
+	if len(recs) != 1 || recs[0].Kind != "order" || recs[0].Key != "bestellung:20261001T090000-aaaaaaaa" {
+		t.Fatalf("farm-shop records = %+v, want the one order", recs)
+	}
+	if h, ok := plugintestHolder(res, id); !ok || !h.Covered {
+		t.Errorf("bestellung holder = %+v, want covered", h)
+	}
+}

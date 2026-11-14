@@ -496,3 +496,185 @@ func TestTheContactFormExpiresByTime(t *testing.T) {
 		t.Error("expire with a cut-off that is not a time was accepted")
 	}
 }
+
+// The farm shop's orders, in the plugin's own shape.
+func farmOrder(id, received, email string, done bool) map[string]any {
+	return map[string]any{
+		"id": id, "eingegangen": received, "name": "Ada Lovelace", "email": email,
+		"telefon": "+41 79 123 45 67", "adresse": "Bahnhofstrasse 1, 8001 Zürich",
+		"bemerkung": "Bitte vor 10 Uhr", "seite": "bestellen",
+		"posten": []map[string]any{
+			{"slug": "seife", "titel": "Schafmilchseife", "menge": 3, "preis": "8,50", "einheit": "Stück"},
+		},
+		"summe": 25.5, "summe_bekannt": true, "waehrung": "CHF", "erledigt": done,
+	}
+}
+
+const (
+	farmKeyOld      = "bestellung:20240315T100000-aaaaaaaa"
+	farmKeyStranger = "bestellung:20250101T100000-cccccccc"
+)
+
+func seedFarmShop(t *testing.T, w privacyWorld) (nowKey string) {
+	t.Helper()
+	now := time.Now().UTC()
+	nowKey = "bestellung:" + now.Format("20060102T150405") + "-bbbbbbbb"
+	w.seed(t, w.a, farmKeyOld, farmOrder(farmKeyOld[len("bestellung:"):], "2024-03-15T10:00:00Z", "Ada@Example.com", true))
+	w.seed(t, w.a, nowKey, farmOrder(nowKey[len("bestellung:"):], now.Format(time.RFC3339), "ada@example.com", false))
+	w.seed(t, w.a, farmKeyStranger, farmOrder(farmKeyStranger[len("bestellung:"):], "2025-01-01T10:00:00Z", "bob@example.com", false))
+	return nowKey
+}
+
+func TestTheFarmShopFindsOrders(t *testing.T) {
+	w := privacyInstall(t, "bestellung")
+	nowKey := seedFarmShop(t, w)
+
+	out := w.privacy(t, w.a, PrivacyIn{Op: PrivacyFind, Email: "ADA@example.com"})
+	got := privacyKeys(out.Records)
+	if len(got) != 2 || got[0] != farmKeyOld || got[1] != nowKey {
+		t.Fatalf("find returned %v, want [%s %s]", got, farmKeyOld, nowKey)
+	}
+	for _, rec := range out.Records {
+		if rec.Kind != PrivacyKindOrder || rec.Label == "" || rec.Time == "" {
+			t.Errorf("%s: kind %q label %q time %q", rec.Key, rec.Kind, rec.Label, rec.Time)
+		}
+		if want := "name,email,phone,address"; joinStrings(rec.Correctable) != want {
+			t.Errorf("%s: correctable %v, want %s", rec.Key, rec.Correctable, want)
+		}
+		for _, name := range []string{"name", "email", "phone", "address", "note", "item_1", "sum", "currency", "received"} {
+			if f, ok := privacyField(rec, name); !ok || f.Label == "" || f.Value == "" {
+				t.Errorf("%s: field %s = %+v", rec.Key, name, f)
+			}
+		}
+		if f, _ := privacyField(rec, "item_1"); !bytes.Contains([]byte(f.Value), []byte("Schafmilchseife")) {
+			t.Errorf("%s: the item does not name the product: %q", rec.Key, f.Value)
+		}
+		_, done := privacyField(rec, "done")
+		if done != (rec.Key == farmKeyOld) {
+			t.Errorf("%s: done field present = %v", rec.Key, done)
+		}
+	}
+	if out := w.privacy(t, w.b, PrivacyIn{Op: PrivacyFind, Email: "ada@example.com"}); len(out.Records) != 0 {
+		t.Errorf("website B found %v", privacyKeys(out.Records))
+	}
+}
+
+func joinStrings(s []string) string {
+	out := ""
+	for i, v := range s {
+		if i > 0 {
+			out += ","
+		}
+		out += v
+	}
+	return out
+}
+
+func TestTheFarmShopReducesAnErasedOrder(t *testing.T) {
+	w := privacyInstall(t, "bestellung")
+	nowKey := seedFarmShop(t, w)
+	ctx := context.Background()
+	keys := []string{farmKeyOld, nowKey}
+
+	// Without the date there is nothing to tell the person, so nothing is
+	// erased.
+	if _, err := w.m.Privacy(ctx, w.a, w.id, PrivacyIn{Op: PrivacyErase, Keys: keys}); err == nil {
+		t.Error("an erase without retain_until was accepted")
+	}
+	if _, err := w.m.Privacy(ctx, w.a, w.id, PrivacyIn{Op: PrivacyErase, Keys: []string{farmKeyOld, "einstellungen"},
+		RetainUntil: "2035-01-01T00:00:00Z"}); err == nil {
+		t.Error("an erase with a key outside the orders was accepted")
+	}
+	if v, _ := w.stored(t, w.a, farmKeyOld); v["email"] != "Ada@Example.com" || v["telefon"] == "" {
+		t.Fatalf("a refused erase changed the order: %v", v)
+	}
+
+	out := w.privacy(t, w.a, PrivacyIn{Op: PrivacyErase, Keys: keys, RetainUntil: "2035-01-01T00:00:00Z"})
+	if out.Deleted != 0 || len(out.Kept) != 2 {
+		t.Fatalf("erase answered %+v, want nothing deleted and two kept", out)
+	}
+	for _, k := range out.Kept {
+		if joinStrings(k.Fields) != "name,address,items,sum,note" || k.Until != "2035-01-01T00:00:00Z" {
+			t.Errorf("kept %+v, want name,address,items,sum,note until 2035-01-01T00:00:00Z", k)
+		}
+	}
+	if again := w.privacy(t, w.a, PrivacyIn{Op: PrivacyFind, Email: "ada@example.com"}); len(again.Records) != 0 {
+		t.Errorf("an erased order is still found by the address: %v", privacyKeys(again.Records))
+	}
+	v, _ := w.stored(t, w.a, farmKeyOld)
+	if v["email"] != "" || v["telefon"] != nil && v["telefon"] != "" {
+		t.Errorf("e-mail or phone survived the erasure: %v", v)
+	}
+	if v["name"] != "Ada Lovelace" || v["adresse"] != "Bahnhofstrasse 1, 8001 Zürich" ||
+		v["bemerkung"] != "Bitte vor 10 Uhr" || v["summe"] != 25.5 {
+		t.Errorf("the invoice basis did not survive: %v", v)
+	}
+	if posten, _ := v["posten"].([]any); len(posten) != 1 {
+		t.Errorf("the items did not survive: %v", v["posten"])
+	}
+	if v["aufbewahren_bis"] != "2035-01-01T00:00:00Z" || v["geloescht"] == nil || v["geloescht"] == "" {
+		t.Errorf("the reduction is not recorded on the order: %v", v)
+	}
+	if v, _ := w.stored(t, w.a, farmKeyStranger); v["email"] != "bob@example.com" {
+		t.Error("the stranger's order was touched")
+	}
+}
+
+func TestTheFarmShopRefusesToCorrectAnErasedOrder(t *testing.T) {
+	w := privacyInstall(t, "bestellung")
+	nowKey := seedFarmShop(t, w)
+	ctx := context.Background()
+	w.privacy(t, w.a, PrivacyIn{Op: PrivacyErase, Keys: []string{farmKeyOld}, RetainUntil: "2035-01-01T00:00:00Z"})
+
+	if _, err := w.m.Privacy(ctx, w.a, w.id, PrivacyIn{Op: PrivacyCorrect, Key: farmKeyOld, Field: "name", Value: "Ada King"}); err == nil {
+		t.Error("a correction of a reduced order was accepted")
+	}
+	out := w.privacy(t, w.a, PrivacyIn{Op: PrivacyCorrect, Key: nowKey, Field: "phone", Value: "+41 79 000 00 00"})
+	if len(out.Records) != 1 {
+		t.Errorf("correct answered %+v", out)
+	}
+	if v, _ := w.stored(t, w.a, nowKey); v["telefon"] != "+41 79 000 00 00" {
+		t.Errorf("the phone number was not stored: %v", v["telefon"])
+	}
+	for _, bad := range []PrivacyIn{
+		{Op: PrivacyCorrect, Key: nowKey, Field: "email", Value: "Ada <ada@example.com>"},
+		{Op: PrivacyCorrect, Key: nowKey, Field: "note", Value: "x"},
+		{Op: PrivacyCorrect, Key: nowKey, Field: "name", Value: " "},
+		{Op: PrivacyCorrect, Key: "einstellungen", Field: "name", Value: "x"},
+	} {
+		if _, err := w.m.Privacy(ctx, w.a, w.id, bad); err == nil {
+			t.Errorf("correct %s=%q on %s was accepted", bad.Field, bad.Value, bad.Key)
+		}
+	}
+}
+
+func TestTheFarmShopExpiresOnlyAfterTheRetentionDate(t *testing.T) {
+	w := privacyInstall(t, "bestellung")
+	const (
+		never    = "bestellung:20140501T100000-aaaaaaaa"
+		retained = "bestellung:20140601T100000-bbbbbbbb"
+		recent   = "bestellung:20240101T100000-cccccccc"
+	)
+	w.seed(t, w.a, never, farmOrder(never[len("bestellung:"):], "2014-05-01T10:00:00Z", "a@example.com", true))
+	w.seed(t, w.a, retained, farmOrder(retained[len("bestellung:"):], "2014-06-01T10:00:00Z", "b@example.com", true))
+	w.seed(t, w.a, recent, farmOrder(recent[len("bestellung:"):], "2024-01-01T10:00:00Z", "c@example.com", false))
+	w.privacy(t, w.a, PrivacyIn{Op: PrivacyErase, Keys: []string{retained},
+		RetainUntil: time.Now().UTC().AddDate(2, 0, 0).Format(time.RFC3339)})
+
+	if out := w.privacy(t, w.a, PrivacyIn{Op: PrivacyExpire, Kind: PrivacyKindFormSubmission, Before: "2016-01-01T00:00:00Z"}); out.Deleted != 0 {
+		t.Errorf("expire of form submissions deleted %d orders", out.Deleted)
+	}
+	out := w.privacy(t, w.a, PrivacyIn{Op: PrivacyExpire, Kind: PrivacyKindOrder, Before: "2016-01-01T00:00:00Z"})
+	if out.Deleted != 1 || out.More {
+		t.Errorf("expire answered %+v, want the 2014-05 order alone", out)
+	}
+	if _, ok := w.stored(t, w.a, never); ok {
+		t.Error("the order past its period is still there")
+	}
+	if _, ok := w.stored(t, w.a, retained); !ok {
+		t.Error("an order kept until a date in the future was expired before it")
+	}
+	if _, ok := w.stored(t, w.a, recent); !ok {
+		t.Error("an order inside the period was expired")
+	}
+}

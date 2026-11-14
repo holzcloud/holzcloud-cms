@@ -579,6 +579,17 @@ type order struct {
 	Currency     string  `json:"waehrung,omitempty"`
 	// Done is set once the operator has ticked the order off.
 	Done bool `json:"erledigt,omitempty"`
+	// ErasedAt and RetainUntil mark an order the person asked to have erased.
+	//
+	// An erased order is reduced, not deleted (Phase 33.2, D-07): it is the
+	// basis of the invoice the operator writes, and stays that until the
+	// retention period of the seller's country ends (D-06). E-mail and
+	// telephone go; name, address, items, sum and the customer's note stay.
+	// The date the host computed is stored with the order, so that what the
+	// person was told — "kept until" — stays true even if the operator
+	// changes the period later.
+	ErasedAt    string `json:"geloescht,omitempty"`
+	RetainUntil string `json:"aufbewahren_bis,omitempty"`
 }
 
 const prefixOrder = "bestellung:"

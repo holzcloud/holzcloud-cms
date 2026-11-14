@@ -188,7 +188,10 @@ handler answers nothing, and that is reported the same way.
 
 A plugin that keeps data for a website and does not declare `privacy` is named on
 the Privacy screen as not searched, with how many entries it holds — the
-operator then has to look through it by hand. `kontaktformular` answers it.
+operator then has to look through it by hand. Both shipped plugins that keep
+visitors' data answer it: `kontaktformular` deletes a message with its
+attachments, and `bestellung` reduces an order to its invoice basis — name,
+address, items, sum and the customer's note — until the date it was given.
 
 ### Permissions
 

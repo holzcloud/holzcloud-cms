@@ -186,8 +186,14 @@ func single(in plugin.AdminIn, id string) (plugin.AdminOut, error) {
 		b.WriteString(`<dt>` + html.EscapeString(k) + `</dt><dd>` + html.EscapeString(v) + `</dd>`)
 	}
 	row(plugin.T("Name"), best.Name)
-	b.WriteString(`<dt>` + html.EscapeString(plugin.T("E-mail")) + `</dt><dd><a href="mailto:` +
-		html.EscapeString(best.Email) + `">` + html.EscapeString(best.Email) + `</a></dd>`)
+	if best.ErasedAt != "" {
+		// Reduced at the person's request: no address to write to, and the
+		// screen says when it went rather than showing an empty link.
+		row(plugin.T("Deleted on"), shortDate(best.ErasedAt))
+	} else {
+		b.WriteString(`<dt>` + html.EscapeString(plugin.T("E-mail")) + `</dt><dd><a href="mailto:` +
+			html.EscapeString(best.Email) + `">` + html.EscapeString(best.Email) + `</a></dd>`)
+	}
 	row(plugin.T("Telephone"), best.Telefon)
 	row(plugin.T("Address"), best.Address)
 	row(plugin.T("Remark"), best.Bemerkung)
