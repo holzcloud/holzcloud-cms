@@ -154,6 +154,21 @@ subtitle or a menu entry is not resolved; `list_values` names each one under
 `outside_text`, with `where` set to `title`, `description`, `field`,
 `snippet-field`, `product-title`, `product-subtitle` or `menu`.
 
+The legal frameworks a website follows are a setting like any other:
+`get_website` answers `legal_frameworks` as a comma-separated list of `eu`,
+`ch`, `uk` and `us` (`eu,ch` for a new website, empty for none), and
+`update_website` takes the same. Given, it replaces the whole set — pass every
+framework that applies, not only the one to add; left out, the set stays as it
+is. An unknown name is dropped and the order is made canonical, and the answer
+lists under `adjusted` what was not stored as given. `launch_checklist` carries
+the legal items of the admin's card: whether a framework is chosen, and whether
+the imprint, the privacy page and, with `us`, the Do Not Sell or Share page are
+published and linked in the footer menu, each with a hint naming the law of the
+first chosen framework ([security](security.md#legal-frameworks-the-privacy-page-and-the-imprint)).
+Opt-out requests are personal data a visitor gave to the website, and no tool
+reads, lists or describes them; they are on the admin's Opt-outs screen only
+(`TestOptOutsAreNotOnMCP`).
+
 `create_ai_key` issues `read` and `content` keys only; `revoke_ai_key` refuses
 the key that calls it, so an assistant cannot cut its own connection halfway
 through a task.

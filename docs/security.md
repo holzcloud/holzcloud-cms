@@ -117,11 +117,31 @@ consent-exempt under § 25(2) TDDDG. The price view is set only by the visitor's
 own switch and remembers nothing but that choice; the privacy text lists it with
 the other two.
 
-Two tests hold this. `TestNoPublicGetSetsACookie` drives all eight shipped themes
-through the real router, over nineteen public addresses (home page, archive,
-search, 404, shop lists, basket, feeds and more), and fails if a plain GET sets a
-cookie. A source test fails when a file that writes a cookie appears that the
-privacy text does not list, so a fourth cookie cannot go out unmentioned.
+None of the four legal frameworks a website can follow (see
+[below](#legal-frameworks-the-privacy-page-and-the-imprint)) asks for a banner
+for these three, because each one exempts storage that is strictly necessary
+for something the visitor asked for:
+
+| Framework | Exemption |
+|---|---|
+| European Union | ePrivacy Directive Art. 5(3), second sentence; in Germany § 25 Abs. 2 Nr. 2 TDDDG |
+| Switzerland | FMG Art. 45c lit. b — allowed when the visitor is told about the processing, its purpose and that they can refuse. The Swiss section of the privacy page says how: don't do the thing that sets the cookie, delete it, or block cookies in the browser |
+| United Kingdom | PECR Schedule A1 para 4, in particular (e)(ii), "maintaining a record of selections made on a website" |
+| United States | no consent rule for such storage; what the law asks for is a truthful privacy policy (CalOPPA, Bus. & Prof. Code § 22575), including how the site answers Do-Not-Track — it tracks nobody, so the signal changes nothing |
+
+This is the reading of the research for this release, written into templates;
+it is not legal advice.
+
+Three tests hold the promise that opening a page sets nothing.
+`TestNoPublicGetSetsACookie` drives all eight shipped themes through the real
+router, over nineteen public addresses (home page, archive, search, 404, shop
+lists, basket, feeds and more), and fails if a plain GET sets a cookie.
+`TestNoPublicGetSetsACookieWithGPC` runs the same addresses again with
+`Sec-GPC: 1`, and `TestTheOptOutPostSetsNoCookie` sends the opt-out form of a
+US website (see [below](#opt-out-requests)) and checks that its answer sets
+none either. A source test, `TestEveryCookieWriterIsAccountedFor`, fails when a
+file that writes a cookie appears that the privacy text does not list, so a
+fourth cookie cannot go out unmentioned.
 
 ### The request log
 
@@ -147,20 +167,167 @@ upright. A test sends a photograph with a GPS position and camera data through
 the real upload path and checks the stored file, and a source test keeps that
 path the only one by which an upload is stored.
 
-### The privacy text
+### Legal frameworks, the privacy page and the imprint
 
-The privacy text is a template and replaces no legal advice. A new website gets it
-as a draft, composed from the functions that website uses: a shop, the price
-view, online payment, protected pages, a form. It carries a table of the cookies
-and one of the recipients, and the things only the operator knows (the
-responsible body, the hosting provider, the payment provider) are marked as
-fill-in places. A draft that still carries the notice that it is an unfilled
-template must not be published.
+Every website says which laws it follows. Settings → General has four boxes:
 
-A website created before this release keeps the privacy page it has; nothing in
-holzcloud-CMS changes, publishes or deletes an existing page. Its settings screen
-shows a hint and offers the current text as a new draft next to the old one, to
-compare and to copy from.
+| Box | Stands for |
+|---|---|
+| European Union | GDPR and the ePrivacy rules |
+| Switzerland | the revised Federal Act on Data Protection (FADP/DSG), with UWG and FMG |
+| United Kingdom | UK GDPR, the Data Protection Act 2018 and PECR |
+| United States | the US state privacy laws: CCPA/CPRA, CalOPPA, and comparable laws of other states in one general paragraph |
+
+A website starts with **European Union and Switzerland** ticked, because that is
+what the privacy text was written for before the choice existed; the migration
+that added the choice gave every existing website the same two
+(`legal.Default`, migration `00063_legal_frameworks.sql`). The choice belongs to
+one website and is never seen by another. Unticking all four is allowed — the
+launch checklist then reports "Legal frameworks chosen" as open, and the
+templates carry no section of any law. The same set is read and written over
+the assistant connection ([AI access](ai-access.md#tools)) and travels with a
+website bundle.
+
+**The privacy page** is one page per website, not one per framework. A shared
+core describes what this program does with data, derived from the functions the
+website uses — a shop, the price view, online payment, protected pages, a
+form — with a table of the cookies and one of the recipients. Below the
+core comes one section per chosen framework, with what only that law asks for:
+the legal bases and the right to object under the GDPR, the Swiss naming of the
+country a disclosure goes to and the report to the FDPIC, the complaint to the
+controller and to the Information Commission in the UK, and for the United
+States the categories of information, the statement that nothing is sold or
+shared, how Global Privacy Control is treated, and the Do-Not-Track answer
+CalOPPA asks for (`privacy.ComposePrivacy`).
+
+**The imprint** is composed the same way, for every website whatever it
+follows: who runs the website and how to reach them, e-mail included, and then
+the items the European (§ 5 DDG for providers in Germany, Art. 5 of Directive
+2000/31/EC otherwise), Swiss (UWG Art. 3 para. 1 let. s) and UK rules
+(Electronic Commerce (EC Directive) Regulations 2002 reg. 6, and for a
+company the Trading Disclosures Regulations 2015, SI 2015/17, reg. 25) add when chosen. A website that follows only US law,
+or none, gets the lean imprint: who and how to reach. No imprint links the EU
+online dispute resolution platform, because the regulation behind it
+(No 524/2013) was repealed by Regulation (EU) 2024/3228 with effect from
+20 July 2025 (`privacy.ComposeImprint`).
+
+**Languages.** The templates exist in German, French, Italian, Romansh and
+English (`internal/privacy/texts/<language>/`), and a page gets the texts of its
+own language (`privacy.TextLang`). A Spanish page gets the English template, and
+the Legal pages card says so under the Spanish row. Romansh is never a
+website's main language — the settings form does not offer it
+(`SupportedLocales` in `internal/template`) — so a Romansh template only ever
+arrives as a further-language draft next to an original in the main language.
+It was written by a machine, says so in a second bold notice at its top, and
+has to be checked by a Romansh speaker before it is published. A German page of
+a website whose country is Switzerland, or a `de-CH` page, is written in Swiss
+spelling, without ß (`legalRequest` in `internal/admin`).
+
+**Templates, not legal advice.** Every composed page opens with the notice that
+it is an unfilled template and closes with the sentence that it replaces no
+legal advice; what only the operator knows — the responsible body, the
+addresses, the hosting provider, the competent authority — is a visible fill-in
+marker (`TestEveryCompositionIsAMarkedTemplate`). A page that still carries the
+notice must not be published, and the Legal pages card marks it "Unfilled
+template". Which provision each block of text was written against is recorded,
+block by block, in `internal/privacy/sources/` (`privacy.md`, `imprint.md`,
+`dns.md`, and `rm.md` for the Romansh vocabulary); those files are not
+embedded and never reach a website.
+
+**Nothing changes a page that exists.** A new website is created with the
+imprint and the privacy page as drafts, in its main language, linked from the
+footer menu. After that the **Legal pages** card (Settings → General) shows
+one row per language of the website and one column per page its frameworks
+call for — privacy page and imprint always, Do Not Sell or Share with the
+United States — and creates what is missing as drafts in their language, filed
+as translations of the main-language page. A cell with a page offers "New
+draft to compare": the current template beside the page, never over it
+(`HandleLegalDrafts`; `TestLegalPagesOnlyCreatePages` pins the page-store calls
+to creating). Ticking a framework later therefore never rewrites a published
+privacy page; the operator compares and copies.
+
+### Global Privacy Control and the Do Not Sell or Share page
+
+Global Privacy Control is a signal a browser can send with every request, as
+the header `Sec-GPC: 1`; only exactly `1` counts (`legal.GPC`). On a website
+with the United States among its frameworks the signal is treated as the
+visitor's request not to have their personal information sold or shared, for
+that browser (CCPA regulations § 7025). Since this program sells and shares
+nothing, honouring it changes nothing but one line:
+
+- A page that carries `[[widerspruch]]` (the
+  [opt-out widget](content-model.md#the-opt-out-widget)) shows whether this
+  browser sent the signal — "Opt-Out Request Honored" when it did, as § 7025(c)(6)
+  asks. That page answers with `Vary: Sec-GPC`, so a shared cache does not
+  hand one visitor's line to another (`optoutVary`,
+  `TestTheWidgetPageVariesOnGPC`).
+- Every other page is byte for byte the same with and without the signal, and
+  does not name it in `Vary` (`TestGPCChangesNothingElse`). There is no
+  pop-up, no interstitial and no fee (§ 7025(f)).
+- The signal is neither logged nor stored. Only when a visitor sends the
+  opt-out form is it recorded, with that request, whether the browser sent it.
+- `/.well-known/gpc.json` answers `{"gpc": true}` on a US website, the
+  resource the GPC specification defines for a site to say it honours the
+  signal, and 404 on any other (`HandleGPCJSON`). `lastUpdate` is left out
+  rather than invented.
+
+**The Do Not Sell or Share page** ("Do Not Sell or Share My Personal
+Information", the statutory title, in English on every language's page) says
+that nothing is sold or shared, names the recipients the website does involve
+(the hosting provider, the mail provider, Payrexx with online payment),
+explains the signal and carries the opt-out form (`privacy.ComposeDNS`). A
+business that neither sells nor shares is not required to offer it (CCPA
+regulations § 7010(e)), and the page says so; it is offered anyway, so a
+visitor who looks for it finds it and an opt-out is recorded.
+
+**Who the US laws apply to.** The CCPA binds a for-profit "business" doing
+business in California that meets one of three thresholds: annual revenue over
+$26,625,000 (the adjusted figure since 1 January 2025), buying, selling or
+sharing the personal information of 100,000 or more consumers or households,
+or half its revenue or more from selling or sharing it (Cal. Civ. Code
+§ 1798.140(d)(1)). Most websites run on this program are below all three.
+CalOPPA has no threshold: any commercial website that collects personally
+identifiable information from California residents has to post a privacy
+policy (Bus. & Prof. Code § 22575). The US section of the privacy page is
+written to serve both.
+
+### Opt-out requests
+
+The opt-out form of a US website stores a request in the website's own
+database, table `privacy_requests` (migration `00064_privacy_requests.sql`,
+`dsr.Request`):
+
+- what the visitor typed, as they typed it: a name, an e-mail address, a
+  note — each optional, but a request must carry a name, an address or the
+  signal;
+- the language of the page it was sent from;
+- whether the browser sent Global Privacy Control;
+- when it arrived, and when the operator marked it handled.
+
+It stores **no IP address and no user agent**, and the form sets no cookie
+(`TestTheOptOutPostSetsNoCookie`). The spam protection needs none either: a
+honeypot field, a signed time stamp in the form that has to be between three
+seconds and twelve hours old, and at most 30 requests per website and hour,
+counted in the database so a restart does not reset it. A cross-site POST is
+refused before anything is read (`HandleOptOut`). A request caught by the
+honeypot or the time stamp gets the same answer as an accepted one, so a robot
+does not learn which trap caught it.
+
+When mail is set up for the website and it has a notification address, the
+operator gets an e-mail in the website's main language with the request and
+whether the signal was sent; the visitor's address stays in the body and never
+becomes a Reply-To (`optoutNotify`).
+
+The requests are listed under **Settings → Opt-outs** (German
+"Widersprüche"), per website, newest first; the entry is in the settings
+navigation of a website with the United States. "Mark as handled" stores the
+date once (`TestMarkingAnOptOutHandledStoresTheDateOnce`). There is no delete:
+neither the screen nor the store can remove a request
+(`TestTheOptOutScreenCannotDelete`, `TestTheStoreCannotDelete`), and the
+assistant connection cannot read them ([AI access](ai-access.md#tools)). In
+this release they are kept until the website itself is deleted. Retention and
+deletion arrive with the data-subject requests of the next phase, which must
+keep a US opt-out for at least 24 months (CCPA regulations § 7101).
 
 ## Two-factor authentication
 

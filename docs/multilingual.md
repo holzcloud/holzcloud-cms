@@ -5,6 +5,7 @@ appears in, and the language a **person** administers it in. They have nothing t
 do with each other.
 
 - [Websites in several languages](#websites-in-several-languages)
+- [Legal pages in several languages](#legal-pages-in-several-languages)
 - [The language of the admin](#the-language-of-the-admin)
 - [Adding a language without a rebuild](#adding-a-language-without-a-rebuild)
 - [Regional variants](#regional-variants)
@@ -64,10 +65,39 @@ built from those. The names are given in the language itself ("Français"),
 because the picker is read by somebody who does not understand the page they are
 standing on.
 
-One limitation worth knowing: **addresses are unique per website, across all
-languages.** So there can be `/kontakt` and `/fr/contact`, but not the same slug
-twice in two languages. In practice this is rarely in the way — a French page is
-called something different from the German one anyway.
+**Addresses are unique per website and language** (migration
+`00045_pages_locale_unique.sql`). The same slug may stand in two languages —
+`/holzcloud-cms` and `/fr/holzcloud-cms`, because a product name is not
+translated — but not twice in one.
+
+## Legal pages in several languages
+
+The privacy page, the imprint and, on a website that follows US law, the Do Not
+Sell or Share page are composed from templates in German, French, Italian,
+Romansh and English ([security](security.md#legal-frameworks-the-privacy-page-and-the-imprint)).
+A new website gets the first two as drafts in its main language, under that
+language's title and address — *Impressum* at `/impressum` on a German website,
+*Mentions légales* at `/mentions-legales` on a French one.
+
+The **Legal pages** card in Settings → General has one row per language of the
+website, the main language first, and one column per page. *Create the missing
+pages as drafts* makes every missing one, each in its own language and under
+that language's address, and files the further-language drafts as versions of
+the main-language page — the same star as *Create version*, so the language
+picker and `hreflang` find them once they are published. An existing page is
+never changed; a cell that has one offers a new draft to compare instead.
+
+- **Spanish** pages get the English template, and the card says so under the
+  Spanish row.
+- **Romansh** cannot be a main language, so a Romansh page only ever arrives as
+  a further-language draft beside its original. Its template was written by a
+  machine; the page carries a second notice saying so, the card repeats it,
+  and a Romansh speaker should check it before it is published.
+- **Swiss German.** A `de-CH` page, and every German page of a website whose
+  country is Switzerland, is written in Swiss spelling, without ß.
+- The Do Not Sell or Share page keeps its statutory English title and the
+  address `do-not-sell-or-share` in every language; the text below the title
+  is in the page's language.
 
 ## The language of the admin
 
