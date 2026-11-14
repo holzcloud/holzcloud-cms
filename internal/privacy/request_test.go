@@ -103,7 +103,7 @@ var requestDeadline = []struct {
 	anchors map[string][]string
 }{
 	{legal.EU, "deadline-eu", map[string][]string{"de": {"Art. 12 Abs. 3 DSGVO", "eines Monats", "zwei weitere Monate"}, "en": {"Art. 12(3) GDPR", "one month", "two further months"}}},
-	{legal.CH, "deadline-ch", map[string][]string{"de": {"Art. 25 Abs. 7 DSG", "Art. 18 DSV", "30 Tagen", "kostenlos"}, "en": {"Art. 25(7) FADP", "Art. 18 DPO", "30 days", "free of charge"}}},
+	{legal.CH, "deadline-ch", map[string][]string{"de": {"Art. 25 Abs. 7 DSG", "Art. 18 DSV", "30 Tagen", "kostenlos"}, "en": {"Art. 25(7) FADP", "Art. 18 of the Data Protection Ordinance", "Art. 16(5) DPO", "30 days", "free of charge"}}},
 	{legal.UK, "deadline-uk", map[string][]string{"de": {"Art. 12 Abs. 3", "UK GDPR", "eines Monats"}, "en": {"Art. 12(3)", "UK GDPR", "one month"}}},
 	{legal.US, "deadline-us", map[string][]string{"de": {"§ 7021", "10 Geschäftstagen", "45 Kalendertagen"}, "en": {"§ 7021", "10 business days", "45 calendar days"}}},
 }
@@ -186,6 +186,105 @@ func TestTheRequestPageSaysWhatIsKeptOnlyWithAShop(t *testing.T) {
 	for _, w := range []string{"Rechnung", "Aufbewahrungsfrist", "E-Mail-Adresse und Telefonnummer"} {
 		if !strings.Contains(kept, w) {
 			t.Errorf("the German kept block lacks %q", w)
+		}
+	}
+}
+
+// The English page is the German page in English: the same blocks under the
+// same conditions, the same marker, and the same numbers and citations, so a
+// website in two languages promises one thing (T-33.2-54).
+func TestTheEnglishRequestPageMatchesTheGerman(t *testing.T) {
+	if got := TextLang(KindRequest, "en"); got != "en" {
+		t.Fatalf("the request page has no English texts: en reads %q", got)
+	}
+	de := ComposeRequest(Request{Lang: "de", Set: allSet(), Features: Features{Shop: true}})
+	en := ComposeRequest(Request{Lang: "en", Set: allSet(), Features: Features{Shop: true}})
+
+	for _, name := range []string{"glance", "rights", "deadline-eu", "deadline-ch", "deadline-uk", "deadline-us", "form", "identity", "kept", "closing"} {
+		if !requestHas(t, en, "en", name) {
+			t.Errorf("the English page lacks the %s block", name)
+		}
+	}
+	if n := strings.Count(en, "\n"+requestMarker+"\n"); n != 1 {
+		t.Errorf("the English page carries the marker on a line of its own %d times, want 1", n)
+	}
+	if i := strings.Index(en, "**"+TemplateNotice("en")+"**"); i < 0 || i > 200 {
+		t.Errorf("the English page does not open with the English template notice (at %d)", i)
+	}
+	if strings.Contains(en, TemplateNotice("de")) {
+		t.Errorf("the English page carries the German notice")
+	}
+
+	// The deadline numbers the plan names, in both languages.
+	for _, pair := range [][2]string{
+		{"Art. 12 Abs. 3", "Art. 12(3)"},
+		{"30 Tagen", "30 days"},
+		{"Art. 25 Abs. 7", "Art. 25(7)"},
+		{"45 Kalendertagen", "45 calendar days"},
+		{"§ 7021", "§ 7021"},
+	} {
+		if !strings.Contains(de, pair[0]) || !strings.Contains(en, pair[1]) {
+			t.Errorf("German %q present %v, English %q present %v; want both",
+				pair[0], strings.Contains(de, pair[0]), pair[1], strings.Contains(en, pair[1]))
+		}
+	}
+	// And the same numbers block by block, in the same order: a number one
+	// language names and the other does not is a promise only one makes.
+	for _, set := range sets() {
+		for _, f := range []Features{{}, {Shop: true}} {
+			d := requestDigits(ComposeRequest(Request{Lang: "de", Set: set, Features: f}))
+			e := requestDigits(ComposeRequest(Request{Lang: "en", Set: set, Features: f}))
+			if d != e {
+				t.Errorf("%s %s: the numbers differ:\n de %s\n en %s", set, featureString(f), d, e)
+			}
+		}
+	}
+	for _, w := range enfrGerman {
+		if strings.Contains(en, w) {
+			t.Errorf("the English page contains the German %q", w)
+		}
+	}
+}
+
+// requestDigits is the runs of digits of a text, in order: the numbers and
+// citations it carries, without the words around them.
+func requestDigits(s string) string {
+	var b strings.Builder
+	in := false
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+			in = true
+			continue
+		}
+		if in {
+			b.WriteByte(' ')
+			in = false
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// French, Italian and Romansh get the English page until plan 06 writes
+// theirs; Spanish gets it for good (33.1 D-16). Plan 06 replaces this test.
+func TestFrenchFallsBackToEnglishUntilPlan06(t *testing.T) {
+	for _, tag := range []string{"fr", "fr-CH", "it", "rm", "es", "es-MX", "en-GB"} {
+		if got := TextLang(KindRequest, tag); got != "en" {
+			t.Errorf("TextLang(request, %q) = %q, want en", tag, got)
+		}
+	}
+	if got := Slug(KindRequest, "fr"); got != "my-data" {
+		t.Errorf("Slug(request, fr) = %q, want my-data", got)
+	}
+	if got := Title(KindRequest, "es"); got != "Request about my data" {
+		t.Errorf("Title(request, es) = %q, want Request about my data", got)
+	}
+	if got := DraftSlug(KindRequest, "en"); got != "my-data-template" {
+		t.Errorf("DraftSlug(request, en) = %q, want my-data-template", got)
+	}
+	for _, s := range []string{"meine-daten", "anfrage-zu-meinen-daten", "my-data", "request-about-my-data"} {
+		if !IsRoleSlug(KindRequest, s) {
+			t.Errorf("%q is not a role slug of the request page", s)
 		}
 	}
 }

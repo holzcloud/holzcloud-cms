@@ -1,0 +1,3 @@
+### Deadline under the UK GDPR (United Kingdom)
+
+The controller answers your request without undue delay and in any event within one month (Art. 12(3) and Art. 12A UK GDPR). Where the complexity or the number of requests makes it necessary, the controller may extend this period by two further months. It tells you so within the first month and gives its reasons. The answer is free of charge unless a request is manifestly unfounded or excessive (Art. 12(5) UK GDPR). Where the controller has reasonable doubts that the request comes from you, it may ask for additional information to confirm it (Art. 12(6) UK GDPR).

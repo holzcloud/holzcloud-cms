@@ -401,6 +401,7 @@ func (h *Handler) newPageFormData(r *http.Request, websiteID int64, title string
 //
 // The opt-out marker becomes a box saying what goes there
 // (expandOptOutPreview); the website is read only when the Markdown has one.
+// The request form's marker becomes a box too (expandDataRequestPreview).
 func (h *Handler) renderPreview(r *http.Request, websiteID int64, markdown string) template.HTML {
 	ctx := r.Context()
 	if strings.TrimSpace(markdown) == "" {
@@ -429,6 +430,9 @@ func (h *Handler) renderPreview(r *http.Request, websiteID int64, markdown strin
 		}
 		out = expandOptOutPreview(r, ws, out)
 	}
+	// The request form's box is the same on every website, so it needs no
+	// website (expandDataRequestPreview).
+	out = expandDataRequestPreview(r, out)
 	return template.HTML(out)
 }
 
