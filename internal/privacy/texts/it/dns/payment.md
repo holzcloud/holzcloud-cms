@@ -1,0 +1,1 @@
+Per il pagamento online di un ordine, il fornitore di pagamento Payrexx, Svizzera, riceve l’importo, la valuta, il numero d’ordine, il tuo nome, il tuo indirizzo e-mail e il tuo indirizzo postale, solo per elaborare il pagamento.

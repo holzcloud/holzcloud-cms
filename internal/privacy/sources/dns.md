@@ -35,6 +35,34 @@ moves, and the regulations cited are those effective 1 January 2026.
 | also_slugs | `do-not-sell`, `do-not-sell-my-personal-information` | the usual other spellings, for the launch checklist (D-13) |
 | draft_title, draft_slug | the title with "new template" in the page's language; the slug with that word | a draft offered next to an existing page (D-01) |
 
+## Languages
+
+All five languages carry the same eight blocks, facts and placeholders. The
+statute and the regulation sections are cited unchanged in every language
+(Cal. Civ. Code § 1798.135; CCPA regs §§ 7010(e), 7025, 7026), and "Global
+Privacy Control" and `Sec-GPC: 1` are written as they are. German and Italian
+address the visitor with du/tu, French with vous, Romansh with ti, the way the
+widget's own sentences in the catalogues do.
+
+The Romansh text is machine-written in Rumantsch Grischun and says so (D-07).
+No official Romansh wording of the CCPA exists, so its legal terms are coined
+in plain words, the way the research describes for the privacy page, and a
+Romansh speaker must check them before the page is relied on. The terms and
+where a reviewer checks them:
+
+| Term used | Meaning | Check against |
+|---|---|---|
+| datas persunalas, protecziun da datas | personal data, data protection | Canton of Graubünden, "Lescha chantunala davart la protecziun da datas" (gr.ch); Pledari Grond |
+| vender, vendita; cundivider, cundivisiun | to sell, sale; to share, sharing | Pledari Grond |
+| opposiziun, far opposiziun | opt-out request, to opt out (the widget's Widerspruch) | Pledari Grond; the rm privacy page of plan 05 |
+| purschider da servetschs, purschider da hosting, purschider da pajament | service provider, hosting provider, payment provider | Pledari Grond ("purschider") |
+| gestiunari | operator of the website | Pledari Grond |
+| navigatur, formular, signal, header | browser, form, signal, header | Pledari Grond; "header" kept as the technical word |
+| empustaziun, import, valuta | order, amount, currency | Pledari Grond |
+| persuna autorisada, permiss suttascrit | authorised agent, signed permission | Pledari Grond |
+| engianus | fraudulent | Pledari Grond |
+| reglament CCPA | the CCPA regulations (Cal. Code Regs. tit. 11) | statute names stay in English, as the research recommends |
+
 ## Open assumptions a block relies on
 
 | Assumption | Where | What the text does about it |

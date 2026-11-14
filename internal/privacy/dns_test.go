@@ -116,3 +116,59 @@ func TestTheDNSTitleIsTheStatutoryWording(t *testing.T) {
 		}
 	}
 }
+
+// dnsPageLanguages are the five languages of D-07. Each has its own Do-Not-Sell
+// text; none falls back to another.
+var dnsPageLanguages = []string{"de", "en", "fr", "it", "rm"}
+
+// Below the English title the page speaks its own language: the first
+// heading differs from one language to the next, while the title stays the
+// statutory wording in all five.
+func TestTheDNSPageSpeaksThePageLanguage(t *testing.T) {
+	have := map[string]bool{}
+	for _, l := range dnsLanguages(t) {
+		have[l] = true
+	}
+	seen := map[string]string{}
+	for _, lang := range dnsPageLanguages {
+		if !have[lang] {
+			t.Errorf("%s has no Do-Not-Sell texts of its own", lang)
+			continue
+		}
+		if got := TextLang(KindDNS, lang); got != lang {
+			t.Errorf("TextLang(dns, %q) = %q, want the language itself", lang, got)
+		}
+		text := ComposeDNS(Request{Lang: lang, Set: allSet(), Features: allFeatures()})
+		first, _, _ := strings.Cut(text, "\n")
+		if !strings.HasPrefix(first, "## ") {
+			t.Errorf("%s opens with %q, want a ## heading", lang, first)
+		}
+		if other, dup := seen[first]; dup {
+			t.Errorf("%s and %s open with the same heading %q", other, lang, first)
+		}
+		seen[first] = lang
+		if got := Title(KindDNS, lang); got != dnsStatutoryTitle {
+			t.Errorf("Title(dns, %q) = %q, want %q", lang, got, dnsStatutoryTitle)
+		}
+	}
+}
+
+// The Romansh text was written by a machine and says so once, near the top,
+// in every composition (D-07).
+func TestTheRomanshDNSPageIsMarkedAsMachineWritten(t *testing.T) {
+	machine := langFile(t, "rm")["machine_notice"]
+	if machine == "" {
+		t.Fatal("rm/lang.json has no machine notice")
+	}
+	for _, f := range combos() {
+		text := ComposeDNS(Request{Lang: "rm", Set: allSet(), Features: f})
+		if n := strings.Count(text, machine); n != 1 {
+			t.Errorf("rm %s: the machine notice occurs %d times, want 1", featureString(f), n)
+		}
+	}
+	for _, lang := range []string{"de", "en", "fr", "it"} {
+		if strings.Contains(ComposeDNS(Request{Lang: lang, Set: allSet()}), machine) {
+			t.Errorf("%s carries the Romansh machine notice", lang)
+		}
+	}
+}
