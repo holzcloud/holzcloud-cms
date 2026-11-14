@@ -469,6 +469,25 @@ func TestTheTextLanguageFallsBack(t *testing.T) {
 	}
 }
 
+// The page's words and the page's text fall back the same way (IN-05): a tag
+// without texts of its own composes the English page, so its notice, its
+// closing line and its fill-in are the English ones too — not German words
+// about an English page.
+func TestTheWordsFallBackLikeTheText(t *testing.T) {
+	for _, tag := range []string{"nl", "pt-BR", "xx", ""} {
+		if TemplateNotice(tag) != TemplateNotice("en") || NoLegalAdvice(tag) != NoLegalAdvice("en") || Fillin(tag) != Fillin("en") {
+			t.Errorf("%q: the words are not the English ones (notice %q)", tag, TemplateNotice(tag))
+		}
+		text := ComposePrivacy(Request{Lang: tag, Set: allSet(), Features: allFeatures()})
+		if !strings.Contains(text, TemplateNotice(tag)) {
+			t.Errorf("%q: the composed page does not carry the notice TemplateNotice gives", tag)
+		}
+		if !strings.HasSuffix(strings.TrimSpace(text), NoLegalAdvice(tag)) {
+			t.Errorf("%q: the composed page does not end with the line NoLegalAdvice gives", tag)
+		}
+	}
+}
+
 func TestEveryLanguagesNoticeIsRecognised(t *testing.T) {
 	for _, lang := range allLanguages(t) {
 		words := langFile(t, lang)
@@ -489,8 +508,11 @@ func TestEveryLanguagesNoticeIsRecognised(t *testing.T) {
 	if HasTemplateNotice("Datenschutz") {
 		t.Error("a word that is no notice counts as one")
 	}
-	if TemplateNotice("pt") != TemplateNotice("de") || TemplateNotice("de-CH") != TemplateNotice("de") {
-		t.Error("an unknown language or a regional tag does not get the German notice")
+	// An unknown language gets the English notice, as it gets the English
+	// page (TextLang); it used to get the German one (IN-05 of the 33.1
+	// review, TestTheWordsFallBackLikeTheText). A regional tag gets its base.
+	if TemplateNotice("pt") != TemplateNotice("en") || TemplateNotice("de-CH") != TemplateNotice("de") {
+		t.Error("an unknown language does not get the English notice, or a regional tag not its base's")
 	}
 }
 

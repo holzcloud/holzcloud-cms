@@ -222,15 +222,19 @@ func RoleSlugs(k Kind) []string {
 	return out
 }
 
-// wordsOf is the lang.json of a tag: its base, Spanish read as English like
-// TextLang does, German when there is none.
+// wordsOf is the lang.json of a tag, by the same fallback as TextLang: its
+// base, Spanish read as English, then English, then German. It used to go
+// straight to German, so a tag without texts (nl) composed an English page
+// while TemplateNotice, Fillin and NoLegalAdvice answered in German (IN-05).
 func wordsOf(tag string) langWords {
 	base := baseOf(tag)
 	if base == "es" {
 		base = "en"
 	}
-	if w, ok := texts().langs[base]; ok {
-		return w
+	for _, lang := range []string{base, "en", "de"} {
+		if w, ok := texts().langs[lang]; ok {
+			return w
+		}
 	}
 	return texts().langs["de"]
 }
