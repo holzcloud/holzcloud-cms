@@ -70,6 +70,28 @@ func scan(row interface{ Scan(...any) error }) (*Request, error) {
 // unknown kind is ErrBadKind, a value over its limit ErrTooLong, and a request
 // with no name, no address and no GPC signal ErrEmpty.
 func (s *Store) Add(ctx context.Context, r Request) (int64, error) {
+	return s.add(ctx, r, time.Time{}, 0)
+}
+
+// AddWithin stores a request as Add does, unless the website already received
+// limit requests of its kind since the given moment; then it stores nothing
+// and returns ErrLimit.
+//
+// The count and the insert are one statement, INSERT … SELECT … WHERE count <
+// limit, on the write pool, which has one connection. A count read first and
+// an insert made after it leave a gap a burst of parallel requests walks
+// through — every one of them reads the same count below the limit — and the
+// limit is what stands between an anonymous form and the disk and the
+// operator's inbox.
+func (s *Store) AddWithin(ctx context.Context, r Request, since time.Time, limit int) (int64, error) {
+	if limit <= 0 {
+		return 0, ErrLimit
+	}
+	return s.add(ctx, r, since, limit)
+}
+
+// add is Add with an optional limit; limit 0 means none.
+func (s *Store) add(ctx context.Context, r Request, since time.Time, limit int) (int64, error) {
 	if !kinds[r.Kind] {
 		return 0, ErrBadKind
 	}
@@ -92,12 +114,32 @@ func (s *Store) Add(ctx context.Context, r Request) (int64, error) {
 	if r.GPC {
 		gpc = 1
 	}
+	if limit == 0 {
+		res, err := s.DB.Write.ExecContext(ctx,
+			`INSERT INTO privacy_requests (website_id, kind, locale, name, email, note, gpc)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			r.WebsiteID, r.Kind, r.Locale, r.Name, r.Email, r.Note, gpc)
+		if err != nil {
+			return 0, fmt.Errorf("add request: %w", err)
+		}
+		return res.LastInsertId()
+	}
 	res, err := s.DB.Write.ExecContext(ctx,
 		`INSERT INTO privacy_requests (website_id, kind, locale, name, email, note, gpc)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		r.WebsiteID, r.Kind, r.Locale, r.Name, r.Email, r.Note, gpc)
+		 SELECT $1, $2, $3, $4, $5, $6, $7
+		 WHERE (SELECT COUNT(*) FROM privacy_requests
+		        WHERE website_id = $1 AND kind = $2 AND created_at >= $8) < $9`,
+		r.WebsiteID, r.Kind, r.Locale, r.Name, r.Email, r.Note, gpc,
+		since.UTC().Format(timeLayout), limit)
 	if err != nil {
 		return 0, fmt.Errorf("add request: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("add request: %w", err)
+	}
+	if n == 0 {
+		return 0, ErrLimit
 	}
 	return res.LastInsertId()
 }

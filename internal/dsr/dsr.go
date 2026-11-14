@@ -49,4 +49,7 @@ var (
 	ErrBadKind = errors.New("dsr: unknown kind of request")
 	// ErrNotFound means there is no such request on this website.
 	ErrNotFound = errors.New("dsr: no such request")
+	// ErrLimit means the website already received as many requests of the
+	// kind as AddWithin allows in its window, and this one was not stored.
+	ErrLimit = errors.New("dsr: too many requests in the window")
 )

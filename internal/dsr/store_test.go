@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -201,5 +203,65 @@ func TestListIsNewestFirstAndByKind(t *testing.T) {
 	}
 	if strings.Join(names, ",") != "newer,older" {
 		t.Errorf("List = %v; want [newer older]", names)
+	}
+}
+
+// TestAddWithinHoldsTheLimitUnderConcurrency: the limit used to be a count
+// through the read pool followed, later, by an insert through the write pool,
+// and a burst read the same count many times over — 120 parallel posts stored
+// 119 rows against a limit of 30. The count and the insert are now one
+// statement on the single write connection.
+func TestAddWithinHoldsTheLimitUnderConcurrency(t *testing.T) {
+	s, database := newTestStore(t)
+	ctx := context.Background()
+	ws := website(t, database, "A")
+	other := website(t, database, "B")
+	since := time.Now().Add(-time.Hour)
+
+	const posts, limit = 120, 30
+	var wg sync.WaitGroup
+	var stored, refused atomic.Int64
+	start := make(chan struct{})
+	for i := 0; i < posts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := s.AddWithin(ctx, Request{WebsiteID: ws, Kind: KindOptOut, Name: "Ada"}, since, limit)
+			switch {
+			case err == nil:
+				stored.Add(1)
+			case errors.Is(err, ErrLimit):
+				refused.Add(1)
+			default:
+				t.Errorf("AddWithin: %v", err)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	if stored.Load() != limit || refused.Load() != posts-limit {
+		t.Errorf("%d stored and %d refused; want %d and %d", stored.Load(), refused.Load(), limit, posts-limit)
+	}
+	n, err := s.CountSince(ctx, ws, KindOptOut, since)
+	if err != nil {
+		t.Fatalf("CountSince: %v", err)
+	}
+	if n != limit {
+		t.Errorf("%d rows; want exactly the limit, %d", n, limit)
+	}
+
+	// The limit is per website: the other one still takes its request.
+	if _, err := s.AddWithin(ctx, Request{WebsiteID: other, Kind: KindOptOut, Name: "Bea"}, since, limit); err != nil {
+		t.Errorf("another website was limited by the first one's requests: %v", err)
+	}
+	// Rows older than the window do not count against it.
+	if _, err := s.AddWithin(ctx, Request{WebsiteID: ws, Kind: KindOptOut, Name: "Cleo"}, time.Now().Add(time.Hour), limit); err != nil {
+		t.Errorf("a window with no rows in it refused a request: %v", err)
+	}
+	// What Add refuses, AddWithin refuses the same way, before the limit.
+	if _, err := s.AddWithin(ctx, Request{WebsiteID: ws, Kind: KindOptOut}, since, limit); !errors.Is(err, ErrEmpty) {
+		t.Errorf("an empty request = %v; want ErrEmpty", err)
 	}
 }

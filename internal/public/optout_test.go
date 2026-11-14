@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -517,6 +518,30 @@ func TestTheHourlyCapRefuses(t *testing.T) {
 	rec = optoutPost(h, other, optoutForm("do-not-sell"), nil)
 	if rec.Header().Get("Location") != "/do-not-sell?widerspruch=eingegangen" || optoutRows(t, database, other.ID) != 1 {
 		t.Errorf("another website was capped by the first one's requests: %q", rec.Header().Get("Location"))
+	}
+}
+
+// TestTheHourlyCapHoldsUnderABurst sends far more valid posts at once than
+// the cap allows. Before the count moved into the insert, 120 of them stored
+// 119 rows against a cap of 30.
+func TestTheHourlyCapHoldsUnderABurst(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := 0; i < 120; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			optoutPost(h, ws, optoutForm("do-not-sell"), nil)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	if n := optoutRows(t, database, ws.ID); n != optoutHourlyLimit {
+		t.Errorf("%d rows after 120 parallel posts; want exactly the cap, %d", n, optoutHourlyLimit)
 	}
 }
 

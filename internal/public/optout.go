@@ -298,15 +298,6 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 		optoutRedirect(w, r, back, "abgelaufen")
 		return nil
 	}
-	recent, err := h.requests.CountSince(ctx, ws.ID, dsr.KindOptOut, now.Add(-time.Hour))
-	if err != nil {
-		return fmt.Errorf("count opt-outs: %w", err)
-	}
-	if recent >= optoutHourlyLimit {
-		optoutRedirect(w, r, back, "spaeter")
-		return nil
-	}
-
 	lang := LocaleFrom(ctx)
 	if lang == "" {
 		lang = ws.Locale
@@ -320,8 +311,12 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 		Note:      strings.TrimSpace(r.PostFormValue("note")),
 		GPC:       legal.GPC(r.Header),
 	}
-	_, err = h.requests.Add(ctx, req)
+	// The hourly limit is counted inside the insert, not before it: a count
+	// read first lets a burst of parallel posts all read the same number.
+	_, err = h.requests.AddWithin(ctx, req, now.Add(-time.Hour), optoutHourlyLimit)
 	switch {
+	case errors.Is(err, dsr.ErrLimit):
+		optoutRedirect(w, r, back, "spaeter")
 	case errors.Is(err, dsr.ErrEmpty):
 		optoutRedirect(w, r, back, "leer")
 	case errors.Is(err, dsr.ErrTooLong):
