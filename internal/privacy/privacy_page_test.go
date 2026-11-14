@@ -440,6 +440,30 @@ func TestTheUKSectionStatesTheDeadlineAsTheLawDoes(t *testing.T) {
 	}
 }
 
+// The opt-out form keeps the sender's network address in memory for up to
+// an hour to limit how many requests come from one network
+// (internal/public/optout_limit.go). It is not stored, which the sentence
+// before says, but it is processed, and the server-log paragraph names its
+// own handling of the address just as precisely (IN-03 of the second 33.1
+// review). Every language says it, with its purpose and its hour.
+func TestTheUSSectionNamesTheFormsNetworkBudget(t *testing.T) {
+	for lang, words := range map[string][]string{
+		"de": {"höchstens eine Stunde lang im Arbeitsspeicher", "/64", "/48", "Missbrauch", "nie in die Datenbank"},
+		"en": {"in memory for at most one hour", "/64", "/48", "abuse", "never written to the database"},
+		"fr": {"en mémoire vive", "une heure au plus", "/64", "/48", "abus", "jamais écrite"},
+		"it": {"nella memoria di lavoro", "al massimo un’ora", "/64", "/48", "abusi", "mai scritto"},
+		"rm": {"maximalmain ina ura", "/64", "/48", "abus", "mai scritta"},
+	} {
+		text := ComposePrivacy(Request{Lang: lang, Set: legal.ParseSet("us"), Features: allFeatures()})
+		us := text[strings.Index(text, heading(t, lang, "us")):]
+		for _, w := range words {
+			if !strings.Contains(us, w) {
+				t.Errorf("%s: the US section lacks %q", lang, w)
+			}
+		}
+	}
+}
+
 // What Global Privacy Control changes, said in the US section (D-10, D-11,
 // D-12): the signal is an opt-out of sale and sharing, nothing on the website
 // changes because nothing is sold or shared, the Do Not Sell or Share page

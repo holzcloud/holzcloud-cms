@@ -144,6 +144,8 @@ Romansh reviewer should look at:
 - partiziun
 - lingia d’entestaziun
 - marca da temp
+- memoria da lavur (Arbeitsspeicher) and bloc d’adressas (Adressblock), in the
+  sentence about the opt-out form's network budget (us)
 - the slug `protecziun-da-datas` and the draft slug `protecziun-da-datas-model`
   are built from the sourced title; `also_slugs` is empty because no other
   usual Romansh spelling was found

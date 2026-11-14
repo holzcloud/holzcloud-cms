@@ -34,7 +34,7 @@ Sche Voss navigatur trametta il signal Global Privacy Control, q.v.d. la lingia 
 
 ### Il formular d’opposiziun
 
-Il formular sin la pagina «Do Not Sell or Share My Personal Information» memorisescha num, adressa dad e-mail e remartga, uschia sco Vus las endatais, sco er la lingua da la pagina e sch’il navigatur ha tramess il signal Global Privacy Control. El na memorisescha ni Vossa adressa IP ni ina identificaziun da Voss navigatur. Sch’in server dad e-mail è installà, survegn il gestiunari in avis per e-mail. Las indicaziuns vegnan utilisadas mo per tractar Vossa opposiziun. Ellas vegnan conservadas uschè ditg {fillin}. Annotaziuns davart dumondas e davart lur respostas vegnan conservadas almain 24 mais (§ 7101 da las prescripziuns CCPA).
+Il formular sin la pagina «Do Not Sell or Share My Personal Information» memorisescha num, adressa dad e-mail e remartga, uschia sco Vus las endatais, sco er la lingua da la pagina e sch’il navigatur ha tramess il signal Global Privacy Control. El na memorisescha ni Vossa adressa IP ni ina identificaziun da Voss navigatur. Sche Vus tramettais il formular, tegna il server Vossa adressa da rait (per IPv4 l’adressa, per IPv6 la rait /64) ed il bloc d’adressas enturn ella (/24 u /48) maximalmain ina ura en la memoria da lavur. Uschia dumbra el, quantas dumondas che vegnan da là, e limitescha l’abus dal formular. L’adressa na vegn mai scritta en la banca da datas u en ina datoteca. Sch’in server dad e-mail è installà, survegn il gestiunari in avis per e-mail. Las indicaziuns vegnan utilisadas mo per tractar Vossa opposiziun. Ellas vegnan conservadas uschè ditg {fillin}. Annotaziuns davart dumondas e davart lur respostas vegnan conservadas almain 24 mais (§ 7101 da las prescripziuns CCPA).
 
 ### Do Not Track
 

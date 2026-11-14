@@ -34,7 +34,7 @@ Sendet dein Browser das Signal Global Privacy Control, also die Kopfzeile Sec-GP
 
 ### Das Widerspruchsformular
 
-Das Formular auf der Seite „Do Not Sell or Share My Personal Information“ speichert Name, E-Mail-Adresse und Anmerkung, so wie du sie eingibst, dazu die Sprache der Seite und ob dein Browser das Signal Global Privacy Control gesendet hat, aber weder deine IP-Adresse noch eine Kennung deines Browsers. Ist ein Mailserver eingerichtet, erhält der Betreiber eine Benachrichtigung per E-Mail. Die Angaben werden nur verwendet, um deinen Widerspruch zu bearbeiten, und werden so lange aufbewahrt {fillin}. Aufzeichnungen über Anträge und ihre Beantwortung werden mindestens 24 Monate aufbewahrt (§ 7101 der CCPA-Vorschriften).
+Das Formular auf der Seite „Do Not Sell or Share My Personal Information“ speichert Name, E-Mail-Adresse und Anmerkung, so wie du sie eingibst, dazu die Sprache der Seite und ob dein Browser das Signal Global Privacy Control gesendet hat, aber weder deine IP-Adresse noch eine Kennung deines Browsers. Wenn du das Formular absendest, hält der Server deine Netzadresse (bei IPv4 die Adresse, bei IPv6 das Netz /64) und den Adressblock darum (/24 oder /48) höchstens eine Stunde lang im Arbeitsspeicher, um zu zählen, wie viele Anfragen von dort kommen, und so Missbrauch des Formulars zu begrenzen; sie wird nie in die Datenbank oder in eine Datei geschrieben. Ist ein Mailserver eingerichtet, erhält der Betreiber eine Benachrichtigung per E-Mail. Die Angaben werden nur verwendet, um deinen Widerspruch zu bearbeiten, und werden so lange aufbewahrt {fillin}. Aufzeichnungen über Anträge und ihre Beantwortung werden mindestens 24 Monate aufbewahrt (§ 7101 der CCPA-Vorschriften).
 
 ### Do Not Track
 

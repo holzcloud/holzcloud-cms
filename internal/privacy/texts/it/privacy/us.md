@@ -34,7 +34,7 @@ Se il Suo browser invia il segnale Global Privacy Control, cioè l’intestazion
 
 ### Il modulo di opposizione
 
-Il modulo sulla pagina «Do Not Sell or Share My Personal Information» memorizza nome, indirizzo e-mail e osservazione così come Lei li inserisce, la lingua della pagina e se il Suo browser ha inviato il segnale Global Privacy Control, ma né il Suo indirizzo IP né un identificativo del Suo browser. Se è configurato un server di posta, il gestore riceve una notifica per e-mail. I dati vengono utilizzati solo per trattare la Sua opposizione e vengono conservati per questo periodo {fillin}. Le registrazioni delle richieste e delle relative risposte vengono conservate per almeno 24 mesi (§ 7101 del regolamento CCPA).
+Il modulo sulla pagina «Do Not Sell or Share My Personal Information» memorizza nome, indirizzo e-mail e osservazione così come Lei li inserisce, la lingua della pagina e se il Suo browser ha inviato il segnale Global Privacy Control, ma né il Suo indirizzo IP né un identificativo del Suo browser. Quando Lei invia il modulo, il server conserva nella memoria di lavoro il Suo indirizzo di rete (per IPv4 l’indirizzo, per IPv6 la rete /64) e il blocco di indirizzi che lo comprende (/24 o /48) per al massimo un’ora, per contare quante richieste ne provengono e limitare così gli abusi del modulo; non viene mai scritto nella banca dati né in un file. Se è configurato un server di posta, il gestore riceve una notifica per e-mail. I dati vengono utilizzati solo per trattare la Sua opposizione e vengono conservati per questo periodo {fillin}. Le registrazioni delle richieste e delle relative risposte vengono conservate per almeno 24 mesi (§ 7101 del regolamento CCPA).
 
 ### Do Not Track
 
