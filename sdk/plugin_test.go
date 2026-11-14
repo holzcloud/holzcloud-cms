@@ -245,3 +245,20 @@ func TestPrivacyIsDispatched(t *testing.T) {
 		t.Errorf("with no privacy handler: raw=%q err=%v", raw, err)
 	}
 }
+
+// A privacy handler's error comes back inside the answer: as a Go error it
+// would become a log line and an empty answer, which the host cannot tell
+// from "nothing found".
+func TestAPrivacyErrorTravelsInTheAnswer(t *testing.T) {
+	reset()
+	OnPrivacy(func(PrivacyIn) (PrivacyOut, error) {
+		return PrivacyOut{Deleted: 3}, errors.New("key outside the records")
+	})
+	raw, err := Dispatch("privacy", []byte(`{"op":"erase","keys":["x"]}`))
+	if err != nil {
+		t.Fatalf("the error left as a Go error: %v", err)
+	}
+	if string(raw) != `{"error":"key outside the records"}` {
+		t.Errorf("answer = %s, want the error alone", raw)
+	}
+}

@@ -181,6 +181,11 @@ plugin's own records before it deletes anything. Media ids are a claim the host
 checks against the website before it deletes a file. Each call has the same two
 seconds as every hook, which is why `expire` works in batches.
 
+Unlike the other hooks, an error your handler returns reaches the host: the SDK
+puts it into the answer, and the host reports the plugin as not searched rather
+than as having found nothing. A plugin that declares `privacy` and registers no
+handler answers nothing, and that is reported the same way.
+
 A plugin that keeps data for a website and does not declare `privacy` is named on
 the Privacy screen as not searched, with how many entries it holds — the
 operator then has to look through it by hand. `kontaktformular` answers it.

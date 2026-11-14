@@ -575,7 +575,9 @@ const (
 // Times are RFC 3339 in UTC.
 type PrivacyIn struct {
 	Op string `json:"op"`
-	// Email is what find looks for, trimmed by the host.
+	// Email is what find looks for, trimmed by the host. correct reads it
+	// too, when given, as the address the operator is replacing — a record
+	// may carry it in more than one place.
 	Email string `json:"email,omitempty"`
 	// Keys are the records erase removes. The host only passes keys the
 	// plugin's own find returned; the plugin still refuses one that is not
@@ -652,4 +654,9 @@ type PrivacyOut struct {
 	MediaIDs []int64 `json:"media_ids,omitempty"`
 	// More is expire saying it stopped at the limit and there is more.
 	More bool `json:"more,omitempty"`
+	// Error is the plugin's refusal. The guest's other hooks turn an error
+	// into a log line and an empty answer, which for this hook would read as
+	// "nothing found"; the SDK puts it here instead, and the host returns it
+	// as ErrPrivacyFailed and ignores the rest of the answer.
+	Error string `json:"error,omitempty"`
 }

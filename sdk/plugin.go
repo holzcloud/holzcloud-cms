@@ -247,6 +247,7 @@ const (
 type PrivacyIn struct {
 	Op string `json:"op"`
 	// Email is find's address, trimmed. Compare it in any letter case.
+	// correct may receive it as the address being replaced.
 	Email string `json:"email,omitempty"`
 	// Keys are erase's records: keys your own find returned. Refuse the
 	// whole call if one is not among your records, before deleting anything.
@@ -309,6 +310,11 @@ type PrivacyOut struct {
 	Kept     []PrivacyKept   `json:"kept,omitempty"`
 	MediaIDs []int64         `json:"media_ids,omitempty"`
 	More     bool            `json:"more,omitempty"`
+	// Error is filled in by the SDK from the error your handler returns, so
+	// that the host can tell a refusal from "nothing found". Return an error
+	// rather than setting it; the host ignores the rest of an answer that
+	// carries one.
+	Error string `json:"error,omitempty"`
 }
 
 // Page is a published page as a plugin sees it.
@@ -474,7 +480,7 @@ func dispatch(hook string, payload []byte) ([]byte, error) {
 	case "admin":
 		return call(payload, onAdmin)
 	case "privacy":
-		return call(payload, onPrivacy)
+		return privacyCall(payload)
 	case "event":
 		if onEvent == nil {
 			return nil, nil
@@ -504,6 +510,26 @@ func warnIfEmpty() {
 	warned = true
 	Log("error", "no hook registered — registration belongs in func init(), "+
 		"not in func main(): a reactor module never runs main")
+}
+
+// privacyCall is call for the privacy hook, with one difference: an error
+// travels back inside the answer instead of becoming a log line and an empty
+// answer. For every other hook an empty answer means "nothing to do"; for
+// this one it would mean "nothing found", and a privacy answer that silently
+// lost a plugin's records looks complete.
+func privacyCall(payload []byte) ([]byte, error) {
+	if onPrivacy == nil {
+		return nil, nil
+	}
+	var in PrivacyIn
+	if err := json.Unmarshal(payload, &in); err != nil {
+		return json.Marshal(PrivacyOut{Error: err.Error()})
+	}
+	out, err := onPrivacy(in)
+	if err != nil {
+		return json.Marshal(PrivacyOut{Error: err.Error()})
+	}
+	return json.Marshal(out)
 }
 
 // call unmarshals, runs a handler and marshals the answer.

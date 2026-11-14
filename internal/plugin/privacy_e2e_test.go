@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
@@ -39,10 +40,27 @@ type privacyWorld struct {
 // websites.
 func privacyInstall(t *testing.T, dir string) privacyWorld {
 	t.Helper()
+	return privacyInstallEdited(t, dir, nil)
+}
+
+// privacyInstallEdited is privacyInstall with the shipped manifest changed
+// first, for a plugin made to claim what it does not do.
+func privacyInstallEdited(t *testing.T, dir string, edit func(*Manifest)) privacyWorld {
+	t.Helper()
 	module := wasmtest.Module(t, filepath.Join("../../plugins", dir, ModuleName))
 	manifest, err := os.ReadFile(filepath.Join("../../plugins", dir, ManifestName))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if edit != nil {
+		var m Manifest
+		if err := json.Unmarshal(manifest, &m); err != nil {
+			t.Fatal(err)
+		}
+		edit(&m)
+		if manifest, err = json.Marshal(m); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	tmp := t.TempDir()
@@ -307,5 +325,174 @@ func TestAPluginWithoutTheHookIsNotServed(t *testing.T) {
 	}
 	if _, err := m.Privacy(ctx, site, "nobody", PrivacyIn{Op: PrivacyFind, Email: "ada@example.com"}); !errors.Is(err, ErrNotServed) {
 		t.Errorf("a plugin that is not installed answered %v, want ErrNotServed", err)
+	}
+}
+
+// A plugin that fails to answer must not read as one that found nothing:
+// the Privacy screen would show "no messages" with the messages still there.
+// The guest's other hooks turn an error into a log line and an empty answer;
+// the privacy hook carries it back.
+func TestAPrivacyErrorIsNotAnEmptyAnswer(t *testing.T) {
+	w := privacyInstall(t, "kontaktformular")
+	seedContactForm(t, w)
+	ctx := context.Background()
+
+	_, err := w.m.Privacy(ctx, w.a, w.id, PrivacyIn{Op: PrivacyFind, Email: "  "})
+	if !errors.Is(err, ErrPrivacyFailed) {
+		t.Errorf("a find the plugin refused answered %v, want ErrPrivacyFailed", err)
+	}
+
+	// A plugin that declares the hook and registered nothing for it.
+	silent := privacyInstallEdited(t, "jahreszahl", func(m *Manifest) {
+		m.Hooks = append(m.Hooks, HookPrivacy)
+	})
+	_, err = silent.m.Privacy(ctx, silent.a, silent.id, PrivacyIn{Op: PrivacyFind, Email: "ada@example.com"})
+	if !errors.Is(err, ErrNoPrivacyAnswer) {
+		t.Errorf("a plugin that answered nothing gave %v, want ErrNoPrivacyAnswer", err)
+	}
+}
+
+func TestTheContactFormErasesWhatItFound(t *testing.T) {
+	w := privacyInstall(t, "kontaktformular")
+	seedContactForm(t, w)
+	ctx := context.Background()
+
+	// A key outside the plugin's records refuses the whole call, before
+	// anything is deleted.
+	for _, bad := range []string{"zaehler:2026-10-04T09", "other:1", "signaturschluessel"} {
+		_, err := w.m.Privacy(ctx, w.a, w.id, PrivacyIn{Op: PrivacyErase, Keys: []string{contactKeyMessage, bad}})
+		if err == nil {
+			t.Errorf("erase with %q was accepted", bad)
+		}
+		if _, ok := w.stored(t, w.a, contactKeyMessage); !ok {
+			t.Fatalf("erase with %q deleted the message before refusing", bad)
+		}
+	}
+
+	found := w.privacy(t, w.a, PrivacyIn{Op: PrivacyFind, Email: "ada@example.com"})
+	out := w.privacy(t, w.a, PrivacyIn{Op: PrivacyErase, Keys: privacyKeys(found.Records)})
+	if out.Deleted != 3 {
+		t.Errorf("Deleted = %d, want 3", out.Deleted)
+	}
+	if len(out.MediaIDs) != 1 || out.MediaIDs[0] != 7 {
+		t.Errorf("MediaIDs = %v, want [7]: the attachment goes with the message", out.MediaIDs)
+	}
+	if again := w.privacy(t, w.a, PrivacyIn{Op: PrivacyFind, Email: "ada@example.com"}); len(again.Records) != 0 {
+		t.Errorf("after erasing, find still returns %v", privacyKeys(again.Records))
+	}
+	if _, ok := w.stored(t, w.a, contactKeyStranger); !ok {
+		t.Error("the stranger's message went too")
+	}
+	if v, ok, _ := w.store.StoreGet(ctx, w.id, w.a, "zaehler:2026-10-04T09"); !ok || v != "3" {
+		t.Error("the hourly counter went too")
+	}
+}
+
+func TestTheContactFormCorrectsNameAndEmail(t *testing.T) {
+	w := privacyInstall(t, "kontaktformular")
+	seedContactForm(t, w)
+	ctx := context.Background()
+
+	out := w.privacy(t, w.a, PrivacyIn{Op: PrivacyCorrect, Key: contactKeyMessage, Field: "email", Value: "ada.new@example.com"})
+	if len(out.Records) != 1 || out.Records[0].Key != contactKeyMessage {
+		t.Errorf("correct answered %+v, want the record as it now stands", out.Records)
+	}
+	found := w.privacy(t, w.a, PrivacyIn{Op: PrivacyFind, Email: "ADA.NEW@example.com"})
+	if keys := privacyKeys(found.Records); len(keys) != 1 || keys[0] != contactKeyMessage {
+		t.Errorf("a find for the new address returns %v", keys)
+	}
+
+	// The assembled form's address stands in its answer; correcting it there
+	// is what makes the old address stop finding it.
+	w.privacy(t, w.a, PrivacyIn{Op: PrivacyCorrect, Key: contactKeyAssembled, Field: "email", Value: "ada.new@example.com"})
+	if found := w.privacy(t, w.a, PrivacyIn{Op: PrivacyFind, Email: "ada@example.com"}); len(found.Records) != 1 ||
+		found.Records[0].Key != contactKeyQuarantine {
+		t.Errorf("after correcting, the old address finds %v, want only the quarantined submission", privacyKeys(found.Records))
+	}
+
+	w.privacy(t, w.a, PrivacyIn{Op: PrivacyCorrect, Key: contactKeyQuarantine, Field: "name", Value: "Ada King"})
+	if v, _ := w.stored(t, w.a, contactKeyQuarantine); v["name"] != "Ada King" {
+		t.Errorf("the name was not stored: %v", v["name"])
+	}
+
+	for _, bad := range []PrivacyIn{
+		{Op: PrivacyCorrect, Key: contactKeyMessage, Field: "text", Value: "anders"},
+		{Op: PrivacyCorrect, Key: contactKeyMessage, Field: "email", Value: "a@example.com, b@example.com"},
+		{Op: PrivacyCorrect, Key: contactKeyMessage, Field: "email", Value: "Ada <ada@example.com>"},
+		{Op: PrivacyCorrect, Key: contactKeyMessage, Field: "email", Value: "kein-at"},
+		{Op: PrivacyCorrect, Key: contactKeyMessage, Field: "name", Value: "  "},
+		{Op: PrivacyCorrect, Key: "nachricht:2020-01-01T00:00:00Z-gibtsnicht", Field: "name", Value: "X"},
+		{Op: PrivacyCorrect, Key: "zaehler:2026-10-04T09", Field: "name", Value: "X"},
+	} {
+		if _, err := w.m.Privacy(ctx, w.a, w.id, bad); err == nil {
+			t.Errorf("correct %s=%q on %s was accepted", bad.Field, bad.Value, bad.Key)
+		}
+	}
+	if v, _ := w.stored(t, w.a, contactKeyMessage); v["email"] != "ada.new@example.com" || v["text"] != "Habt ihr am Samstag Eier?" {
+		t.Errorf("a refused correction changed the message: %v", v)
+	}
+}
+
+func TestTheContactFormExpiresByTime(t *testing.T) {
+	w := privacyInstall(t, "kontaktformular")
+	now := time.Now().UTC()
+	nowKey := now.Format(time.RFC3339) + "-eeeeeeee"
+	w.seed(t, w.a, "nachricht:2024-01-10T09:00:00Z-old1", map[string]any{
+		"kennung": "2024-01-10T09:00:00Z-old1", "name": "A", "email": "a@example.com", "text": "x",
+		"zeit": "2024-01-10T09:00:00Z", "gelesen": false,
+		"anhaenge": []map[string]any{{"medien_id": 11, "name": "a.pdf", "dateiname": "a.pdf"}},
+	})
+	w.seed(t, w.a, "abgewiesen:2024-02-10T09:00:00Z-old2", map[string]any{
+		"kennung": "2024-02-10T09:00:00Z-old2", "name": "B", "email": "b@example.com", "text": "x",
+		"zeit": "2024-02-10T09:00:00Z", "abgewiesen": "honeypot",
+	})
+	w.seed(t, w.a, "nachricht:2025-06-10T09:00:00Z-mid", map[string]any{
+		"kennung": "2025-06-10T09:00:00Z-mid", "name": "C", "email": "c@example.com", "text": "x",
+		"zeit": "2025-06-10T09:00:00Z",
+	})
+	w.seed(t, w.a, "nachricht:"+nowKey, map[string]any{
+		"kennung": nowKey, "name": "D", "email": "d@example.com", "text": "x", "zeit": now.Format(time.RFC3339),
+	})
+	// Website B's old message is B's to expire, not A's.
+	w.seed(t, w.b, "nachricht:2024-01-10T09:00:00Z-oldb", map[string]any{
+		"kennung": "2024-01-10T09:00:00Z-oldb", "name": "E", "email": "e@example.com", "text": "x",
+		"zeit": "2024-01-10T09:00:00Z",
+	})
+
+	if out := w.privacy(t, w.a, PrivacyIn{Op: PrivacyExpire, Kind: PrivacyKindOrder, Before: "2025-01-01T00:00:00Z", Limit: 10}); out.Deleted != 0 || out.More {
+		t.Errorf("expire of orders answered %+v, want nothing: the contact form keeps no orders", out)
+	}
+
+	var media []int64
+	first := w.privacy(t, w.a, PrivacyIn{Op: PrivacyExpire, Kind: PrivacyKindFormSubmission, Before: "2025-01-01T00:00:00Z", Limit: 1})
+	if first.Deleted != 1 || !first.More {
+		t.Errorf("first batch = %+v, want 1 deleted and more", first)
+	}
+	media = append(media, first.MediaIDs...)
+	second := w.privacy(t, w.a, PrivacyIn{Op: PrivacyExpire, Kind: PrivacyKindFormSubmission, Before: "2025-01-01T00:00:00Z", Limit: 1})
+	if second.Deleted != 1 || second.More {
+		t.Errorf("second batch = %+v, want 1 deleted and no more", second)
+	}
+	media = append(media, second.MediaIDs...)
+	if len(media) != 1 || media[0] != 11 {
+		t.Errorf("media ids of the expired messages = %v, want [11]", media)
+	}
+
+	for _, key := range []string{"nachricht:2024-01-10T09:00:00Z-old1", "abgewiesen:2024-02-10T09:00:00Z-old2"} {
+		if _, ok := w.stored(t, w.a, key); ok {
+			t.Errorf("%s is past the period and still there", key)
+		}
+	}
+	for _, key := range []string{"nachricht:2025-06-10T09:00:00Z-mid", "nachricht:" + nowKey} {
+		if _, ok := w.stored(t, w.a, key); !ok {
+			t.Errorf("%s is inside the period and was expired", key)
+		}
+	}
+	if _, ok := w.stored(t, w.b, "nachricht:2024-01-10T09:00:00Z-oldb"); !ok {
+		t.Error("expiring website A took website B's message")
+	}
+
+	if _, err := w.m.Privacy(context.Background(), w.a, w.id, PrivacyIn{Op: PrivacyExpire, Kind: PrivacyKindFormSubmission, Before: "gestern"}); err == nil {
+		t.Error("expire with a cut-off that is not a time was accepted")
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/mail"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,14 +31,235 @@ const listBound = 1000
 // correctable are the fields correct accepts on every record.
 var correctable = []string{"name", "email"}
 
+// maxExpire bounds one expire call, whatever the host asks for: a delete is
+// a host call, and the whole call has the two seconds of every hook.
+const maxExpire = 200
+
 func privacyAnswer(in plugin.PrivacyIn) (plugin.PrivacyOut, error) {
 	switch in.Op {
 	case plugin.PrivacyFind:
 		return privacyFind(in.Email)
-	case plugin.PrivacyErase, plugin.PrivacyCorrect, plugin.PrivacyExpire:
-		return plugin.PrivacyOut{}, fmt.Errorf("privacy operation %q is not built yet", in.Op)
+	case plugin.PrivacyErase:
+		return privacyErase(in.Keys)
+	case plugin.PrivacyCorrect:
+		return privacyCorrect(in)
+	case plugin.PrivacyExpire:
+		return privacyExpire(in)
 	}
 	return plugin.PrivacyOut{}, fmt.Errorf("unknown privacy operation %q", in.Op)
+}
+
+// ownRecord reports whether a key is one of the records this hook answers
+// for: a message or a refused submission. The hourly counters, the signing
+// key and the operator's settings live in the same store and are nobody's
+// personal data.
+func ownRecord(key string) bool {
+	for _, prefix := range []string{prefixMessage, prefixQuarantine} {
+		if strings.HasPrefix(key, prefix) && len(key) > len(prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// privacyErase deletes the records under keys and hands back the media ids
+// of their attachments, for the host to delete with them.
+//
+// Every key is checked before the first is deleted: a call that names one
+// key outside the records deletes nothing.
+func privacyErase(keys []string) (plugin.PrivacyOut, error) {
+	if len(keys) == 0 {
+		return plugin.PrivacyOut{}, errors.New("erase needs at least one key")
+	}
+	for _, key := range keys {
+		if !ownRecord(key) {
+			return plugin.PrivacyOut{}, fmt.Errorf("%q is not a message of this plugin", key)
+		}
+	}
+	var out plugin.PrivacyOut
+	for _, key := range keys {
+		raw, ok, err := plugin.Get(key)
+		if err != nil {
+			return plugin.PrivacyOut{}, err
+		}
+		if !ok {
+			// Already gone — deleted by the operator, or by an earlier erase.
+			continue
+		}
+		var n message
+		if json.Unmarshal([]byte(raw), &n) == nil {
+			for _, a := range n.Attachments {
+				out.MediaIDs = append(out.MediaIDs, a.MediaID)
+			}
+		}
+		if err := plugin.Delete(key); err != nil {
+			return plugin.PrivacyOut{}, err
+		}
+		out.Deleted++
+	}
+	plugin.Logf("info", "privacy: %d messages erased, %d attachments handed back", out.Deleted, len(out.MediaIDs))
+	return out, nil
+}
+
+// privacyCorrect sets the sender's name or address of one record.
+//
+// An address that also stands in an answer of an assembled form is replaced
+// there too: find matches answers, so an address corrected only in the
+// sender field would go on finding the record under the old one. The old
+// address is the record's sender address and the address the host searched
+// for (PrivacyIn.Email) when it passes one; a record with neither carries
+// the person's address only in its answers, and then every answer that is
+// an address is the person's.
+func privacyCorrect(in plugin.PrivacyIn) (plugin.PrivacyOut, error) {
+	if !ownRecord(in.Key) {
+		return plugin.PrivacyOut{}, fmt.Errorf("%q is not a message of this plugin", in.Key)
+	}
+	value := strings.TrimSpace(in.Value)
+	switch in.Field {
+	case "name":
+		if value == "" || len([]rune(value)) > maxName {
+			return plugin.PrivacyOut{}, fmt.Errorf("a name has to be between 1 and %d characters", maxName)
+		}
+	case "email":
+		if !bareAddress(value) {
+			return plugin.PrivacyOut{}, errors.New("the new value is not one bare e-mail address")
+		}
+	default:
+		return plugin.PrivacyOut{}, fmt.Errorf("the field %q cannot be corrected", in.Field)
+	}
+
+	raw, ok, err := plugin.Get(in.Key)
+	if err != nil {
+		return plugin.PrivacyOut{}, err
+	}
+	if !ok {
+		return plugin.PrivacyOut{}, fmt.Errorf("there is no message under %q", in.Key)
+	}
+	var n message
+	if err := json.Unmarshal([]byte(raw), &n); err != nil {
+		return plugin.PrivacyOut{}, err
+	}
+
+	if in.Field == "name" {
+		n.Name = value
+	} else {
+		var old []string
+		for _, a := range []string{n.Email, in.Email} {
+			if a = strings.TrimSpace(a); a != "" {
+				old = append(old, a)
+			}
+		}
+		if len(old) == 0 {
+			for _, a := range n.Fields {
+				if v := strings.TrimSpace(a.Value); plausibleAddress(v) {
+					old = append(old, v)
+				}
+			}
+		}
+		for i, a := range n.Fields {
+			for _, o := range old {
+				if strings.EqualFold(strings.TrimSpace(a.Value), o) {
+					n.Fields[i].Value = value
+				}
+			}
+		}
+		n.Email = value
+	}
+
+	// Written back the way every write of this plugin is: the same key, the
+	// same encoding.
+	updated, err := json.Marshal(n)
+	if err != nil {
+		return plugin.PrivacyOut{}, err
+	}
+	if err := plugin.Set(in.Key, string(updated)); err != nil {
+		return plugin.PrivacyOut{}, err
+	}
+	return plugin.PrivacyOut{Records: []plugin.PrivacyRecord{privacyRecord(in.Key, n)}}, nil
+}
+
+// bareAddress reports whether s is exactly one address with nothing around
+// it: no display name, no second address, no angle brackets.
+func bareAddress(s string) bool {
+	if s == "" || len(s) > maxEmail || !plausibleAddress(s) {
+		return false
+	}
+	a, err := mail.ParseAddress(s)
+	return err == nil && a.Name == "" && a.Address == s
+}
+
+// privacyExpire deletes the messages and refused submissions that came in
+// before the cut-off, oldest first, at most the limit per call.
+//
+// Read or unread makes no difference here. sweep spares the unread because
+// an enquiry nobody has read is one nobody has dealt with; the retention
+// period is the operator's own decision about how long anything is kept,
+// and a message they never opened is still past it.
+func privacyExpire(in plugin.PrivacyIn) (plugin.PrivacyOut, error) {
+	if in.Kind != plugin.PrivacyKindFormSubmission {
+		// Not a kind this plugin keeps: nothing to do, and no error.
+		return plugin.PrivacyOut{}, nil
+	}
+	before, err := time.Parse(time.RFC3339, in.Before)
+	if err != nil {
+		return plugin.PrivacyOut{}, fmt.Errorf("the cut-off %q is not an RFC 3339 time", in.Before)
+	}
+	limit := in.Limit
+	if limit <= 0 || limit > maxExpire {
+		limit = maxExpire
+	}
+
+	var out plugin.PrivacyOut
+	for _, prefix := range []string{prefixMessage, prefixQuarantine} {
+		err := walk(prefix, before, func(key, raw string) (bool, error) {
+			var n message
+			_ = json.Unmarshal([]byte(raw), &n)
+			at, ok := entryTime(n, strings.TrimPrefix(key, prefix))
+			if !ok {
+				// A record whose time cannot be read is left alone rather
+				// than guessed old.
+				return false, nil
+			}
+			if !at.Before(before) {
+				// Keys sort by time: everything after this is later still.
+				return true, nil
+			}
+			if out.Deleted >= limit {
+				out.More = true
+				return true, nil
+			}
+			if err := plugin.Delete(key); err != nil {
+				return true, err
+			}
+			out.Deleted++
+			for _, a := range n.Attachments {
+				out.MediaIDs = append(out.MediaIDs, a.MediaID)
+			}
+			return false, nil
+		})
+		if err != nil {
+			return plugin.PrivacyOut{}, err
+		}
+		if out.More {
+			break
+		}
+	}
+	plugin.Logf("info", "privacy: %d messages past the retention period removed", out.Deleted)
+	return out, nil
+}
+
+// entryTime is when a record came in: its stored time, or the time its key
+// begins with.
+func entryTime(n message, rest string) (time.Time, bool) {
+	if t, err := time.Parse(time.RFC3339, n.Time); err == nil {
+		return t, true
+	}
+	if len(rest) >= 20 {
+		if t, err := time.Parse(time.RFC3339, rest[:20]); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
 }
 
 // privacyFind returns every message and refused submission that carries the

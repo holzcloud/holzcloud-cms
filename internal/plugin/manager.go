@@ -400,6 +400,16 @@ var ErrNotServed = errors.New("the plugin does not answer the privacy hook on th
 // only asked to find. The write was refused; the answer is not trusted.
 var ErrWroteDuringFind = errors.New("the plugin tried to write while it was asked to find")
 
+// ErrPrivacyFailed is a plugin that answered the privacy hook with an error:
+// a refused key, a value that is not an address, a store it could not read.
+// The wrapped message is the plugin's own.
+var ErrPrivacyFailed = errors.New("the plugin could not answer")
+
+// ErrNoPrivacyAnswer is a plugin that declares the privacy hook and answered
+// nothing at all — most likely it registered no handler. Nothing is not "no
+// records": it is an answer nobody gave.
+var ErrNoPrivacyAnswer = errors.New("the plugin declares the privacy hook and answered nothing")
+
 // privacyOps are the operations Privacy passes on.
 var privacyOps = map[string]bool{
 	PrivacyFind: true, PrivacyErase: true, PrivacyCorrect: true, PrivacyExpire: true,
@@ -429,12 +439,23 @@ func (m *Manager) Privacy(ctx context.Context, websiteID int64, id string, in Pr
 	if in.Op == PrivacyFind {
 		ctx, tried = ReadOnly(ctx)
 	}
-	var out PrivacyOut
-	if err := m.rt.Dispatch(ctx, id, HookPrivacy, websiteID, in, &out); err != nil {
+	// Read raw first: an empty answer and "{}" are different things here.
+	var raw json.RawMessage
+	if err := m.rt.Dispatch(ctx, id, HookPrivacy, websiteID, in, &raw); err != nil {
 		return nil, err
 	}
 	if tried != nil && tried() {
 		return nil, fmt.Errorf("%w: %s", ErrWroteDuringFind, id)
+	}
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("%w: %s", ErrNoPrivacyAnswer, id)
+	}
+	var out PrivacyOut
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("the privacy answer of %s is not valid JSON: %w", id, err)
+	}
+	if out.Error != "" {
+		return nil, fmt.Errorf("%w: %s: %s", ErrPrivacyFailed, id, out.Error)
 	}
 	return &out, nil
 }
