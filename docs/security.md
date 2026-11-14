@@ -306,12 +306,16 @@ database, table `privacy_requests` (migration `00064_privacy_requests.sql`,
 
 It stores **no IP address and no user agent**, and the form sets no cookie
 (`TestTheOptOutPostSetsNoCookie`). The spam protection needs none either: a
-honeypot field, a signed time stamp in the form that has to be between three
+honeypot field, a signed time stamp in the form that has to be between two
 seconds and twelve hours old, and at most 30 requests per website and hour,
 counted in the database so a restart does not reset it. A cross-site POST is
 refused before anything is read (`HandleOptOut`). A request caught by the
-honeypot or the time stamp gets the same answer as an accepted one, so a robot
-does not learn which trap caught it.
+honeypot, or carrying a stamp this page did not sign, gets the same answer as
+an accepted one, so a robot does not learn which trap caught it. A stamp this
+page did sign but that is too old or too young belongs to a person — a tab
+left open, a form the browser filled in — and gets "please send it again"
+with a fresh form, never "recorded" for a request that was not stored
+(`TestAGenuineButStaleStampAsksToSendAgain`).
 
 When mail is set up for the website and it has a notification address, the
 operator gets an e-mail in the website's main language with the request and

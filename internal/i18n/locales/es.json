@@ -1553,6 +1553,7 @@
 "The form had been open for more than twelve hours": "El formulario estuvo abierto más de doce horas",
 "The form has expired. Please reload the page and send it again.": "El formulario ha caducado. Recarga la página y envíalo de nuevo.",
 "The form was open for too long. Please reload the page and send again.": "El formulario estuvo abierto demasiado tiempo. Recarga la página y envía de nuevo.",
+"The form was open too long or sent too quickly, so the request has not been recorded. Please send it again.": "El formulario estuvo abierto demasiado tiempo o se envió demasiado rápido, por eso la solicitud no se ha registrado. Vuelve a enviarlo, por favor.",
 "The hidden field was filled in": "El campo oculto estaba relleno",
 "The identity provider signed you in, but this installation has no access for you.": "El servicio de identidad te ha identificado, pero esta instalación no te da acceso.",
 "The image is inserted at the end of the text and can be moved from there. Unsaved changes in the editor are lost — save first.": "La imagen se inserta al final del texto y desde ahí se puede mover. Los cambios sin guardar del editor se pierden — guarda antes.",

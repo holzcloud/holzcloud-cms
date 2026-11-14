@@ -412,17 +412,23 @@ func TestTheHoneypotAndTheStampAnswerLikeASuccess(t *testing.T) {
 	h, database, ws := optoutSite(t, "eu,us", "")
 	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
 
-	thirteenHours := time.Now().Add(-13 * time.Hour)
+	// Only what a robot does lands here. A stamp that is genuine but too old
+	// or too young is a person's, and gets its own answer
+	// (TestAGenuineButStaleStampAsksToSendAgain).
 	for _, tc := range []struct {
 		name   string
 		change func(url.Values)
 	}{
 		{"a filled honeypot", func(f url.Values) { f.Set("website", "https://spam.example") }},
+		{"a filled honeypot with a stale stamp", func(f url.Values) {
+			f.Set("website", "https://spam.example")
+			f.Set("stempel", optoutStamp(time.Second))
+		}},
 		{"no stamp", func(f url.Values) { f.Del("stempel") }},
 		{"a forged stamp", func(f url.Values) { f.Set("stempel", "1700000000-1900000000.forged") }},
-		{"a stamp one second old", func(f url.Values) { f.Set("stempel", optoutStamp(time.Second)) }},
-		{"a stamp thirteen hours old", func(f url.Values) {
-			f.Set("stempel", optoutSigner.Token(thirteenHours.Unix(), thirteenHours.Add(12*time.Hour)))
+		{"a stamp signed with another key", func(f url.Values) {
+			issued := time.Now().Add(-10 * time.Second)
+			f.Set("stempel", sharelink.New([]byte("other")).Token(issued.Unix(), issued.Add(time.Hour)))
 		}},
 	} {
 		form := optoutForm("do-not-sell")
@@ -435,6 +441,51 @@ func TestTheHoneypotAndTheStampAnswerLikeASuccess(t *testing.T) {
 		if n := optoutRows(t, database, ws.ID); n != 0 {
 			t.Errorf("%s: %d rows stored; want none", tc.name, n)
 		}
+	}
+}
+
+// A stamp that verifies came from this page, so a request carrying one is a
+// person's: a tab left open past the stamp's lifetime, or a form the browser
+// filled in and the visitor sent at once. Telling them "recorded" while
+// storing nothing would be untrue about a request the law says must be taken
+// (CCPA regs § 7026(a)(1)). They are asked to send it again instead, and the
+// page they land on carries a fresh stamp.
+func TestAGenuineButStaleStampAsksToSendAgain(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+
+	expired := time.Now().Add(-optoutMaxAge - time.Minute)
+	for _, tc := range []struct {
+		name  string
+		stamp string
+	}{
+		{"an expired stamp", optoutSigner.Token(expired.Unix(), expired.Add(optoutMaxAge))},
+		{"a stamp younger than a person reads", optoutStamp(0)},
+	} {
+		form := optoutForm("do-not-sell")
+		form.Set("stempel", tc.stamp)
+		rec := optoutPost(h, ws, form, nil)
+		if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/do-not-sell?widerspruch=abgelaufen" {
+			t.Errorf("%s: %d %q; want 303 to ?widerspruch=abgelaufen", tc.name, rec.Code, rec.Header().Get("Location"))
+		}
+		if n := optoutRows(t, database, ws.ID); n != 0 {
+			t.Errorf("%s: %d rows stored; want none", tc.name, n)
+		}
+	}
+
+	body := optoutGet(t, h, ws, "/do-not-sell?widerspruch=abgelaufen", nil).Body.String()
+	again := i18n.T(ws.Locale, "The form was open too long or sent too quickly, so the request has not been recorded. Please send it again.")
+	if again == "The form was open too long or sent too quickly, so the request has not been recorded. Please send it again." {
+		t.Fatalf("the German catalogue lacks the send-again sentence")
+	}
+	if !strings.Contains(body, htmlText(again)) || !strings.Contains(body, "contact-form__notice--error") {
+		t.Errorf("the page does not ask to send again with %q:\n%s", again, body)
+	}
+	if strings.Contains(body, htmlText(i18n.T(ws.Locale, optoutRecorded))) {
+		t.Errorf("the page says the request was recorded:\n%s", body)
+	}
+	if !strings.Contains(body, `name="stempel"`) {
+		t.Errorf("the page has no fresh stamp to send again with:\n%s", body)
 	}
 }
 

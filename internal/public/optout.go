@@ -20,6 +20,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/marker"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
 )
 
 // The opt-out of a website that follows US law (LEG-03).
@@ -50,9 +51,11 @@ const optoutWidgetMark = "data-hc-optout"
 // them needs a cookie, which is the point — the public side sets none before
 // a visitor asks for one (D-03).
 const (
-	// optoutMinAge is what a human being needs at least to read the form and
-	// press the button. Far above what a script needs.
-	optoutMinAge = 3 * time.Second
+	// optoutMinAge is what a human being needs at least to press the button.
+	// Far above what a script needs, and short, because a browser that fills
+	// in name and address lets a person send within a second or two; one who
+	// is quicker still is asked to send again, not turned away.
+	optoutMinAge = 2 * time.Second
 	// optoutMaxAge is how long a drawn form's time stamp stays valid. A page
 	// can stand in a tab for a long time; the point is only that a stamp
 	// copied once is not reusable for weeks.
@@ -186,6 +189,8 @@ func (h *Handler) optoutWidget(r *http.Request, ws *domain.Website, pg *page.Pag
 		result, isError = i18n.T(lang, "An entry is longer than the form allows."), true
 	case "spaeter":
 		result, isError = i18n.T(lang, "Too many requests at the moment. Please try again in an hour."), true
+	case "abgelaufen":
+		result, isError = i18n.T(lang, "The form was open too long or sent too quickly, so the request has not been recorded. Please send it again."), true
 	}
 	if result != "" {
 		class := "contact-form__notice"
@@ -245,9 +250,13 @@ func (h *Handler) optoutWidget(r *http.Request, ws *domain.Website, pg *page.Pag
 // refused before anything is read: with no cookie there is nothing for a
 // classic CSRF to ride, but a forged opt-out would still fill the operator's
 // list and inbox. The body is bounded before it is parsed. The honeypot and
-// the time stamp answer exactly like a success and store nothing, because a
-// robot must not learn which trap caught it. The hourly limit is the one
-// refusal a visitor sees, because a person can act on it.
+// a stamp this page did not draw answer exactly like a success and store
+// nothing, because a robot must not learn which trap caught it. A stamp this
+// page did draw, but too long ago or a moment ago, belongs to a person, who
+// is asked to send again rather than told "recorded" about a request that
+// was not (CCPA regs § 7026(a)(1) makes this form a way the request must be
+// taken). The hourly limit is the other refusal a visitor sees, because a
+// person can act on it.
 func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	ws := domain.WebsiteFromContext(r.Context())
 	if ws == nil {
@@ -278,8 +287,15 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	if r.PostFormValue("website") != "" || !h.optoutStampFresh(r.PostFormValue("stempel"), now) {
+	// The honeypot before the stamp's age: a robot that kept a real stamp
+	// must still learn nothing from the answer.
+	verdict := h.optoutStampCheck(r.PostFormValue("stempel"), now)
+	if r.PostFormValue("website") != "" || verdict == stampForged {
 		optoutRedirect(w, r, back, "eingegangen")
+		return nil
+	}
+	if verdict == stampStale {
+		optoutRedirect(w, r, back, "abgelaufen")
 		return nil
 	}
 	recent, err := h.requests.CountSince(ctx, ws.ID, dsr.KindOptOut, now.Add(-time.Hour))
@@ -341,16 +357,42 @@ func optoutRedirect(w http.ResponseWriter, r *http.Request, back, outcome string
 	http.Redirect(w, r, back+"?widerspruch="+outcome, http.StatusSeeOther)
 }
 
-// optoutStampFresh reports whether the form's time stamp is genuine, younger
-// than optoutMaxAge and older than optoutMinAge. The id slot of the token
-// holds the moment the form was drawn, in Unix seconds.
-func (h *Handler) optoutStampFresh(stamp string, now time.Time) bool {
+// What the form's time stamp says about who sent it.
+type stampVerdict int
+
+const (
+	// stampFresh is a stamp this page drew, inside its time window.
+	stampFresh stampVerdict = iota
+	// stampStale is a stamp this page drew, but too long ago or a moment
+	// ago: a tab left open, or a form the browser filled in and the visitor
+	// sent at once. A person, who is asked to send again.
+	stampStale
+	// stampForged is no stamp, or one this page did not draw. A robot, which
+	// gets the success answer and nothing stored.
+	stampForged
+)
+
+// optoutStampCheck tells the three kinds of stamp apart. The id slot of the
+// token holds the moment the form was drawn, in Unix seconds.
+//
+// The signature decides between a person and a robot, and the age only
+// between "now" and "please again": a stamp that verifies proves it came from
+// this page, so answering its sender honestly tells a robot nothing it did
+// not already know. sharelink checks expiry after the signature for exactly
+// this distinction.
+func (h *Handler) optoutStampCheck(stamp string, now time.Time) stampVerdict {
 	issued, err := h.optoutSigner.Check(stamp, now)
-	if err != nil {
-		return false
+	switch {
+	case errors.Is(err, sharelink.ErrExpired):
+		return stampStale
+	case err != nil:
+		return stampForged
 	}
 	age := now.Sub(time.Unix(issued, 0))
-	return age >= optoutMinAge && age <= optoutMaxAge
+	if age < optoutMinAge || age > optoutMaxAge {
+		return stampStale
+	}
+	return stampFresh
 }
 
 // optoutNotify tells the operator about a stored opt-out, by the rule every
