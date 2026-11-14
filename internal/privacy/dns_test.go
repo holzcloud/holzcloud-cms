@@ -172,3 +172,37 @@ func TestTheRomanshDNSPageIsMarkedAsMachineWritten(t *testing.T) {
 		}
 	}
 }
+
+// The widget's own small print (internal/public's optoutWidget) already says
+// that what is entered serves only the request and that no account is
+// needed, a few lines below the form block's opening. The page does not say
+// it a second time: the form block keeps what only it says — that the request
+// does not wait for proof of identity, and that the form sets no cookie and
+// stores no IP address — and leaves the rest to the widget.
+func TestTheDNSPageLeavesTheFormsSmallPrintToTheWidget(t *testing.T) {
+	twice := map[string][]string{
+		"de": {"kein konto", "nur verwendet"},
+		"en": {"no account", "used only"},
+		"fr": {"aucun compte", "sert uniquement"},
+		"it": {"alcun account", "usato solo"},
+		"rm": {"nagin conto", "duvrà mo"},
+	}
+	for _, lang := range dnsLanguages(t) {
+		phrases, ok := twice[lang]
+		if !ok {
+			t.Fatalf("no phrases for %s: add the language here", lang)
+		}
+		text := strings.ToLower(ComposeDNS(Request{Lang: lang, Set: allSet()}))
+		for _, p := range phrases {
+			if strings.Contains(text, p) {
+				t.Errorf("%s: the page says %q, which the widget below already says", lang, p)
+			}
+		}
+		if strings.Count(text, dnsMarker) != 1 {
+			t.Errorf("%s: the page carries the marker %d times, want once", lang, strings.Count(text, dnsMarker))
+		}
+		if !strings.Contains(text, "7026(c)") {
+			t.Errorf("%s: the form block lost the identity-proof citation", lang)
+		}
+	}
+}
