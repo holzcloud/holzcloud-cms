@@ -18,12 +18,21 @@
         {{range .Deleted}}<li>{{t .Heading}}: {{tf "%d deleted" .Count}}</li>{{end}}
     </ul>
     {{if not (or .Orders .Deleted .Reduced)}}<p class="text-muted">{{t "Nothing was erased."}}</p>{{end}}
+    {{if .RequestAnswered}}<p>{{t "The request is answered and the answer is recorded on the Requests screen."}}</p>{{end}}
 </div>
 
-{{if .Failed}}
-<div class="card privacy-incomplete" style="margin-bottom: var(--space-3);">
+{{if or .Failed .FileErrors .NotCovered}}
+<div class="card privacy-incomplete" id="erased-incomplete" style="margin-bottom: var(--space-3);">
     <h2>{{t "Not erased"}}</h2>
-    <ul>{{range .Failed}}<li>{{t .Heading}}: {{t .Sentence}}</li>{{end}}</ul>
+    {{if .Failed}}<ul>{{range .Failed}}<li>{{t .Heading}}: {{t .Sentence}}</li>{{end}}</ul>{{end}}
+    {{if .FileErrors}}
+    <p>{{t "These files could not be removed from the disk:"}}</p>
+    <ul>{{range .FileErrors}}<li><code>{{.}}</code></li>{{end}}</ul>
+    {{end}}
+    {{if .NotCovered}}
+    <p>{{t "Not erased: these plugins keep data for this website and do not answer the privacy hook."}}</p>
+    <ul>{{range .NotCovered}}<li>{{.}}</li>{{end}}</ul>
+    {{end}}
 </div>
 {{end}}
 

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
+	"github.com/holzcloud/holzcloud-cms/internal/user"
 )
 
 // The erasure page (Phase 33.2, plan 08). Every helper of this file starts
@@ -26,7 +28,10 @@ import (
 func eraseAdmin(t *testing.T) (*Handler, *scs.SessionManager, *db.DB, *domain.Website) {
 	t.Helper()
 	h, sm, database, ws := newTestAdmin(t)
-	h.SetDataRights(dsr.NewService(database))
+	s := dsr.NewService(database)
+	s.SetUsers(user.NewStore(database, cheapHashing), sm)
+	s.SetActivity(activity.NewStore(database))
+	h.SetDataRights(s)
 	h.SetActivityStore(activity.NewStore(database))
 	if _, err := database.Write.Exec(`UPDATE websites SET country = 'DE' WHERE id = $1`, ws.ID); err != nil {
 		t.Fatal(err)
@@ -237,5 +242,83 @@ func TestTheErasurePageHasNoConfirmAttribute(t *testing.T) {
 		if !strings.Contains(body, field) {
 			t.Errorf("the form lacks %s", field)
 		}
+	}
+}
+
+func TestAnEditorWithoutThePublishingRightCannotErase(t *testing.T) {
+	h, sm, database, ws := eraseAdmin(t)
+	privacyOrder(t, database, ws.ID, "2026-0042", "ada@example.com", "Ada Lovelace")
+	editor := editorWithoutPublishing(t, database, ws.ID)
+	c := &eraseClient{t: t, h: h, sm: sm, user: editor, role: user.RoleEditor, fresh: true}
+
+	rec, bad := c.post(ws.ID, url.Values{"email": {"ada@example.com"}, "quelle": {"orders"}}, false)
+	wantRefused(t, "erasure", rec, bad, privacyScreen(ws.ID))
+	if email, at := eraseOrderLeft(t, database, "2026-0042"); email == "" || at != "" {
+		t.Error("an editor without the publishing right erased the order")
+	}
+
+	body := c.get(h.HandlePrivacyErase, erasePage(ws.ID)+"?email=ada%40example.com", ws.ID).Body.String()
+	if !strings.Contains(body, "2026-0042") {
+		t.Error("the editor does not see what an erasure would do")
+	}
+	if strings.Contains(body, retentionSays("Erase now")) || strings.Contains(body, `method="post"`) {
+		t.Error("the page offers the editor a button that is refused")
+	}
+	if !strings.Contains(body, retentionSays(readOnlyText)) {
+		t.Error("the page does not say why there is no button")
+	}
+}
+
+func TestOnlyAnAdministratorMayEraseAnAccount(t *testing.T) {
+	h, sm, database, ws := eraseAdmin(t)
+	ctx := context.Background()
+	users := user.NewStore(database, cheapHashing)
+	staff, err := users.Create(ctx, "Ada", "ada@example.com", "passwort123", user.RoleEditor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := users.SetRights(ctx, staff, user.Rights{MayPublish: true, Websites: []int64{ws.ID}}); err != nil {
+		t.Fatal(err)
+	}
+	chef, err := users.Create(ctx, "Chef", "chef@example.com", "passwort123", user.RoleAdmin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exists := func() bool {
+		u, err := users.GetByID(ctx, staff)
+		return err == nil && u != nil
+	}
+	form := url.Values{"email": {"ada@example.com"}, "quelle": {"accounts"}}
+
+	// An editor who may publish: the box is not offered, and a posted one is
+	// ignored with a sentence.
+	editor := &eraseClient{t: t, h: h, sm: sm, role: user.RoleEditor, fresh: true}
+	body := editor.get(h.HandlePrivacyErase, erasePage(ws.ID)+"?email=ada%40example.com", ws.ID).Body.String()
+	if strings.Contains(body, `value="accounts"`) {
+		t.Error("an editor is offered the account box")
+	}
+	if rec, bad := editor.post(ws.ID, form, false); rec.Code != http.StatusSeeOther || bad != "" {
+		t.Fatalf("the editor's erasure: %d, %q", rec.Code, bad)
+	}
+	if !exists() {
+		t.Fatal("an editor erased a staff account")
+	}
+	result := editor.get(h.HandlePrivacyErased, erasedPage(ws.ID), ws.ID).Body.String()
+	if !strings.Contains(result, retentionSays("Only an administrator can erase a staff account.")) {
+		t.Error("the result does not say why the account stayed")
+	}
+
+	// An administrator: offered, unticked, and erased when ticked.
+	admin := &eraseClient{t: t, h: h, sm: sm, user: chef, role: user.RoleAdmin, fresh: true}
+	body = admin.get(h.HandlePrivacyErase, erasePage(ws.ID)+"?email=ada%40example.com", ws.ID).Body.String()
+	box := regexp.MustCompile(`<input[^>]*value="accounts"[^>]*>`).FindString(body)
+	if box == "" || strings.Contains(box, "checked") {
+		t.Errorf("the administrator's account box: %q, want offered and not ticked", box)
+	}
+	if rec, bad := admin.post(ws.ID, form, false); rec.Code != http.StatusSeeOther || bad != "" {
+		t.Fatalf("the administrator's erasure: %d, %q", rec.Code, bad)
+	}
+	if exists() {
+		t.Error("the administrator's erasure left the account")
 	}
 }

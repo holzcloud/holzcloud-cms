@@ -89,6 +89,9 @@ type privacyEraseData struct {
 	ReadOnlyNotice string
 	// IsAdmin offers the account box.
 	IsAdmin bool
+	// Answers is true when the erasure will record the answer of the
+	// request it was opened from.
+	Answers bool
 	// Nothing is true when the address finds nothing to erase.
 	Nothing bool
 }
@@ -130,6 +133,14 @@ type erasedReport struct {
 	// Failed are the sentences of what could not be erased, each with the
 	// heading of its store.
 	Failed []erasedFailure `json:"failed,omitempty"`
+	// FileErrors name the files that stayed on the disk.
+	FileErrors []string `json:"file_errors,omitempty"`
+	// NotCovered are the names of the plugins that keep data for the
+	// website and could not be asked: what they keep was not erased.
+	NotCovered []string `json:"not_covered,omitempty"`
+	// RequestAnswered is true when the erasure answered the request it was
+	// made for.
+	RequestAnswered bool `json:"request_answered,omitempty"`
 }
 
 // erasedCount is how many records of one group went.
@@ -234,6 +245,13 @@ func (h *Handler) HandlePrivacyErase(w http.ResponseWriter, r *http.Request) err
 	}
 	data.ActiveNav = "privacy"
 	data.CurrentWebsite = ws
+	if requestID > 0 && h.requests != nil {
+		req, err := h.requests.Get(r.Context(), ws.ID, requestID)
+		if err != nil {
+			return err
+		}
+		data.Answers = req != nil && req.Kind == dsr.KindErasure && req.Outcome == ""
+	}
 	for _, f := range prev.Failed {
 		data.Failed = append(data.Failed, privacyHeading(f.Source, prev.Holders))
 	}
@@ -338,6 +356,11 @@ func erasedReportOf(websiteID int64, rep *dsr.ErasureReport) erasedReport {
 			Sentence: dsr.ErasureFailure(f.Err),
 		})
 	}
+	out.FileErrors = rep.FileErrors
+	for _, hd := range rep.NotCovered {
+		out.NotCovered = append(out.NotCovered, hd.Name)
+	}
+	out.RequestAnswered = rep.RequestAnswered
 	return out
 }
 

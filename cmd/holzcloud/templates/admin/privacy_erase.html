@@ -31,6 +31,16 @@
 </div>
 {{end}}
 
+{{if .NotCovered}}
+<div class="card privacy-incomplete" id="erase-not-covered" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Not erased"}}</h2>
+    <p class="text-muted">{{t "Not erased: these plugins keep data for this website and do not answer the privacy hook."}}</p>
+    <ul>
+        {{range .NotCovered}}<li><strong>{{.Name}}</strong> · {{if eq .Entries 1}}{{t "One entry"}}{{else}}{{tf "%d entries" .Entries}}{{end}}{{with .Reason}} · <span class="text-muted">{{t .}}</span>{{end}}</li>{{end}}
+    </ul>
+</div>
+{{end}}
+
 {{if .Reduce}}
 <section class="card" id="erase-reduce" style="margin-bottom: var(--space-3);">
     <h2>{{t "Will be reduced"}}</h2>
@@ -44,6 +54,14 @@
     <ul>
         {{range .Delete}}<li>{{t .Heading}}: {{t .Label}} {{.Key}}</li>{{end}}
     </ul>
+</section>
+{{end}}
+
+{{if .Accounts}}
+<section class="card" id="erase-accounts" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Staff accounts"}}</h2>
+    {{range .Accounts}}{{template "erasure_item" .}}{{end}}
+    {{if not $.IsAdmin}}<p class="text-muted">{{t "Only an administrator can erase a staff account."}}</p>{{end}}
 </section>
 {{end}}
 
@@ -70,6 +88,7 @@
             <label style="display:block"><input type="checkbox" name="quelle" value="{{.Name}}"{{if .Checked}} checked{{end}}> {{t .Label}}</label>
             {{end}}
         </fieldset>
+        {{if .Answers}}<p>{{t "The request this page was opened from is answered with the erasure."}}</p>{{end}}
         <p><strong>{{t "This cannot be undone."}}</strong></p>
         <button type="submit" class="btn btn--danger" hx-disabled-elt="this">{{t "Erase now"}}</button>
         <a href="{{.Back}}" class="btn" style="margin-left:var(--space-1)">{{t "Cancel"}}</a>
