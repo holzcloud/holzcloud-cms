@@ -2,6 +2,7 @@ package public
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
+	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
 )
@@ -384,5 +386,288 @@ func TestSpanishPagesGetEnglishWidgetWords(t *testing.T) {
 	}
 	if !strings.Contains(german, want) {
 		t.Errorf("the German page does not carry %q:\n%s", want, german)
+	}
+}
+
+// optoutAddSite adds a further website with the given set to an existing
+// database, for the tests that need two.
+func optoutAddSite(t *testing.T, database *db.DB, name, set string) *domain.Website {
+	t.Helper()
+	ws := seedWebsite(t, database, name)
+	if _, err := database.Write.Exec(`UPDATE websites SET legal_frameworks = $1 WHERE id = $2`, set, ws.ID); err != nil {
+		t.Fatalf("set frameworks: %v", err)
+	}
+	fresh, err := domain.NewStore(database).GetWebsite(context.Background(), ws.ID)
+	if err != nil || fresh == nil {
+		t.Fatalf("GetWebsite: %v", err)
+	}
+	return fresh
+}
+
+func optoutPost(h *Handler, ws *domain.Website, form url.Values, hdr http.Header) *httptest.ResponseRecorder {
+	return optoutDo(h.HandleOptOut, ws, http.MethodPost, "/widerspruch", form, hdr)
+}
+
+func TestTheHoneypotAndTheStampAnswerLikeASuccess(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+
+	thirteenHours := time.Now().Add(-13 * time.Hour)
+	for _, tc := range []struct {
+		name   string
+		change func(url.Values)
+	}{
+		{"a filled honeypot", func(f url.Values) { f.Set("website", "https://spam.example") }},
+		{"no stamp", func(f url.Values) { f.Del("stempel") }},
+		{"a forged stamp", func(f url.Values) { f.Set("stempel", "1700000000-1900000000.forged") }},
+		{"a stamp one second old", func(f url.Values) { f.Set("stempel", optoutStamp(time.Second)) }},
+		{"a stamp thirteen hours old", func(f url.Values) {
+			f.Set("stempel", optoutSigner.Token(thirteenHours.Unix(), thirteenHours.Add(12*time.Hour)))
+		}},
+	} {
+		form := optoutForm("do-not-sell")
+		tc.change(form)
+		rec := optoutPost(h, ws, form, nil)
+		if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/do-not-sell?widerspruch=eingegangen" {
+			t.Errorf("%s: %d %q; want the success redirect, so a robot cannot tell which trap caught it",
+				tc.name, rec.Code, rec.Header().Get("Location"))
+		}
+		if n := optoutRows(t, database, ws.ID); n != 0 {
+			t.Errorf("%s: %d rows stored; want none", tc.name, n)
+		}
+	}
+}
+
+func TestTheHourlyCapRefuses(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+	other := optoutAddSite(t, database, "Nachbar", "us")
+	optoutPage(t, database, other.ID, "do-not-sell", optoutMarkerPage, "")
+
+	for i := 0; i < 30; i++ {
+		if _, err := database.Write.Exec(
+			`INSERT INTO privacy_requests (website_id, kind, name) VALUES ($1, 'optout', 'earlier')`, ws.ID); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+	rec := optoutPost(h, ws, optoutForm("do-not-sell"), nil)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/do-not-sell?widerspruch=spaeter" {
+		t.Errorf("the 31st opt-out in an hour: %d %q; want 303 to ?widerspruch=spaeter", rec.Code, rec.Header().Get("Location"))
+	}
+	if n := optoutRows(t, database, ws.ID); n != 30 {
+		t.Errorf("%d rows; want the 30 there were", n)
+	}
+	body := optoutGet(t, h, ws, "/do-not-sell?widerspruch=spaeter", nil).Body.String()
+	notice := i18n.T(ws.Locale, "Too many requests at the moment. Please try again in an hour.")
+	if !strings.Contains(body, htmlText(notice)) || !strings.Contains(body, "contact-form__notice--error") {
+		t.Errorf("the page does not show the cap notice %q:\n%s", notice, body)
+	}
+
+	rec = optoutPost(h, other, optoutForm("do-not-sell"), nil)
+	if rec.Header().Get("Location") != "/do-not-sell?widerspruch=eingegangen" || optoutRows(t, database, other.ID) != 1 {
+		t.Errorf("another website was capped by the first one's requests: %q", rec.Header().Get("Location"))
+	}
+}
+
+func TestACrossSitePostIsRefused(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+
+	rec := optoutPost(h, ws, optoutForm("do-not-sell"), http.Header{"Sec-Fetch-Site": {"cross-site"}})
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("a cross-site POST = %d; want 403", rec.Code)
+	}
+	if n := optoutRows(t, database, ws.ID); n != 0 {
+		t.Fatalf("a cross-site POST stored %d rows", n)
+	}
+	for _, hdr := range []http.Header{{"Sec-Fetch-Site": {"same-origin"}}, nil} {
+		before := optoutRows(t, database, ws.ID)
+		rec := optoutPost(h, ws, optoutForm("do-not-sell"), hdr)
+		if rec.Code != http.StatusSeeOther || optoutRows(t, database, ws.ID) != before+1 {
+			t.Errorf("Sec-Fetch-Site %v: %d; want accepted and stored", hdr, rec.Code)
+		}
+	}
+}
+
+func TestABodyTooLargeIsRefused(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+
+	form := optoutForm("do-not-sell")
+	form.Set("note", strings.Repeat("x", 20<<10))
+	rec := optoutPost(h, ws, form, nil)
+	if rec.Code != http.StatusRequestEntityTooLarge && rec.Code != http.StatusBadRequest {
+		t.Errorf("a 20 KiB body = %d; want 413 or 400", rec.Code)
+	}
+	if n := optoutRows(t, database, ws.ID); n != 0 {
+		t.Errorf("a body over the limit stored %d rows", n)
+	}
+}
+
+type optoutMail struct{ to, subject, body, replyTo string }
+
+func optoutOutbox(t *testing.T, database *db.DB, websiteID int64) []optoutMail {
+	t.Helper()
+	rows, err := database.Read.Query(
+		`SELECT recipient, subject, body, reply_to FROM mail_outbox WHERE website_id = $1 ORDER BY id`, websiteID)
+	if err != nil {
+		t.Fatalf("read outbox: %v", err)
+	}
+	defer rows.Close()
+	var out []optoutMail
+	for rows.Next() {
+		var m optoutMail
+		if err := rows.Scan(&m.to, &m.subject, &m.body, &m.replyTo); err != nil {
+			t.Fatalf("scan outbox: %v", err)
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+func optoutReload(t *testing.T, database *db.DB, ws *domain.Website, set string) *domain.Website {
+	t.Helper()
+	if _, err := database.Write.Exec(`UPDATE websites SET `+set+` WHERE id = $1`, ws.ID); err != nil {
+		t.Fatalf("settings: %v", err)
+	}
+	fresh, err := domain.NewStore(database).GetWebsite(context.Background(), ws.ID)
+	if err != nil || fresh == nil {
+		t.Fatalf("GetWebsite: %v", err)
+	}
+	return fresh
+}
+
+func TestTheOperatorIsToldInTheWebsitesLanguage(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+	ws = optoutReload(t, database, ws, `locale = 'fr', notify_email = 'owner@example.com'`)
+	enabled := mail.NewQueue(database, mail.NewSender(mail.Config{Host: "smtp.example", Port: 587, From: "cms@example.com"}), nil)
+	h.SetNotify(domain.NewStore(database), enabled)
+
+	form := optoutForm("do-not-sell")
+	form.Set("note", "merci")
+	if rec := optoutPost(h, ws, form, optoutGPC("1")); rec.Code != http.StatusSeeOther {
+		t.Fatalf("POST = %d", rec.Code)
+	}
+	msgs := optoutOutbox(t, database, ws.ID)
+	if len(msgs) != 1 {
+		t.Fatalf("%d messages; want exactly one", len(msgs))
+	}
+	m := msgs[0]
+	subject := i18n.T("fr", "New opt-out request (Do Not Sell or Share)")
+	if subject == "New opt-out request (Do Not Sell or Share)" {
+		t.Fatalf("the French catalogue lacks the subject")
+	}
+	if m.to != "owner@example.com" || m.subject != "["+ws.Name+"] "+subject {
+		t.Errorf("message to %q, subject %q; want owner@example.com, %q", m.to, m.subject, "["+ws.Name+"] "+subject)
+	}
+	for _, want := range []string{"Ada", "ada@example.com", "merci",
+		i18n.T("fr", "The browser sent the Global Privacy Control signal."),
+		i18n.T("fr", "The request is listed under Settings → Opt-outs of this website.")} {
+		if !strings.Contains(m.body, want) {
+			t.Errorf("the body lacks %q:\n%s", want, m.body)
+		}
+	}
+	if m.replyTo != "" {
+		t.Errorf("reply_to = %q; the visitor's address must stay in the body", m.replyTo)
+	}
+
+	// No notification address: nothing is sent, and the request is still kept.
+	ws = optoutReload(t, database, ws, `notify_email = ''`)
+	optoutPost(h, ws, optoutForm("do-not-sell"), nil)
+	if n := len(optoutOutbox(t, database, ws.ID)); n != 1 {
+		t.Errorf("%d messages after a request without a notification address; want still 1", n)
+	}
+
+	// Mail not set up: nothing is sent either.
+	ws = optoutReload(t, database, ws, `notify_email = 'owner@example.com'`)
+	h.SetNotify(domain.NewStore(database), mail.NewQueue(database, nil, nil))
+	optoutPost(h, ws, optoutForm("do-not-sell"), nil)
+	if n := len(optoutOutbox(t, database, ws.ID)); n != 1 {
+		t.Errorf("%d messages with no mail server; want still 1", n)
+	}
+	if n := optoutRows(t, database, ws.ID); n != 3 {
+		t.Errorf("%d requests stored; want all 3, sent or not", n)
+	}
+}
+
+func optoutVaryNames(rec *httptest.ResponseRecorder) map[string]bool {
+	names := map[string]bool{}
+	for _, v := range rec.Header().Values("Vary") {
+		for _, part := range strings.Split(v, ",") {
+			names[strings.ToLower(strings.TrimSpace(part))] = true
+		}
+	}
+	return names
+}
+
+func TestTheWidgetPageVariesOnGPC(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+
+	with := optoutGet(t, h, ws, "/do-not-sell", optoutGPC("1"))
+	without := optoutGet(t, h, ws, "/do-not-sell", nil)
+	for name, rec := range map[string]*httptest.ResponseRecorder{"with": with, "without": without} {
+		vary := optoutVaryNames(rec)
+		if !vary["hx-request"] || !vary["sec-gpc"] {
+			t.Errorf("%s Sec-GPC: Vary = %v; want HX-Request and Sec-GPC (a shared cache must not hand one answer to the other)",
+				name, rec.Header().Values("Vary"))
+		}
+	}
+	if with.Body.String() == without.Body.String() {
+		t.Error("the bodies with and without the signal are the same")
+	}
+	if with.Header().Get("ETag") == without.Header().Get("ETag") {
+		t.Error("the ETags with and without the signal are the same")
+	}
+}
+
+func TestGPCChangesNothingElse(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+	optoutPage(t, database, ws.ID, "home", "<p>Willkommen</p>", "")
+	optoutPage(t, database, ws.ID, "ueber-uns", "<p>Wir sind ein Hofladen.</p>", "")
+
+	for _, tc := range []struct {
+		target string
+		fn     func(http.ResponseWriter, *http.Request) error
+	}{
+		{"/ueber-uns", h.HandlePage},
+		{"/", h.HandleHome},
+	} {
+		with := optoutDo(tc.fn, ws, http.MethodGet, tc.target, nil, optoutGPC("1"))
+		without := optoutDo(tc.fn, ws, http.MethodGet, tc.target, nil, nil)
+		if with.Code != http.StatusOK || without.Code != http.StatusOK {
+			t.Fatalf("%s: %d / %d; want 200", tc.target, with.Code, without.Code)
+		}
+		if with.Body.String() != without.Body.String() {
+			t.Errorf("%s differs with Sec-GPC: 1 — honouring the signal must change nothing but the widget (D-12)", tc.target)
+		}
+		if optoutVaryNames(with)["sec-gpc"] || optoutVaryNames(without)["sec-gpc"] {
+			t.Errorf("%s names Sec-GPC in Vary without carrying the widget: %v", tc.target, with.Header().Values("Vary"))
+		}
+	}
+}
+
+func TestGPCJSONOnlyForUS(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	rec := optoutDo(h.HandleGPCJSON, ws, http.MethodGet, "/.well-known/gpc.json", nil, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("gpc.json on a US website = %d; want 200", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("Content-Type = %q; want application/json", ct)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("body %q: %v", rec.Body.String(), err)
+	}
+	if doc["gpc"] != true || len(doc) != 1 {
+		t.Errorf("gpc.json = %v; want {\"gpc\": true}", doc)
+	}
+
+	other := optoutAddSite(t, database, "Nachbar", "eu,ch")
+	if rec := optoutDo(h.HandleGPCJSON, other, http.MethodGet, "/.well-known/gpc.json", nil, nil); rec.Code != http.StatusNotFound {
+		t.Errorf("gpc.json on a website without US = %d; want 404", rec.Code)
 	}
 }

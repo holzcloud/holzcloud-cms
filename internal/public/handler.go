@@ -253,7 +253,7 @@ func (h *Handler) HandleHome(w http.ResponseWriter, r *http.Request) error {
 		h.servePrivate(w, content)
 		return nil
 	}
-	h.serveCached(w, r, content, contentModTime(pg, snippets, albumsAt))
+	h.serveCached(w, r, content, contentModTime(pg, snippets, albumsAt), h.optoutVary(content)...)
 	return nil
 }
 
@@ -344,7 +344,7 @@ func (h *Handler) HandlePage(w http.ResponseWriter, r *http.Request) error {
 		h.servePrivate(w, content)
 		return nil
 	}
-	h.serveCached(w, r, content, contentModTime(pg, snippets, albumsAt))
+	h.serveCached(w, r, content, contentModTime(pg, snippets, albumsAt), h.optoutVary(content)...)
 	return nil
 }
 
@@ -557,7 +557,10 @@ const hxRequest = "HX-Request"
 
 // serveCached writes content with HTTP caching headers (ETag, Last-Modified, Cache-Control).
 // Handles conditional requests (If-None-Match, If-Modified-Since) with 304 responses.
-func (h *Handler) serveCached(w http.ResponseWriter, r *http.Request, content []byte, modTime time.Time) {
+//
+// vary names request headers the content depends on beyond HX-Request — the
+// opt-out widget's Sec-GPC (optoutVary). Most callers name none.
+func (h *Handler) serveCached(w http.ResponseWriter, r *http.Request, content []byte, modTime time.Time, vary ...string) {
 	// Compute ETag from content hash
 	hash := sha256.Sum256(content)
 	etag := `"` + hex.EncodeToString(hash[:16]) + `"`
@@ -579,7 +582,15 @@ func (h *Handler) serveCached(w http.ResponseWriter, r *http.Request, content []
 	// that a protected page could be handed to anybody, and the comment above
 	// serveGate had already named exactly that danger about the form in front
 	// of it.
+	//
+	// So the Set stays a claim that the answer is the same for everybody —
+	// except for the request headers named in vary, which are added after it
+	// and not erased by it. The one today is Sec-GPC, on the page that carries
+	// the opt-out widget: its first line says whether this browser sent the
+	// signal, and a shared cache keyed on the address alone would hand the
+	// "honoured" line to a visitor who sent nothing.
 	w.Header().Set("Vary", hxRequest)
+	web.AddVary(w, vary...)
 
 	// RFC 7232 §3.3: when If-None-Match is present it decides the conditional
 	// request BY ITSELF, and If-Modified-Since must be ignored. This code used

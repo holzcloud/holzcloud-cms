@@ -1,9 +1,13 @@
 package public
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"html"
+	"io"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
@@ -13,6 +17,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/legal"
+	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/marker"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
@@ -38,10 +43,28 @@ const optoutMarker = "[[widerspruch]]"
 // something no editor's content produces by accident.
 const optoutWidgetMark = "data-hc-optout"
 
-// optoutMaxAge is how long a drawn form's time stamp stays valid. It mirrors
-// the contact-form plugin's maxAge: a page can stand in a tab for a long time,
-// and the point is only that a stamp copied once is not reusable for weeks.
-const optoutMaxAge = 12 * time.Hour
+// The anti-spam numbers mirror the contact-form plugin's, and for its
+// reasons (plugins/kontaktformular): the honeypot and the time trap stop the
+// ordinary robot, the hourly limit stops the one that gets through anyway from
+// filling a small server's disk and the operator's inbox overnight. None of
+// them needs a cookie, which is the point — the public side sets none before
+// a visitor asks for one (D-03).
+const (
+	// optoutMinAge is what a human being needs at least to read the form and
+	// press the button. Far above what a script needs.
+	optoutMinAge = 3 * time.Second
+	// optoutMaxAge is how long a drawn form's time stamp stays valid. A page
+	// can stand in a tab for a long time; the point is only that a stamp
+	// copied once is not reusable for weeks.
+	optoutMaxAge = 12 * time.Hour
+	// optoutHourlyLimit is how many opt-outs a website takes per hour,
+	// counted in the database so that a restart does not reset it.
+	optoutHourlyLimit = 30
+	// optoutMaxBody bounds what the form may send. The three fields together
+	// are under 2500 characters; sixteen KiB leaves room for any encoding of
+	// them and none for anything else.
+	optoutMaxBody = 16 << 10
+)
 
 var (
 	// optoutParagraph is the marker on a line of its own, which goldmark wraps
@@ -161,6 +184,8 @@ func (h *Handler) optoutWidget(r *http.Request, ws *domain.Website, pg *page.Pag
 		result, isError = i18n.T(lang, "Please give a name or an e-mail address so that the request can be recorded."), true
 	case "zulang":
 		result, isError = i18n.T(lang, "An entry is longer than the form allows."), true
+	case "spaeter":
+		result, isError = i18n.T(lang, "Too many requests at the moment. Please try again in an hour."), true
 	}
 	if result != "" {
 		class := "contact-form__notice"
@@ -215,6 +240,14 @@ func (h *Handler) optoutWidget(r *http.Request, ws *domain.Website, pg *page.Pag
 // public side sets none before a visitor asks for one (D-03). The answer is
 // always a 303 back to the page the form stood on, with the outcome in the
 // query, so a reload never posts twice.
+//
+// The order of the checks is the order of their cost. A cross-site POST is
+// refused before anything is read: with no cookie there is nothing for a
+// classic CSRF to ride, but a forged opt-out would still fill the operator's
+// list and inbox. The body is bounded before it is parsed. The honeypot and
+// the time stamp answer exactly like a success and store nothing, because a
+// robot must not learn which trap caught it. The hourly limit is the one
+// refusal a visitor sees, because a person can act on it.
 func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	ws := domain.WebsiteFromContext(r.Context())
 	if ws == nil {
@@ -224,29 +257,54 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	if !h.optoutOffered(ws) {
 		return h.serve404(w, r, ws)
 	}
+	if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return nil
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, optoutMaxBody)
 	if err := r.ParseForm(); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+			return nil
+		}
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return nil
 	}
 	ctx := r.Context()
+	now := time.Now()
 	back, err := h.optoutBack(r, ws, r.PostFormValue("seite"))
 	if err != nil {
 		return err
+	}
+
+	if r.PostFormValue("website") != "" || !h.optoutStampFresh(r.PostFormValue("stempel"), now) {
+		optoutRedirect(w, r, back, "eingegangen")
+		return nil
+	}
+	recent, err := h.requests.CountSince(ctx, ws.ID, dsr.KindOptOut, now.Add(-time.Hour))
+	if err != nil {
+		return fmt.Errorf("count opt-outs: %w", err)
+	}
+	if recent >= optoutHourlyLimit {
+		optoutRedirect(w, r, back, "spaeter")
+		return nil
 	}
 
 	lang := LocaleFrom(ctx)
 	if lang == "" {
 		lang = ws.Locale
 	}
-	_, err = h.requests.Add(ctx, dsr.Request{
+	req := dsr.Request{
 		WebsiteID: ws.ID,
 		Kind:      dsr.KindOptOut,
 		Locale:    lang,
-		Name:      r.PostFormValue("name"),
-		Email:     r.PostFormValue("email"),
-		Note:      r.PostFormValue("note"),
+		Name:      strings.TrimSpace(r.PostFormValue("name")),
+		Email:     strings.TrimSpace(r.PostFormValue("email")),
+		Note:      strings.TrimSpace(r.PostFormValue("note")),
 		GPC:       legal.GPC(r.Header),
-	})
+	}
+	_, err = h.requests.Add(ctx, req)
 	switch {
 	case errors.Is(err, dsr.ErrEmpty):
 		optoutRedirect(w, r, back, "leer")
@@ -255,6 +313,7 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	case err != nil:
 		return fmt.Errorf("store opt-out: %w", err)
 	default:
+		h.optoutNotify(ctx, ws, req)
 		optoutRedirect(w, r, back, "eingegangen")
 	}
 	return nil
@@ -280,4 +339,97 @@ func (h *Handler) optoutBack(r *http.Request, ws *domain.Website, seite string) 
 
 func optoutRedirect(w http.ResponseWriter, r *http.Request, back, outcome string) {
 	http.Redirect(w, r, back+"?widerspruch="+outcome, http.StatusSeeOther)
+}
+
+// optoutStampFresh reports whether the form's time stamp is genuine, younger
+// than optoutMaxAge and older than optoutMinAge. The id slot of the token
+// holds the moment the form was drawn, in Unix seconds.
+func (h *Handler) optoutStampFresh(stamp string, now time.Time) bool {
+	issued, err := h.optoutSigner.Check(stamp, now)
+	if err != nil {
+		return false
+	}
+	age := now.Sub(time.Unix(issued, 0))
+	return age >= optoutMinAge && age <= optoutMaxAge
+}
+
+// optoutNotify tells the operator about a stored opt-out, by the rule every
+// notification of this program follows (NotifyForPlugin): only when mail is
+// set up for the website and the website has a notification address. Neither
+// is a failure — the request is stored and listed either way.
+//
+// In the website's main language, because the reader is the operator and not
+// the visitor (D-16). The visitor's address stays in the body and never
+// becomes a Reply-To: a header is built from what the operator configured and
+// from nothing a stranger typed. A mail error is logged and the visitor still
+// gets their confirmation, because their request is recorded.
+func (h *Handler) optoutNotify(ctx context.Context, ws *domain.Website, req dsr.Request) {
+	if h.mail == nil || ws.NotifyEmail == "" || !h.mail.EnabledFor(ctx, ws.ID) {
+		return
+	}
+	lang := ws.Locale
+	var b strings.Builder
+	// Label and value, one per line: a list, not a sentence.
+	line := func(label, value string) {
+		if value != "" {
+			b.WriteString(label + ": " + value + "\n")
+		}
+	}
+	line(i18n.T(lang, "Name"), req.Name)
+	line(i18n.T(lang, "E-mail address"), req.Email)
+	line(i18n.T(lang, "Note"), req.Note)
+	line(i18n.T(lang, "Language"), req.Locale)
+	b.WriteString("\n")
+	if req.GPC {
+		b.WriteString(i18n.T(lang, "The browser sent the Global Privacy Control signal."))
+	} else {
+		b.WriteString(i18n.T(lang, "The browser did not send the Global Privacy Control signal."))
+	}
+	b.WriteString("\n\n")
+	b.WriteString(i18n.T(lang, "The request is listed under Settings → Opt-outs of this website."))
+	b.WriteString("\n")
+
+	msg := mail.Message{
+		To: ws.NotifyEmail,
+		// The site's name in front, as on every notification: an operator
+		// running four websites gets four kinds into one inbox.
+		Subject: "[" + ws.Name + "] " + i18n.T(lang, "New opt-out request (Do Not Sell or Share)"),
+		Body:    b.String(),
+	}
+	if err := h.mail.Enqueue(ctx, ws.ID, msg); err != nil {
+		slog.Error("queue opt-out notification", "err", err, "website", ws.ID)
+	}
+}
+
+// HandleGPCJSON answers /.well-known/gpc.json for a website that follows US
+// law: the resource the Global Privacy Control specification defines for a
+// site to say that it honours the signal. lastUpdate is optional there, and
+// nothing stores a date for it, so it is left out rather than invented.
+//
+// A website without US in its set answers 404 — it makes no such statement.
+func (h *Handler) HandleGPCJSON(w http.ResponseWriter, r *http.Request) error {
+	ws := domain.WebsiteFromContext(r.Context())
+	if ws == nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	if !ws.Frameworks().Has(legal.US) {
+		return h.serve404(w, r, ws)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	_, err := io.WriteString(w, `{"gpc": true}`)
+	return err
+}
+
+// optoutVary names the request headers an answer depends on beyond
+// HX-Request: Sec-GPC when the widget is in it, because its first line does,
+// and nothing otherwise. Every other page of a US website is the same with
+// and without the signal (D-12), and naming Sec-GPC there would split a
+// shared cache's entry in two for nothing.
+func (h *Handler) optoutVary(content []byte) []string {
+	if bytes.Contains(content, []byte(optoutWidgetMark)) {
+		return []string{legal.GPCHeader}
+	}
+	return nil
 }

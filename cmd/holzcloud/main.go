@@ -1465,6 +1465,9 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// The opt-out form of a website that follows US law. Like /freischalten
 	// it takes no CSRF token, because it rides no session (D-03).
 	publicMux.HandleFunc("POST /widerspruch", publicHandler.ErrHandler(publicHandler.HandleOptOut))
+	// The Global Privacy Control statement of a website that follows US law;
+	// 404 on every other.
+	publicMux.HandleFunc("GET /.well-known/gpc.json", publicHandler.ErrHandler(publicHandler.HandleGPCJSON))
 	publicMux.HandleFunc("GET /vorschau/{token}", publicHandler.ErrHandler(publicHandler.HandleShareLink))
 	publicMux.HandleFunc("POST /preise", publicHandler.ErrHandler(publicHandler.HandlePriceSwitch))
 	publicMux.HandleFunc("GET /warenkorb", publicHandler.ErrHandler(publicHandler.HandleCart))
