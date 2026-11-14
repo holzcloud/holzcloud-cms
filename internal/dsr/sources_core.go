@@ -5,6 +5,11 @@ package dsr
 // migration 00066 serve. Lower-casing both sides in SQL would compare the
 // same way and read the whole table for every search.
 //
+// No statement sorts. With an ORDER BY created_at, SQLite prefers the
+// website's (website_id, created_at) index to skip the sort and then reads
+// every row of the website to compare the address; Service.Find sorts each
+// source's few records by time instead.
+//
 // No statement here reads a secret: not orders.token, not a password hash, a
 // second-factor secret, a token hash or a recovery code. What a source does
 // not read cannot end up in an export (see export.go for why).
@@ -104,8 +109,7 @@ const formMessagesQuery = `SELECT fm.id, fm.name, fm.email, fm.subject, fm.body,
 	COALESCE(p.title, ''), fm.created_at, fm.read_at
 	FROM form_messages fm
 	LEFT JOIN pages p ON p.id = fm.page_id AND p.website_id = fm.website_id
-	WHERE fm.website_id = $1 AND fm.email = $2 COLLATE NOCASE
-	ORDER BY fm.created_at, fm.id`
+	WHERE fm.website_id = $1 AND fm.email = $2 COLLATE NOCASE`
 
 func (f formMessagesSource) Find(ctx context.Context, websiteID int64, email string) ([]Record, error) {
 	rows, err := f.s.db.Read.QueryContext(ctx, formMessagesQuery, websiteID, email)
@@ -210,8 +214,7 @@ func (requestsSource) Name() string { return "requests" }
 
 // requestsQuery is the statement requestsSource runs.
 const requestsQuery = `SELECT id, kind, locale, name, email, note, gpc, created_at, handled_at
-	FROM privacy_requests WHERE website_id = $1 AND email = $2 COLLATE NOCASE
-	ORDER BY created_at, id`
+	FROM privacy_requests WHERE website_id = $1 AND email = $2 COLLATE NOCASE`
 
 func (q requestsSource) Find(ctx context.Context, websiteID int64, email string) ([]Record, error) {
 	rows, err := q.s.db.Read.QueryContext(ctx, requestsQuery, websiteID, email)
@@ -277,8 +280,7 @@ const outboxQuery = `SELECT id, kind, recipient, reply_to, subject, body, status
 	UNION
 	SELECT id, kind, recipient, reply_to, subject, body, status, created_at, sent_at
 	FROM outbox WHERE website_id = $1 AND order_id IN
-		(SELECT id FROM orders WHERE website_id = $1 AND email = $2 COLLATE NOCASE)
-	ORDER BY created_at, id`
+		(SELECT id FROM orders WHERE website_id = $1 AND email = $2 COLLATE NOCASE)`
 
 // mailQueueQuery is the queue half. The queue is small and sent rows go
 // after a week, so it has no address index and is read per website. A row
@@ -286,8 +288,7 @@ const outboxQuery = `SELECT id, kind, recipient, reply_to, subject, body, status
 // website's screen.
 const mailQueueQuery = `SELECT id, recipient, reply_to, subject, body, attempts, created_at, sent_at
 	FROM mail_outbox WHERE website_id = $1
-		AND (recipient = $2 COLLATE NOCASE OR reply_to = $2 COLLATE NOCASE)
-	ORDER BY created_at, id`
+		AND (recipient = $2 COLLATE NOCASE OR reply_to = $2 COLLATE NOCASE)`
 
 func (m mailSource) Find(ctx context.Context, websiteID int64, email string) ([]Record, error) {
 	out, err := m.outbox(ctx, websiteID, email)
@@ -388,8 +389,7 @@ func (ordersSource) Name() string { return "orders" }
 const ordersQuery = `SELECT id, number, currency, email, name, company, vat_number, phone,
 	street, postal_code, city, country, note, total_gross, status, payment_method,
 	payment_status, payment_reference, created_at
-	FROM orders WHERE website_id = $1 AND email = $2 COLLATE NOCASE
-	ORDER BY created_at, id`
+	FROM orders WHERE website_id = $1 AND email = $2 COLLATE NOCASE`
 
 func (o ordersSource) Find(ctx context.Context, websiteID int64, email string) ([]Record, error) {
 	rows, err := o.s.db.Read.QueryContext(ctx, ordersQuery, websiteID, email)

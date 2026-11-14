@@ -1035,3 +1035,48 @@ func TestMigration00065DownAndUp(t *testing.T) {
 		t.Error("the trigger did not come back")
 	}
 }
+
+// TestMigration00066DownAndUp takes the four address indexes of the privacy
+// search off and puts them back. Indexes only: no row changes either way.
+func TestMigration00066DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+	indexes := []string{"orders_by_email", "form_messages_by_email", "outbox_by_recipient", "privacy_requests_by_email"}
+	present := func() int {
+		n := 0
+		for _, name := range indexes {
+			var count int
+			if err := database.Read.QueryRowContext(ctx,
+				`SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?`, name).Scan(&count); err != nil {
+				t.Fatalf("sqlite_master: %v", err)
+			}
+			n += count
+		}
+		return n
+	}
+
+	if got := present(); got != len(indexes) {
+		t.Fatalf("%d of the %d indexes after the migrations", got, len(indexes))
+	}
+	rollBackTo(t, ctx, provider, 65)
+	if got := present(); got != 0 {
+		t.Errorf("%d indexes left after rolling back to 00065, want none", got)
+	}
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+	if got := present(); got != len(indexes) {
+		t.Errorf("%d of the %d indexes after the trip back up", got, len(indexes))
+	}
+}

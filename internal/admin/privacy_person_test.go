@@ -13,6 +13,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
+	"github.com/holzcloud/holzcloud-cms/internal/ai"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
@@ -258,5 +259,86 @@ func TestThePrivacyScreenNamesWhatItCouldNotSearch(t *testing.T) {
 	}
 	if len(got.NotCovered) != 1 || got.NotCovered[0].Plugin != "kontaktformular" || got.NotCovered[0].Entries != 4 {
 		t.Errorf("not_covered = %+v", got.NotCovered)
+	}
+}
+
+// T-33.2-05: the log records that a person's data was handed out, and how
+// much, never whose. The row outlives an erasure, and a row that kept the
+// address would keep exactly what was erased.
+func TestAnExportLeavesNoAddressInTheLog(t *testing.T) {
+	h, sm, database, ws := privacyAdmin(t)
+	privacyOrder(t, database, ws.ID, "2026-0701", "ada.lovelace@example.com", "Ada Lovelace")
+	privacyOrder(t, database, ws.ID, "2026-0702", "Ada.Lovelace@example.com", "Ada Lovelace")
+
+	rec := privacyGet(t, h, sm, h.HandlePrivacyExport, privacyScreen(ws.ID)+"/export.json?email=ada.lovelace@example.com", ws.ID)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200", rec.Code)
+	}
+
+	rows, err := database.Read.Query(`SELECT action, COALESCE(website_id, 0), CAST(id AS TEXT), COALESCE(CAST(user_id AS TEXT), ''),
+		actor_email, entity_type, CAST(entity_id AS TEXT), metadata, created_at
+		FROM activity_log WHERE action = $1`, activity.ActionPrivacyExport)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		n++
+		var action string
+		var websiteID int64
+		var id, userID, actor, entityType, entityID, metadata, created string
+		if err := rows.Scan(&action, &websiteID, &id, &userID, &actor, &entityType, &entityID, &metadata, &created); err != nil {
+			t.Fatal(err)
+		}
+		if websiteID != ws.ID {
+			t.Errorf("the entry is for website %d, want %d", websiteID, ws.ID)
+		}
+		var meta map[string]any
+		if err := json.Unmarshal([]byte(metadata), &meta); err != nil {
+			t.Fatalf("metadata %q: %v", metadata, err)
+		}
+		if meta["records"] != float64(2) {
+			t.Errorf("metadata = %s, want records = 2", metadata)
+		}
+		for _, col := range []string{action, id, userID, actor, entityType, entityID, metadata, created} {
+			if strings.Contains(strings.ToLower(col), "lovelace") {
+				t.Errorf("a column of the log entry carries the address: %q", col)
+			}
+		}
+	}
+	if n != 1 {
+		t.Errorf("%d privacy.export entries, want 1", n)
+	}
+
+	// Looking at the screen is not handing data out, and writes nothing.
+	privacyGet(t, h, sm, h.HandlePrivacyPerson, privacyScreen(ws.ID)+"?email=ada.lovelace@example.com", ws.ID)
+	var total int
+	if err := database.Read.QueryRow(`SELECT COUNT(*) FROM activity_log WHERE action = $1`, activity.ActionPrivacyExport).Scan(&total); err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 {
+		t.Errorf("%d entries after viewing the screen, want still 1", total)
+	}
+}
+
+// 33.1 D-16 carried over: a person's data stays in the admin. No assistant
+// tool searches by address or reads a privacy request.
+func TestThePrivacyScreenIsNotOverMCP(t *testing.T) {
+	h, _, _, _ := newTestAdmin(t)
+	tools := ai.Tools(ai.Deps{
+		Domains: h.domains, Pages: h.pages, Media: h.mediaStore, Fields: h.fields, Ops: h,
+		Limits: ai.Limits{DataDir: h.cfg.DataDir},
+	})
+	if len(tools) < 10 {
+		t.Fatalf("%d tools; the registry was not built, the guard would prove nothing", len(tools))
+	}
+	for _, tool := range tools {
+		name := strings.ToLower(tool.Name)
+		for _, bad := range []string{"person", "personal", "privacy_request"} {
+			if strings.Contains(name, bad) {
+				t.Errorf("tool %q names %q: a person's data is not exposed over MCP", tool.Name, bad)
+			}
+		}
 	}
 }

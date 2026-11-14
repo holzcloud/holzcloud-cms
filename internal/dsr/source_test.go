@@ -410,3 +410,53 @@ func TestPluginsWithDataAreReported(t *testing.T) {
 		t.Errorf("NotCovered = %+v", res.NotCovered())
 	}
 }
+
+// findPlan is the query plan SQLite chooses for a statement, one detail per
+// line.
+func findPlan(t *testing.T, database *db.DB, query string, args ...any) []string {
+	t.Helper()
+	rows, err := database.Read.Query("EXPLAIN QUERY PLAN "+query, args...)
+	if err != nil {
+		t.Fatalf("EXPLAIN: %v", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id, parent, notused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, detail)
+	}
+	return out
+}
+
+// Pitfall 8: a search that reads a whole table per address is a search that
+// gets slower with every order. The statements are the constants the sources
+// run, not copies, so a change to a source is a change to what this checks.
+func TestTheSearchUsesItsIndexes(t *testing.T) {
+	_, database := newTestStore(t)
+	for _, c := range []struct {
+		name, query, table, index string
+	}{
+		{"orders", ordersQuery, "orders", "orders_by_email"},
+		{"form_messages", formMessagesQuery, "form_messages", "form_messages_by_email"},
+		{"requests", requestsQuery, "privacy_requests", "privacy_requests_by_email"},
+		{"mail (outbox)", outboxQuery, "outbox", "outbox_by_recipient"},
+	} {
+		plan := findPlan(t, database, c.query, int64(1), "ada@example.com")
+		joined := strings.Join(plan, "\n")
+		if !strings.Contains(joined, c.index) {
+			t.Errorf("%s: the plan does not use %s:\n%s", c.name, c.index, joined)
+		}
+		for _, line := range plan {
+			// "SCAN fm" or "SCAN orders" is a full read; a SCAN through an
+			// index ("USING INDEX") or of a subquery result is not.
+			if strings.HasPrefix(line, "SCAN ") && !strings.Contains(line, "USING") &&
+				(strings.HasPrefix(line, "SCAN "+c.table) || strings.HasPrefix(line, "SCAN fm")) {
+				t.Errorf("%s: the plan reads the whole table: %q", c.name, line)
+			}
+		}
+	}
+}

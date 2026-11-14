@@ -20,6 +20,7 @@ package dsr
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -173,6 +174,7 @@ func (s *Service) Find(ctx context.Context, websiteID int64, email string) (*Res
 			res.Failed = append(res.Failed, SourceError{Source: src.Name(), Err: err})
 			continue
 		}
+		sort.SliceStable(recs, func(i, j int) bool { return recs[i].Time.Before(recs[j].Time) })
 		res.Records = append(res.Records, recs...)
 	}
 	return res, nil
