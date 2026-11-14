@@ -263,7 +263,7 @@ func (h *Handler) HandleHome(w http.ResponseWriter, r *http.Request) error {
 		h.servePrivate(w, content)
 		return nil
 	}
-	h.serveCached(w, r, content, contentModTime(pg, snippets, albumsAt), h.optoutVary(content)...)
+	h.serveCached(w, r, content, h.optoutModTime(content, contentModTime(pg, snippets, albumsAt)), h.optoutVary(content)...)
 	return nil
 }
 
@@ -354,7 +354,7 @@ func (h *Handler) HandlePage(w http.ResponseWriter, r *http.Request) error {
 		h.servePrivate(w, content)
 		return nil
 	}
-	h.serveCached(w, r, content, contentModTime(pg, snippets, albumsAt), h.optoutVary(content)...)
+	h.serveCached(w, r, content, h.optoutModTime(content, contentModTime(pg, snippets, albumsAt)), h.optoutVary(content)...)
 	return nil
 }
 
@@ -570,13 +570,20 @@ const hxRequest = "HX-Request"
 //
 // vary names request headers the content depends on beyond HX-Request — the
 // opt-out widget's Sec-GPC (optoutVary). Most callers name none.
+//
+// A zero modTime means the answer has no date that describes it: no
+// Last-Modified is sent and If-Modified-Since is never answered with 304, so
+// only the ETag can revalidate it. The page carrying the opt-out widget is
+// one (optoutModTime): its form carries a stamp drawn at this render.
 func (h *Handler) serveCached(w http.ResponseWriter, r *http.Request, content []byte, modTime time.Time, vary ...string) {
 	// Compute ETag from content hash
 	hash := sha256.Sum256(content)
 	etag := `"` + hex.EncodeToString(hash[:16]) + `"`
 
 	w.Header().Set("ETag", etag)
-	w.Header().Set("Last-Modified", modTime.UTC().Format(http.TimeFormat))
+	if !modTime.IsZero() {
+		w.Header().Set("Last-Modified", modTime.UTC().Format(http.TimeFormat))
+	}
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	// Set and not Add, and that is a CLAIM about the content rather than a
 	// convenience: the session middleware names Cookie on every request, and
@@ -624,7 +631,7 @@ func (h *Handler) serveCached(w http.ResponseWriter, r *http.Request, content []
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
-	} else if since := r.Header.Get("If-Modified-Since"); since != "" {
+	} else if since := r.Header.Get("If-Modified-Since"); since != "" && !modTime.IsZero() {
 		t, err := http.ParseTime(since)
 		if err == nil && !modTime.Truncate(time.Second).After(t) {
 			w.WriteHeader(http.StatusNotModified)

@@ -576,6 +576,22 @@ func (h *Handler) HandleGPCJSON(w http.ResponseWriter, r *http.Request) error {
 	return err
 }
 
+// optoutModTime is the date an answer is revalidated by: the page's own, or
+// none when the widget is in it (WR-07 of the 33.1 review).
+//
+// The widget's form carries a stamp drawn at this render, so the body changes
+// with every request while the page's date stands still. With the date as a
+// validator, a revalidation by If-Modified-Since alone answered 304 and left
+// the visitor with an old form whose stamp had run out — the same "a source
+// that changes the page without touching the page" that contentModTime
+// documents for albums. Without one, only the ETag decides.
+func (h *Handler) optoutModTime(content []byte, modTime time.Time) time.Time {
+	if bytes.Contains(content, []byte(optoutWidgetMark)) {
+		return time.Time{}
+	}
+	return modTime
+}
+
 // optoutVary names the request headers an answer depends on beyond
 // HX-Request: Sec-GPC when the widget is in it, because its first line does,
 // and nothing otherwise. Every other page of a US website is the same with

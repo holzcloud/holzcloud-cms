@@ -892,6 +892,43 @@ func TestTheWidgetPageVariesOnGPC(t *testing.T) {
 	}
 }
 
+// The widget carries a stamp drawn at each render, so its page changes with
+// every request while the page's own date stands still. A revalidation by
+// date alone used to answer 304 and leave the visitor with yesterday's form
+// and its expired stamp (WR-07). Such a page has no date validator: only the
+// ETag decides. Every other page keeps its date.
+func TestTheWidgetPageIsNotRevalidatedByDate(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+	optoutPage(t, database, ws.ID, "ueber-uns", "<p>Wir sind ein Hofladen.</p>", "")
+
+	first := optoutGet(t, h, ws, "/do-not-sell", nil)
+	if lm := first.Header().Get("Last-Modified"); lm != "" {
+		t.Errorf("the widget page carries Last-Modified %q; its date says nothing about its body", lm)
+	}
+	future := time.Now().Add(24 * time.Hour).UTC().Format(http.TimeFormat)
+	again := optoutDo(h.HandlePage, ws, http.MethodGet, "/do-not-sell", nil, http.Header{"If-Modified-Since": {future}})
+	if again.Code != http.StatusOK {
+		t.Errorf("If-Modified-Since alone on the widget page = %d; want 200 with a fresh form", again.Code)
+	}
+	if !strings.Contains(again.Body.String(), `name="stempel"`) {
+		t.Error("the answer carries no form")
+	}
+	same := optoutDo(h.HandlePage, ws, http.MethodGet, "/do-not-sell", nil, http.Header{"If-None-Match": {again.Header().Get("ETag")}})
+	if same.Code != http.StatusNotModified {
+		t.Errorf("If-None-Match with the current ETag = %d; want 304 — the strong validator still works", same.Code)
+	}
+
+	plain := optoutGet(t, h, ws, "/ueber-uns", nil)
+	if plain.Header().Get("Last-Modified") == "" {
+		t.Fatal("a page without the widget lost its Last-Modified")
+	}
+	cond := optoutDo(h.HandlePage, ws, http.MethodGet, "/ueber-uns", nil, http.Header{"If-Modified-Since": {future}})
+	if cond.Code != http.StatusNotModified {
+		t.Errorf("If-Modified-Since on a page without the widget = %d; want 304 as before", cond.Code)
+	}
+}
+
 func TestGPCChangesNothingElse(t *testing.T) {
 	h, database, ws := optoutSite(t, "eu,us", "")
 	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
