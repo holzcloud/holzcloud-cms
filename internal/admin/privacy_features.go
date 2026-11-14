@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/privacy"
 	"github.com/holzcloud/holzcloud-cms/internal/shop"
@@ -64,9 +65,12 @@ func (h *Handler) privacyFeatures(ctx context.Context, ws *domain.Website) (priv
 // content, uses it as it is.
 func (h *Handler) legalRequest(ctx context.Context, ws *domain.Website, tag string) (privacy.Request, error) {
 	if ws == nil {
-		return privacy.Request{Lang: tag}, errors.New("no website")
+		return privacy.Request{Lang: tag, Swiss: i18n.Region(tag) == "CH"}, errors.New("no website")
 	}
-	r := privacy.Request{Lang: tag, Set: ws.Frameworks()}
+	// Swiss spelling (D-15) for a website in Switzerland, and for a page whose
+	// tag says Swiss German even when the website is elsewhere.
+	swiss := ws.Country == "CH" || i18n.Region(tag) == "CH"
+	r := privacy.Request{Lang: tag, Swiss: swiss, Set: ws.Frameworks()}
 	f, err := h.privacyFeatures(ctx, ws)
 	if err != nil {
 		return r, err

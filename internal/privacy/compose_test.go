@@ -379,3 +379,152 @@ func TestNoOperatorStringCanReachATemplate(t *testing.T) {
 		}
 	}
 }
+
+// swissForm is the Swiss spelling the test expects, written here and not
+// taken from the code under test.
+var swissForm = strings.NewReplacer("\u00df", "ss", "\u201e", "\u00ab", "\u201c", "\u00bb")
+
+// A Swiss website gets the German text in Swiss spelling (D-15): the same
+// text, with ss for the sharp s and with guillemets.
+func TestSwissGermanHasNoEszett(t *testing.T) {
+	plainPrivacy := ComposePrivacy(Request{Lang: "de", Set: allSet(), Features: allFeatures()})
+	if !strings.Contains(plainPrivacy, "\u00df") {
+		t.Fatal("the German privacy text has no sharp s, so this test would pass without the Swiss spelling")
+	}
+	for _, k := range Kinds() {
+		for _, set := range sets() {
+			for _, f := range []Features{{}, allFeatures()} {
+				plain := compose(k, Request{Lang: "de", Set: set, Features: f})
+				swiss := compose(k, Request{Lang: "de", Swiss: true, Set: set, Features: f})
+				if swiss != swissForm.Replace(plain) {
+					t.Errorf("%s %s: the Swiss text is not the German text in Swiss spelling", k, set)
+				}
+				for _, bad := range []string{"\u00df", "\u201e", "\u201c"} {
+					if strings.Contains(swiss, bad) {
+						t.Errorf("%s %s: the Swiss text still contains %q", k, set, bad)
+					}
+				}
+				if de := compose(k, Request{Lang: "de-CH", Swiss: true, Set: set, Features: f}); de != swiss {
+					t.Errorf("%s %s: de-CH with Swiss spelling differs from de with Swiss spelling", k, set)
+				}
+			}
+		}
+		// For a language with texts of its own the switch changes nothing.
+		for _, lang := range []string{"fr", "it", "en", "rm"} {
+			if TextLang(k, lang) == "de" {
+				continue
+			}
+			r := Request{Lang: lang, Set: allSet(), Features: allFeatures()}
+			plain := compose(k, r)
+			r.Swiss = true
+			if compose(k, r) != plain {
+				t.Errorf("%s: Swiss spelling changed the %s text", k, lang)
+			}
+		}
+	}
+}
+
+func TestTheTextLanguageFallsBack(t *testing.T) {
+	for _, k := range Kinds() {
+		have := map[string]bool{}
+		for _, l := range languagesOf(t, k) {
+			have[l] = true
+		}
+		fallback := "de"
+		if have["en"] {
+			fallback = "en"
+		}
+		cases := map[string]string{
+			"de":    "de",
+			"de-CH": "de",
+			"DE-ch": "de",
+			"es":    fallback,
+			"es-MX": fallback,
+			"pt":    fallback,
+			"":      fallback,
+			"xx-YY": fallback,
+		}
+		for _, l := range []string{"rm", "fr", "it", "en"} {
+			if have[l] {
+				cases[l] = l
+				cases[l+"-CH"] = l
+			} else {
+				cases[l] = fallback
+			}
+		}
+		for tag, want := range cases {
+			if got := TextLang(k, tag); got != want {
+				t.Errorf("TextLang(%s, %q) = %q, want %q", k, tag, got, want)
+			}
+			if got, want := Title(k, tag), meta(k, want, "title"); got != want || got == "" {
+				t.Errorf("Title(%s, %q) = %q, want %q", k, tag, got, want)
+			}
+			if got, want := Slug(k, tag), meta(k, want, "slug"); got != want || got == "" {
+				t.Errorf("Slug(%s, %q) = %q, want %q", k, tag, got, want)
+			}
+		}
+	}
+	if got := Slug(KindPrivacy, "de-CH"); got != "datenschutz" {
+		t.Errorf("the German privacy slug is %q, want datenschutz", got)
+	}
+}
+
+func TestEveryLanguagesNoticeIsRecognised(t *testing.T) {
+	for _, lang := range allLanguages(t) {
+		words := langFile(t, lang)
+		n := words["template_notice"]
+		if !HasTemplateNotice("Intro\n\n**" + n + "** Rest") {
+			t.Errorf("the %s notice is not recognised", lang)
+		}
+		if !HasTemplateNotice(swissForm.Replace(n)) {
+			t.Errorf("the %s notice in Swiss spelling is not recognised", lang)
+		}
+		if HasTemplateNotice(words["no_legal_advice"]) {
+			t.Errorf("the %s no-legal-advice line alone counts as a template notice", lang)
+		}
+		if TemplateNotice(lang) != n {
+			t.Errorf("TemplateNotice(%s) = %q, want %q", lang, TemplateNotice(lang), n)
+		}
+	}
+	if HasTemplateNotice("Datenschutz") {
+		t.Error("a word that is no notice counts as one")
+	}
+	if TemplateNotice("pt") != TemplateNotice("de") || TemplateNotice("de-CH") != TemplateNotice("de") {
+		t.Error("an unknown language or a regional tag does not get the German notice")
+	}
+}
+
+func TestRoleSlugsCoverEveryLanguage(t *testing.T) {
+	got := RoleSlugs(KindPrivacy)
+	if !slices.Contains(got, "datenschutz") {
+		t.Errorf("RoleSlugs = %v, want datenschutz among them", got)
+	}
+	if !slices.IsSorted(got) {
+		t.Errorf("RoleSlugs = %v, not sorted", got)
+	}
+	seen := map[string]bool{}
+	for _, s := range got {
+		if seen[s] {
+			t.Errorf("RoleSlugs lists %q twice", s)
+		}
+		seen[s] = true
+	}
+	for _, lang := range languagesOf(t, KindPrivacy) {
+		raw, err := fs.ReadFile(textFS, path.Join("texts", lang, string(KindPrivacy), "meta.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m struct {
+			Slug string   `json:"slug"`
+			Also []string `json:"also_slugs"`
+		}
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range append([]string{m.Slug}, m.Also...) {
+			if !seen[s] {
+				t.Errorf("%s: slug %q is not among the role slugs", lang, s)
+			}
+		}
+	}
+}

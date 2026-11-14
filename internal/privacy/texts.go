@@ -247,10 +247,15 @@ func NoLegalAdvice(tag string) string { return wordsOf(tag).NoLegalAdvice }
 func Fillin(tag string) string { return wordsOf(tag).Fillin }
 
 // HasTemplateNotice reports whether the page still carries the sentence that
-// marks it as an unfilled template, in any language.
+// marks it as an unfilled template, in any language and in the Swiss spelling
+// too: a page made for a Swiss website carries the notice in that form.
 func HasTemplateNotice(markdown string) bool {
 	for _, w := range texts().langs {
-		if w.TemplateNotice != "" && strings.Contains(markdown, w.TemplateNotice) {
+		n := w.TemplateNotice
+		if n == "" {
+			continue
+		}
+		if strings.Contains(markdown, n) || strings.Contains(markdown, swissSpelling.Replace(n)) {
 			return true
 		}
 	}

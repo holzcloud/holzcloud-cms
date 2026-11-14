@@ -406,3 +406,50 @@ func TestTheDraftFollowsTheFrameworks(t *testing.T) {
 		})
 	}
 }
+
+// A website in Switzerland gets its German draft in Swiss spelling (D-15); a
+// website in Germany keeps the sharp s.
+func TestASwissWebsiteGetsSwissSpelling(t *testing.T) {
+	for _, tc := range []struct {
+		country string
+		swiss   bool
+	}{{"CH", true}, {"DE", false}} {
+		t.Run(tc.country, func(t *testing.T) {
+			h, sm, database, ws := newTestAdmin(t)
+			ctx := context.Background()
+			if _, err := database.Write.Exec(`UPDATE websites SET country = ?, legal_frameworks = 'eu,ch' WHERE id = ?`, tc.country, ws.ID); err != nil {
+				t.Fatal(err)
+			}
+			serve(t, h, sm, h.HandlePrivacyDraft, draftRequest(idOf(ws.ID)))
+			got := pagesWithSlugPrefix(t, h, ws.ID, draftSlug())
+			if len(got) != 1 {
+				t.Fatalf("%d drafts, want 1", len(got))
+			}
+			text := got[0].ContentMarkdown
+			if hasSharp := strings.Contains(text, "\u00df"); hasSharp == tc.swiss {
+				t.Errorf("country %s: sharp s present = %v, want %v", tc.country, hasSharp, !tc.swiss)
+			}
+			stored := readWebsite(t, h, ws.ID)
+			req, err := h.legalRequest(ctx, stored, stored.Locale)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if req.Swiss != tc.swiss {
+				t.Errorf("country %s: legalRequest.Swiss = %v, want %v", tc.country, req.Swiss, tc.swiss)
+			}
+			if text != privacy.ComposePrivacy(req) {
+				t.Errorf("country %s: the draft is not the composed template of its request", tc.country)
+			}
+		})
+	}
+
+	// A de-CH page of a website elsewhere is Swiss too.
+	h, _, _, ws := newTestAdmin(t)
+	req, err := h.legalRequest(context.Background(), readWebsite(t, h, ws.ID), "de-CH")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !req.Swiss {
+		t.Error("a de-CH page does not get the Swiss spelling")
+	}
+}

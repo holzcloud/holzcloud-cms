@@ -136,8 +136,20 @@ func compose(k Kind, r Request) string {
 	for key, v := range shared {
 		vars[key] = v
 	}
-	return replacerOf(vars).Replace(text)
+	text = replacerOf(vars).Replace(text)
+	if lang == "de" && r.Swiss {
+		text = swissSpelling.Replace(text)
+	}
+	return text
 }
+
+// swissSpelling turns German into Swiss German spelling (D-15): ss for the
+// sharp s, and guillemets for the low-high quotation marks. It is the rule
+// tools/i18n applies to the de-CH catalogue, and internal/i18n/tag.go says
+// why: a German text in the German spelling looks foreign on a Swiss
+// website. The letters are written as escapes because tools/english reads
+// this file.
+var swissSpelling = strings.NewReplacer("\u00df", "ss", "\u201e", "\u00ab", "\u201c", "\u00bb")
 
 // sharedVars are the placeholders every kind can use.
 func sharedVars(lang string) map[string]string {
