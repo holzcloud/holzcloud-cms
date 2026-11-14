@@ -1,0 +1,92 @@
+{{/*
+  Datenschutz einer Website: eine Person finden (Phase 33.2, DSR-01). Man gibt
+  eine E-Mail-Adresse ein und sieht, was diese Website darunter aufbewahrt, und
+  lädt es als JSON herunter. Die Suche ändert nichts — darum ein GET-Formular,
+  keine Bestätigung und hier kein Löschen. Was nicht durchsucht werden konnte,
+  steht vor dem Gefundenen: eine unvollständige Antwort muss das zuerst sagen.
+*/}}
+{{define "content"}}
+{{template "privacy_tabs" .}}
+{{template "privacy_person-content" .}}
+{{end}}
+
+{{define "privacy_person-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <form method="get" action="/admin/websites/{{.WebsiteID}}/datenschutz" role="search">
+        <div class="form-group">
+            <label class="form-label" for="email">{{t "E-mail address"}}</label>
+            <input type="email" id="email" name="email" class="form-input" required
+                   autocomplete="off" spellcheck="false" value="{{.Email}}"
+                   aria-describedby="email-hint{{with .Errors.email}} email-error{{end}}"
+                   {{with .Errors.email}}aria-invalid="true"{{end}}>
+            {{with .Errors.email}}<p class="form-error" id="email-error">{{t .}}</p>{{end}}
+            <p class="form-hint text-muted" id="email-hint">{{t "Before you send anything, check that the request really comes from the person this address belongs to (GDPR Art. 12(6), Swiss DSV Art. 16(5), CCPA regs § 7060 ff.)."}}</p>
+        </div>
+        <button type="submit" class="btn btn--primary">{{t "Search"}}</button>
+    </form>
+</div>
+
+{{if .Searched}}
+{{if .Failed}}
+<div class="card privacy-incomplete" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Could not be searched"}}</h2>
+    <p class="text-muted">{{t "These stores did not answer. The result below is incomplete; try again later."}}</p>
+    <ul>
+        {{range .Failed}}<li>{{t .}}</li>{{end}}
+    </ul>
+</div>
+{{end}}
+{{if .NotCovered}}
+<div class="card privacy-incomplete" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Not searched"}}</h2>
+    <p class="text-muted">{{t "These plugins keep data for this website, and the search could not ask them. Look through their entries yourself."}}</p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Plugin"}}</th>
+                <th scope="col">{{t "Entries"}}</th>
+                <th scope="col">{{t "Why"}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .NotCovered}}
+            <tr>
+                <td>{{.Name}}</td>
+                <td>{{tf "%d entries" .Entries}}</td>
+                <td class="text-muted">{{if .Reason}}{{t .Reason}}{{else}}–{{end}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}
+
+<div class="card" style="margin-bottom: var(--space-3);">
+    {{if .Count}}
+    <p>{{tf "%d records found for %s." .Count .Email}}</p>
+    {{else}}
+    <p>{{t "Nothing found for this address on this website."}}</p>
+    {{end}}
+    <p><a href="{{.ExportURL}}" class="btn" download>{{t "Download as JSON"}}</a></p>
+</div>
+
+{{range .Groups}}
+<section class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{t .Heading}} <span class="text-muted">({{tf "%d records" (len .Records)}})</span></h2>
+    {{range .Records}}
+    <article style="margin-block-start: var(--space-3);">
+        <h3>
+            {{if .Link}}<a href="{{.Link}}">{{t .Label}} {{.Key}}</a>{{else}}{{t .Label}} {{.Key}}{{end}}
+            {{if not .Time.IsZero}}<span class="text-muted" style="font-weight:normal">· {{.Time.Format "02.01.2006 15:04 MST"}}</span>{{end}}
+        </h3>
+        <dl class="detail-list">
+            {{range .Shown}}
+            <dt>{{t .Label}}</dt><dd style="white-space:pre-line">{{.Value}}</dd>
+            {{end}}
+        </dl>
+    </article>
+    {{end}}
+</section>
+{{end}}
+{{end}}
+{{end}}

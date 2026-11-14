@@ -680,6 +680,11 @@ var editorOpenRoutes = []route{
 	// publishes nothing (phase 33.1 D-14).
 	{pattern: "GET /admin/websites/{id}/widersprueche"},
 	{pattern: "POST /admin/websites/{id}/widersprueche/{requestID}/erledigt"},
+	// The Privacy screen follows them: finding a person's data and
+	// downloading it reads what the order book and the opt-out list show
+	// already, and changes nothing (Phase 33.2, DSR-01).
+	{pattern: "GET /admin/websites/{id}/datenschutz"},
+	{pattern: "GET /admin/websites/{id}/datenschutz/export.json"},
 	{pattern: "GET /admin/websites/{id}/menus"},
 	{pattern: "POST /admin/websites/{id}/menus"},
 	{pattern: "GET /admin/websites/{id}/menus/{menuID}"},

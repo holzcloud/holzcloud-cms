@@ -93,6 +93,10 @@ type Handler struct {
 	// Sell or Share" page takes. Nil means the opt-out screen answers 404 —
 	// see SetRequestStore.
 	requests *dsr.Store
+	// dataRights finds a person's data across the stores of a website, for
+	// the Privacy screen. Nil means that screen answers 404 — see
+	// SetDataRights.
+	dataRights *dsr.Service
 	// products, orders and payments back the shop. Each may be nil, in which
 	// case the shop screens do not exist and no shop route answers.
 	products *shop.Store
@@ -302,6 +306,11 @@ func (h *Handler) SetValueStore(s *value.Store) { h.valueStore = s }
 // its routes answer 404; the public form writes through its own handler and
 // is not affected.
 func (h *Handler) SetRequestStore(s *dsr.Store) { h.requests = s }
+
+// SetDataRights attaches the privacy search (Phase 33.2). A setter for the
+// reason SetAlbumStore gives; nil means the Privacy screen does not exist and
+// its routes answer 404.
+func (h *Handler) SetDataRights(s *dsr.Service) { h.dataRights = s }
 
 // SetWording gives the handler the store behind the wording screen.
 func (h *Handler) SetWording(s *wording.Store) { h.wording = s }

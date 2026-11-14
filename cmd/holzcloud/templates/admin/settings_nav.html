@@ -20,6 +20,7 @@
         <a href="/admin/websites/{{$id}}/werte" class="settings-nav__item{{if eq .ActiveNav "values"}} is-active{{end}}"{{if eq .ActiveNav "values"}} aria-current="page"{{end}}>{{template "icon-fields"}}<span>{{t "Values"}}</span></a>
         <a href="/admin/websites/{{$id}}/redirects" class="settings-nav__item{{if eq .ActiveNav "redirects"}} is-active{{end}}"{{if eq .ActiveNav "redirects"}} aria-current="page"{{end}}>{{template "icon-redirect"}}<span>{{t "Redirects"}}</span></a>
         <a href="/admin/websites/{{$id}}/seo" class="settings-nav__item{{if eq .ActiveNav "seo"}} is-active{{end}}"{{if eq .ActiveNav "seo"}} aria-current="page"{{end}}>{{template "icon-seo"}}<span>{{t "SEO"}}</span></a>
+        <a href="/admin/websites/{{$id}}/datenschutz" class="settings-nav__item{{if eq .ActiveNav "privacy"}} is-active{{end}}"{{if eq .ActiveNav "privacy"}} aria-current="page"{{end}}>{{template "icon-privacy"}}<span>{{t "Privacy"}}</span></a>
     {{if .NavWebsite.HasUSFramework}}
         <a href="/admin/websites/{{$id}}/widersprueche" class="settings-nav__item{{if eq .ActiveNav "optouts"}} is-active{{end}}"{{if eq .ActiveNav "optouts"}} aria-current="page"{{end}}>{{template "icon-mail"}}<span>{{t "Opt-outs"}}</span></a>
     {{end}}
@@ -89,6 +90,20 @@
     {{if .IsAdmin}}
     <a href="/admin/websites/{{$id}}/shop" class="section-tab{{if eq .ActiveNav "shop-settings"}} is-active{{end}}"{{if eq .ActiveNav "shop-settings"}} aria-current="page"{{end}}>{{t "Shop settings"}}</a>
     {{end}}
+</nav>
+{{end}}
+{{end}}
+
+{{/*
+  Die Reiter des Datenschutzes einer Website. Jeder Bildschirm darunter bindet
+  sie oben ein; die folgenden Pläne der Phase 33.2 fügen ihre Reiter hier an
+  (Anfragen, Aufbewahrung, Verzeichnis), damit sie an einer Stelle stehen.
+*/}}
+{{define "privacy_tabs"}}
+{{if .NavWebsite}}
+<nav class="section-tabs" aria-label="{{t "Privacy"}}">
+    {{$id := .NavWebsite.ID}}
+    <a href="/admin/websites/{{$id}}/datenschutz" class="section-tab{{if eq .ActiveNav "privacy"}} is-active{{end}}"{{if eq .ActiveNav "privacy"}} aria-current="page"{{end}}>{{t "Find a person"}}</a>
 </nav>
 {{end}}
 {{end}}

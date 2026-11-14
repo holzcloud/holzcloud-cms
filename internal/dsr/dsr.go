@@ -13,6 +13,13 @@
 // than by a CHECK list in the schema so that adding one needs no table
 // rebuild.
 //
+// Since Phase 33.2 the package also finds a person's data across the stores
+// of one website (Service, source.go). It does so through one list of
+// sources that every feature of the phase walks — the search, the export,
+// erasure, correction, retention and the record of processing — so a store
+// added later is covered by all of them at once. That does not change the
+// rule below: Store still has no way to delete a privacy request.
+//
 // This package never deletes. The record of a US opt-out has to be kept for
 // at least 24 months (§ 7101), and retention — deciding when a row may go —
 // is Phase 33.2's (D-14). A delete method here would be the one way to break

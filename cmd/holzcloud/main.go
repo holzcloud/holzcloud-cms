@@ -256,6 +256,11 @@ func main() {
 	// The requests visitors make about their data — the opt-outs of a website
 	// that follows US law. Written by the public form, never deleted here.
 	requestStore := dsr.NewStore(database)
+	// The privacy search: everything one website holds about one e-mail
+	// address, across the core's stores and, once the plugin manager is up,
+	// the plugins' (Phase 33.2). Built here beside the requests it reads;
+	// the manager is handed over inside the block that builds it.
+	dataRights := dsr.NewService(database)
 	// Public template loader (created early so admin handler can invalidate cache)
 	publicDefaultFS, err := fs.Sub(staticFS, "templates/public/default")
 	if err != nil {
@@ -300,6 +305,8 @@ func main() {
 	adminHandler.SetValueStore(valueStore)
 	// The Opt-outs screen reads what the public form writes.
 	adminHandler.SetRequestStore(requestStore)
+	// The Privacy screen finds a person's data and downloads it.
+	adminHandler.SetDataRights(dataRights)
 	adminHandler.SetWording(wordingStore)
 	adminHandler.SetProductStore(productStore)
 	adminHandler.SetOrderStore(orderStore)
@@ -374,6 +381,7 @@ func main() {
 			pluginManager = m
 			pluginRT = pluginRuntime
 			adminHandler.SetPlugins(m)
+			dataRights.SetPlugins(m)
 			defer pluginRuntime.Close(context.Background())
 		}
 	}
@@ -1174,6 +1182,12 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// publishes, and nothing here deletes (phase 33.1 D-14).
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/widersprueche", adminHandler.ErrHandler(adminHandler.HandleOptOutList))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/widersprueche/{requestID}/erledigt", adminHandler.ErrHandler(adminHandler.HandleOptOutHandled))
+	// The Privacy screen: what a website holds about one e-mail address, and
+	// its download. Open to everybody with access to the website, like the
+	// order book and the opt-out list: it reads what those screens show
+	// already and changes nothing (Phase 33.2, DSR-01).
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/datenschutz", adminHandler.ErrHandler(adminHandler.HandlePrivacyPerson))
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/datenschutz/export.json", adminHandler.ErrHandler(adminHandler.HandlePrivacyExport))
 	adminProtectedMux.Handle("GET /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	// A website's own mail account. Admins only: it holds a password, and
