@@ -30,11 +30,18 @@ type starterPage struct {
 // legal pages are drafts: they are scaffolding to fill in, and publishing an
 // empty imprint would be worse than having none.
 //
-// The privacy page is composed when the website is created, from the functions
-// the website uses and the legal frameworks it follows (internal/privacy), so
-// it never says the site sets no cookies while a shop on it does. It is a draft for the reason above: the
-// responsible body and the processors are fill-in markers. The page types
-// are the ones that always existed; only this page's content is new.
+// Both legal pages are composed when the website is created, from the same
+// request: the website's main language, its spelling and the legal frameworks
+// it follows (internal/privacy). The privacy page also follows the functions
+// the website uses, so it never says the site sets no cookies while a shop on
+// it does. The imprint follows only the frameworks (D-09): every website gets
+// one, with the items of the EU, Swiss and UK rules when those are chosen and
+// just who and how to reach otherwise. Both stay drafts for the reason above:
+// the responsible body, the address and the processors are fill-in markers.
+// Title and slug stay German, because a new website is German until its
+// settings change; drafts in other languages are offered later. Only a
+// brand-new website gets these pages; an existing imprint or privacy page is
+// never touched (D-01).
 var starterPages = []starterPage{
 	{
 		title:  "Startseite",
@@ -47,45 +54,10 @@ durch deinen eigenen Text zu ersetzen.
 `,
 	},
 	{
-		title:  "Impressum",
-		slug:   "impressum",
-		status: "draft",
-		// The headings follow § 5 DDG. The placeholders are deliberately
-		// obvious: half-filled legal text that looks finished is the dangerous
-		// state, so every line says what belongs there.
-		markdown: `## Angaben gemäß § 5 DDG
-
-**Diese Seite ist eine Vorlage und noch nicht ausgefüllt.** Trage deine
-eigenen Angaben ein und veröffentliche die Seite erst danach.
-
-Name des Unternehmens
-Straße und Hausnummer
-Postleitzahl und Ort
-
-**Vertreten durch:** Vor- und Nachname der vertretungsberechtigten Person
-
-## Kontakt
-
-Telefon: (eintragen)
-E-Mail: (eintragen)
-
-## Registereintrag
-
-Registergericht und Registernummer, falls vorhanden.
-
-## Umsatzsteuer-Identifikationsnummer
-
-USt-IdNr. gemäß § 27 a Umsatzsteuergesetz, falls vorhanden.
-
-## Verantwortlich für den Inhalt
-
-Name und Anschrift der verantwortlichen Person.
-
----
-
-Diese Vorlage ersetzt keine Rechtsberatung. Welche Angaben für dein Gewerbe
-verpflichtend sind, hängt von Rechtsform und Tätigkeit ab.
-`,
+		title:   "Impressum",
+		slug:    "impressum",
+		status:  "draft",
+		compose: privacy.ComposeImprint,
 	},
 	{
 		title:   "Datenschutzerklärung",
@@ -111,9 +83,9 @@ func (h *Handler) createStarterContent(ctx context.Context, websiteID int64, use
 	// what every new website starts with.
 	req := privacy.Request{Lang: "de", Set: legal.Default()}
 	if ws, err := h.domains.GetWebsite(ctx, websiteID); err != nil || ws == nil {
-		slog.Error("read website for starter privacy page", "err", err, "website", websiteID)
+		slog.Error("read website for starter legal pages", "err", err, "website", websiteID)
 	} else if req, err = h.legalRequest(ctx, ws, ws.Locale); err != nil {
-		slog.Error("detect website functions for starter privacy page", "err", err, "website", websiteID)
+		slog.Error("detect website functions for starter legal pages", "err", err, "website", websiteID)
 	}
 
 	for _, sp := range starterPages {

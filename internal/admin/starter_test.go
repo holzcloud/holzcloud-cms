@@ -103,7 +103,11 @@ func TestStarterPrivacyPageFollowsTheWebsiteFunctions(t *testing.T) {
 	}
 }
 
-// Only the privacy page changed: the other two starter pages open as before.
+// The start page opens as before. The imprint is now composed from the
+// website's frameworks (D-09) like the privacy page, so it no longer opens
+// with the § 5 DDG heading: that line is now the heading of the EU block
+// further down, which a new website still gets because EU and Switzerland
+// are its default set.
 func TestStarterLegalPagesAreUnchanged(t *testing.T) {
 	h, _, _, _ := newTestAdmin(t)
 	ctx := context.Background()
@@ -112,25 +116,73 @@ func TestStarterLegalPagesAreUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for slug, wantFirst := range map[string]string{
-		"impressum": "## Angaben gemäß § 5 DDG",
-		"home":      "Willkommen!",
-	} {
-		p, err := h.pages.GetPageBySlug(ctx, ws.ID, slug)
-		if err != nil || p == nil {
-			t.Fatalf("%s: %v", slug, err)
-		}
-		first, _, _ := strings.Cut(p.ContentMarkdown, "\n")
-		if first != wantFirst {
-			t.Errorf("%s opens with %q, want %q", slug, first, wantFirst)
-		}
+	home, err := h.pages.GetPageBySlug(ctx, ws.ID, "home")
+	if err != nil || home == nil {
+		t.Fatalf("home: %v", err)
 	}
-	imp, _ := h.pages.GetPageBySlug(ctx, ws.ID, "impressum")
+	if first, _, _ := strings.Cut(home.ContentMarkdown, "\n"); first != "Willkommen!" {
+		t.Errorf("home opens with %q, want %q", first, "Willkommen!")
+	}
+	if home.Status != "published" {
+		t.Errorf("home status = %q, want published", home.Status)
+	}
+
+	imp, err := h.pages.GetPageBySlug(ctx, ws.ID, "impressum")
+	if err != nil || imp == nil {
+		t.Fatalf("impressum: %v", err)
+	}
 	if imp.Status != "draft" {
 		t.Errorf("impressum status = %q, want draft", imp.Status)
 	}
-	home, _ := h.pages.GetPageBySlug(ctx, ws.ID, "home")
-	if home.Status != "published" {
-		t.Errorf("home status = %q, want published", home.Status)
+	if imp.Title != "Impressum" {
+		t.Errorf("impressum title = %q, want Impressum", imp.Title)
+	}
+	want := privacy.ComposeImprint(privacy.Request{Lang: "de", Set: legal.Default()})
+	if imp.ContentMarkdown != want {
+		t.Error("the stored imprint is not the composed imprint of a new website")
+	}
+	if !strings.Contains(imp.ContentMarkdown, "## Angaben gemäß § 5 DDG") {
+		t.Error("the imprint of a new website lacks the EU block")
+	}
+	html, err := page.RenderMarkdown(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if imp.ContentHTML != html {
+		t.Error("the stored imprint HTML is not the rendering of the stored Markdown")
+	}
+}
+
+// A website that follows only US law gets the lean imprint: who it is and how
+// to reach it, without the EU and Swiss items (D-09).
+func TestAUSOnlyWebsiteGetsTheLeanStarterImprint(t *testing.T) {
+	h, _, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+
+	if _, err := database.Write.Exec(`UPDATE websites SET legal_frameworks = 'us' WHERE id = ?`, ws.ID); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := h.domains.GetWebsite(ctx, ws.ID)
+	if err != nil || stored == nil {
+		t.Fatalf("GetWebsite: %v", err)
+	}
+
+	h.createStarterContent(ctx, ws.ID, nil)
+
+	imp, err := h.pages.GetPageBySlug(ctx, ws.ID, "impressum")
+	if err != nil || imp == nil {
+		t.Fatalf("the imprint is missing: %v", err)
+	}
+	want := privacy.ComposeImprint(privacy.Request{Lang: "de", Swiss: stored.Country == "CH", Set: legal.ParseSet("us")})
+	if imp.ContentMarkdown != want {
+		t.Error("the stored imprint is not the lean composition of a US-only website")
+	}
+	for _, bad := range []string{"§ 5 DDG", "SR 241", "2002/2013"} {
+		if strings.Contains(imp.ContentMarkdown, bad) {
+			t.Errorf("the lean imprint carries %q", bad)
+		}
+	}
+	if imp.Status != "draft" {
+		t.Errorf("status = %q, want draft", imp.Status)
 	}
 }
