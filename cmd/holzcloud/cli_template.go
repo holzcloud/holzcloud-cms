@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -51,7 +52,14 @@ func cmdTemplateSpec(args []string) error {
 // before it goes anywhere near a live site, and gets exactly the message the
 // upload would have given.
 func cmdTemplateCheck(args []string) error {
+	return runTemplateCheck(args, os.Stdout, os.Stderr)
+}
+
+// runTemplateCheck is cmdTemplateCheck with its two streams passed in, so a
+// test can read what an author would read.
+func runTemplateCheck(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("template check", flag.ContinueOnError)
+	flags.SetOutput(stderr)
 	quiet := flags.Bool("quiet", false, "print nothing when the template is fine")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -96,16 +104,28 @@ func cmdTemplateCheck(args []string) error {
 	// would be worse than the thing being reported. So they are printed on
 	// their own, above, whether or not anything else is wrong.
 	notes := untranslatedWords(dir)
+
+	// Which contract this check reads the theme against, and which one the
+	// theme says it was written for. Stated, not judged: a theme declaring
+	// nothing is fine, a different version is a note beside the others, and
+	// what a difference means is not decided here.
+	line, versionNote := contractLine(target, dir)
+	if versionNote != "" {
+		notes = append(notes, versionNote)
+	}
 	for _, n := range notes {
-		fmt.Fprintf(os.Stderr, "  note: %s\n\n", strings.ReplaceAll(n, "\n    ", "\n        "))
+		fmt.Fprintf(stderr, "  note: %s\n\n", strings.ReplaceAll(n, "\n    ", "\n        "))
+	}
+	if !*quiet {
+		fmt.Fprintln(stdout, line)
 	}
 
 	if len(problems) == 0 {
 		if !*quiet {
 			if len(notes) > 0 {
-				fmt.Printf("%s: nothing that stops it working, %d note(s) above\n", target, len(notes))
+				fmt.Fprintf(stdout, "%s: nothing that stops it working, %d note(s) above\n", target, len(notes))
 			} else {
-				fmt.Printf("%s: no problems found\n", target)
+				fmt.Fprintf(stdout, "%s: no problems found\n", target)
 			}
 		}
 		// A note is not a failure. An author converting a theme one language at
@@ -113,11 +133,11 @@ func cmdTemplateCheck(args []string) error {
 		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "%s: %d problem(s)\n\n", target, len(problems))
+	fmt.Fprintf(stderr, "%s: %d problem(s)\n\n", target, len(problems))
 	for _, p := range problems {
-		fmt.Fprintf(os.Stderr, "  %s\n\n", strings.ReplaceAll(p, "; ", "\n  "))
+		fmt.Fprintf(stderr, "  %s\n\n", strings.ReplaceAll(p, "; ", "\n  "))
 	}
-	fmt.Fprintf(os.Stderr, "The specification is at `holzcloud template spec`.\n")
+	fmt.Fprintf(stderr, "The specification is at `holzcloud template spec`.\n")
 
 	// A non-zero status so this composes with a script or an agent's own loop.
 	return errSilent
@@ -185,4 +205,30 @@ func untranslatedWords(dir string) []string {
 		out = append(out, p.String())
 	}
 	return out
+}
+
+// contractLine is the line naming the contract the check reads against and
+// what the theme in dir declares. target is the name the author typed, so the
+// line speaks of the archive rather than of the directory it was unpacked to.
+//
+// A theme.json that cannot be read leaves the declared half out; the checks
+// report that file as a problem of its own.
+//
+// note is set when the theme declares a version other than the current one. It
+// says that the two differ and nothing about what that means.
+func contractLine(target, dir string) (line, note string) {
+	version, declared, err := tmpl.DeclaredContract(os.DirFS(dir))
+	switch {
+	case err != nil:
+		return "template contract " + tmpl.ContractVersion, ""
+	case !declared:
+		return fmt.Sprintf("template contract %s; %s declares no contract version (%s)",
+			tmpl.ContractVersion, target, tmpl.ManifestName), ""
+	}
+	line = fmt.Sprintf("template contract %s; %s declares %s", tmpl.ContractVersion, target, version)
+	if version != tmpl.ContractVersion {
+		note = fmt.Sprintf("%s was written for template contract %s; this check reads template contract %s",
+			target, version, tmpl.ContractVersion)
+	}
+	return line, note
 }

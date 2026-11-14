@@ -1172,6 +1172,7 @@ func (s *Store) ListPublishedForSitemap(ctx context.Context, websiteID int64) ([
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT slug, updated_at, locale, title,
 		        COALESCE(NULLIF(meta_description, ''), excerpt, ''),
+		        COALESCE(meta_description, '') = '',
 		        featured_media_id, blocks, content_html
 		 FROM pages
 		 WHERE website_id = $1`+ListablePredicate+` AND noindex = 0
@@ -1187,7 +1188,7 @@ func (s *Store) ListPublishedForSitemap(ctx context.Context, websiteID int64) ([
 		var e SitemapEntry
 		var updatedAt string
 		var featured sql.NullInt64
-		if err := rows.Scan(&e.Slug, &updatedAt, &e.Locale, &e.Title, &e.Description,
+		if err := rows.Scan(&e.Slug, &updatedAt, &e.Locale, &e.Title, &e.Description, &e.FromExcerpt,
 			&featured, &e.Blocks, &e.ContentHTML); err != nil {
 			return nil, fmt.Errorf("scan sitemap entry: %w", err)
 		}

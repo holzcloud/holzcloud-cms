@@ -64,6 +64,7 @@ func (h *Handler) HandleTag(w http.ResponseWriter, r *http.Request) error {
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
 	h.fillSnippets(r, &site, website.ID, snippets)
+	valuesAt := h.resolveSummaries(r.Context(), website.ID, items)
 
 	archive := h.archiveData(r, website, items, pageNum, totalPages, total)
 	archive.Term = t.Name
@@ -90,7 +91,7 @@ func (h *Handler) HandleTag(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("render tag archive: %w", err)
 	}
 
-	h.serveCached(w, r, content, archiveModTime(items, snippets))
+	h.serveCached(w, r, content, archiveModTime(items, snippets, valuesAt))
 	return nil
 }
 

@@ -7,6 +7,7 @@ package audit
 import (
 	"context"
 	"errors"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/seo"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // Source is what an audit reads from.
@@ -26,6 +28,10 @@ type Source struct {
 	// ones, which is enough for everything this package reads: an own kind's
 	// fields are text and are taken as they stand.
 	BlockSet func(ctx context.Context, websiteID int64) block.Set
+	// Values says which value keys a website defines. Nil, or an error, means
+	// not checked: a page's [[wert:key]] is then not reported as unknown,
+	// because nothing is known about the keys.
+	Values func(ctx context.Context, websiteID int64) (map[string]bool, error)
 }
 
 // PageReport is one page and what is wrong with it.
@@ -87,12 +93,21 @@ type siteContext struct {
 	host, siteDescription string
 	others                []seo.Other
 	set                   block.Set
+	// values is the set of keys the website defines, nil when not checked.
+	values map[string]bool
 }
 
 func (s Source) context(ctx context.Context, ws *domain.Website, all []page.Page) siteContext {
 	c := siteContext{siteDescription: firstNonEmpty(ws.MetaDescription, ws.Description), set: block.Builtin}
 	if s.BlockSet != nil {
 		c.set = s.BlockSet(ctx, ws.ID)
+	}
+	if s.Values != nil {
+		// An error is not a finding about any page: the map stays nil and the
+		// keys go unchecked.
+		if known, err := s.Values(ctx, ws.ID); err == nil {
+			c.values = known
+		}
 	}
 	if s.Domains != nil {
 		if ds, err := s.Domains.ListDomains(ctx, ws.ID); err == nil {
@@ -126,6 +141,18 @@ func (s Source) input(ctx context.Context, c siteContext, p page.Page) seo.Input
 		Markdown: p.ContentMarkdown,
 		NoIndex:  p.NoIndex, Protected: p.Protected(), HasFeatured: p.FeaturedMediaID != nil,
 		Host: c.host, SiteDescription: c.siteDescription, Others: c.others,
+		// The blocks are read as stored: a key is a-z, 0-9, - and _, which
+		// JSON leaves as it is, so a marker in any block field is found. The
+		// stored HTML and the excerpt are read too, because delivery resolves
+		// both: a typed excerpt need not repeat the text, and a marker the
+		// Markdown wrote with escaped brackets is literal only in the HTML
+		// (WR-02 of the phase 33 review; value.Store's usage reads the same).
+		UsedValues: value.Keys(p.ContentMarkdown + "\n" + p.Blocks + "\n" +
+			p.ContentHTML + "\n" + p.Excerpt),
+		KnownValues:        c.values,
+		ValuesOutsideText:  value.Keys(p.Title + "\n" + p.MetaDescription),
+		ValuesBeforeParen:  keysBeforeParen(p.ContentMarkdown + "\n" + p.Blocks),
+		ValuesStartingLink: keysStartingLink(p.ContentMarkdown + "\n" + p.Blocks),
 	}
 	if strings.TrimSpace(p.Blocks) != "" {
 		if blocks, err := block.Decode(p.Blocks, c.set); err == nil {
@@ -202,6 +229,101 @@ func (s Source) blocksWithoutAlt(ctx context.Context, websiteID int64, blocks []
 		}
 	}
 	return n
+}
+
+// beforeParen is a value placeholder directly followed by an opening bracket.
+// The key alphabet is the one internal/value matches.
+var beforeParen = regexp.MustCompile(`\[\[wert:([a-z0-9][a-z0-9_-]*)\]\]\(`)
+
+// keysBeforeParen lists, once each and in order, the keys whose placeholder
+// Markdown would read as the text of a link.
+func keysBeforeParen(s string) []string {
+	if !value.Has(s) {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, m := range beforeParen.FindAllStringSubmatch(s, -1) {
+		if !seen[m[1]] {
+			seen[m[1]] = true
+			out = append(out, m[1])
+		}
+	}
+	return out
+}
+
+// linkDestinations find the address of a link or a picture in the three ways
+// Markdown writes one, each up to the first space, quote or closing bracket (a
+// title may follow it), and without the angle brackets that may enclose it:
+//
+//   - inline, [text](address) and ![alt](address);
+//   - a reference definition, [label]: address, at the start of a line — or,
+//     inside a block's JSON, after an escaped line break or at the start of
+//     the string;
+//   - raw HTML, href= or src= with or without quotes, the quotes escaped in a
+//     block's JSON. A space before the name keeps data-href and the like out.
+var linkDestinations = []*regexp.Regexp{
+	regexp.MustCompile(`\]\([ \t]*<?([^)\s>]*)`),
+	regexp.MustCompile(`(?m)(?:^|\\n|")[ \t]{0,3}\[[^\]\n]+\]:[ \t]*<?([^\s>"\\]*)`),
+	regexp.MustCompile(`(?i)\s(?:href|src)[ \t]*=[ \t]*(?:\\?["'])?([^"'\\\s>]*)`),
+}
+
+// keysStartingLink lists, once each and in order, the keys whose placeholder
+// stands in the first segment of a relative link address (IN-06 of the phase
+// 33 review).
+//
+// In [Release](v[[wert:k]]) the colon of "wert:" is in the first segment,
+// before any "/", "?" or "#". url.Parse then reads "v[[wert" as a scheme, the
+// sanitiser refuses the address, and the link is stored without one — the
+// editor sees plain text and is told nothing. An address that starts with
+// "/", "./", "../", "#" or "?", that puts a folder first (releases/v[[wert:k]]),
+// or that has a scheme of its own before the placeholder (https://…, mailto:…)
+// keeps its address.
+//
+// A bare leading dot is not a folder: .v[[wert:k]] and ..[[wert:k]] still have
+// the colon in their first segment and lose the address the same way. Nor is
+// the inline form the only one: a reference definition and an href or src in
+// raw HTML go through the same sanitiser (IN-02 of the second review).
+func keysStartingLink(s string) []string {
+	if !value.Has(s) {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	// The addresses in the order they stand, whichever form wrote them.
+	type found struct {
+		at   int
+		dest string
+	}
+	var dests []found
+	for _, re := range linkDestinations {
+		for _, m := range re.FindAllStringSubmatchIndex(s, -1) {
+			dests = append(dests, found{m[2], s[m[2]:m[3]]})
+		}
+	}
+	sort.SliceStable(dests, func(i, j int) bool { return dests[i].at < dests[j].at })
+	for _, d := range dests {
+		dest := d.dest
+		if dest == "" || strings.ContainsAny(dest[:1], "/#?") ||
+			strings.HasPrefix(dest, "./") || strings.HasPrefix(dest, "../") {
+			continue
+		}
+		first := dest
+		if i := strings.IndexAny(dest, "/?#"); i >= 0 {
+			first = dest[:i]
+		}
+		at := strings.Index(first, value.Prefix)
+		if at < 0 || strings.Contains(first[:at], ":") {
+			continue
+		}
+		for _, key := range value.Keys(first) {
+			if !seen[key] {
+				seen[key] = true
+				out = append(out, key)
+			}
+		}
+	}
+	return out
 }
 
 func firstNonEmpty(ss ...string) string {

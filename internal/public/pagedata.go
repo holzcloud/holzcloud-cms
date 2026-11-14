@@ -1,6 +1,7 @@
 package public
 
 import (
+	"context"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -19,10 +20,11 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // pageContent maps a stored page onto what a theme sees, and returns beside it
-// when the albums that page names last changed.
+// when the albums and the values that page names last changed.
 //
 // Snippet markers are expanded here, at render time. Baking the expansion into
 // content_html on save would freeze a copy of the opening hours into every
@@ -75,6 +77,41 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 	// LocaleMiddleware put it there, and its comment says why: "the language
 	// belongs to the page, not to whoever is reading it".
 	body = block.ResolveWords(body, pageWords(r.Context()))
+	// The website's values, and again where this stands is the decision.
+	//
+	// AFTER the snippets and the albums, so a [[wert:…]] a snippet carries —
+	// the footer that names the version — is resolved with the page's own.
+	//
+	// BEFORE the plugins and the responsive rewrite, for the reason both give:
+	// a filter sees the page as a visitor would, and media.MakeResponsive must
+	// see the final address of a picture, not a marker standing in it.
+	//
+	// HERE, at delivery, and never at save: VAL-04 is that changing a value
+	// changes every page that names it without touching any of them, and a
+	// text frozen into content_html would wait for the next save of each.
+	//
+	// And its time comes back beside the albums', because a browser that holds
+	// only a date would otherwise be told 304 about a page whose value moved —
+	// contentModTime's own comment tells that story for the albums.
+	//
+	// The page's summary in the same pass and from the same load: the excerpt
+	// is the page's text in short and keeps its markers for this moment
+	// (page.Excerpt). It is written back onto pg, which is this request's own
+	// row and nobody else's, because everything after this reads it there —
+	// the meta description, og:description and the JSON-LD through metaData,
+	// the share-link preview's description. One resolution reaches them all,
+	// and none of them can be the one that forgot. MetaDescription is not
+	// touched: an editor's typed description stays as typed (D-11).
+	sum := h.summaries(r.Context(), websiteID)
+	if value.Has(body) {
+		sum.load()
+		body = value.Resolve(body, sum.texts)
+	}
+	pg.Excerpt = sum.resolve(pg.Excerpt)
+	valuesAt := sum.at
+	if valuesAt.After(albumsAt) {
+		albumsAt = valuesAt
+	}
 	// Plugins last: they see the page as a visitor would, with the snippets
 	// already in place and the form already drawn. A filter that ran earlier
 	// would be filtering markers instead of text.
@@ -93,6 +130,88 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 		Fields:        fields,
 		FieldList:     liste,
 	}, albumsAt
+}
+
+// resolveValues puts the website's values into a body that names them, and
+// returns the newest updated_at among them as a caching validator.
+//
+// A body without the prefix costs one strings.Contains: no query, no
+// allocation, the zero time. That is every page that does not use a value, and
+// it is why the texts are loaded here and not before.
+//
+// Without a store, or when the texts cannot be read, every marker renders as
+// nothing — the outcome a key nobody defined has. Serving the body as stored
+// would print [[wert:…]] to every visitor until somebody noticed.
+func (h *Handler) resolveValues(r *http.Request, websiteID int64, body string) (string, time.Time) {
+	if !value.Has(body) {
+		return body, time.Time{}
+	}
+	texts, latest := h.valueTexts(r.Context(), websiteID)
+	return value.Resolve(body, texts), latest
+}
+
+// summaryValues puts one website's values into page summaries, loading the
+// values at most once and only when a summary names one.
+//
+// A summary is a page's excerpt: derived from its text at save, it keeps a
+// value marker as it stands (page.Excerpt), and every place that hands an
+// excerpt out — the page's head, an archive, the feed, a plugin, llms.txt —
+// asks this to put the value in. A list of twenty excerpts without a marker
+// costs twenty strings.Contains and no query.
+//
+// at is the newest stamp among the values once they were loaded, and the zero
+// time when they were not: a caller that caches folds it into its validator,
+// because a summary that names a value changes when the value does.
+type summaryValues struct {
+	h         *Handler
+	ctx       context.Context
+	websiteID int64
+	loaded    bool
+	texts     map[string]string
+	at        time.Time
+}
+
+func (h *Handler) summaries(ctx context.Context, websiteID int64) *summaryValues {
+	return &summaryValues{h: h, ctx: ctx, websiteID: websiteID}
+}
+
+func (s *summaryValues) load() {
+	if s.loaded {
+		return
+	}
+	s.loaded = true
+	s.texts, s.at = s.h.valueTexts(s.ctx, s.websiteID)
+}
+
+// resolve is the summary with its values in, as plain text for the caller's
+// template or encoder to escape. A key the website does not have is nothing.
+func (s *summaryValues) resolve(excerpt string) string {
+	if !value.Has(excerpt) {
+		return excerpt
+	}
+	s.load()
+	return value.ResolveSummary(excerpt, s.texts)
+}
+
+// resolveSummaries resolves the excerpt of every page in the list in place and
+// returns the values' stamp for the list's validator.
+func (h *Handler) resolveSummaries(ctx context.Context, websiteID int64, pages []page.Page) time.Time {
+	sum := h.summaries(ctx, websiteID)
+	for i := range pages {
+		pages[i].Excerpt = sum.resolve(pages[i].Excerpt)
+	}
+	return sum.at
+}
+
+// anySummaryNamesAValue reports whether the excerpt of any page in the list
+// carries a value marker — for a caller that loads the values itself.
+func anySummaryNamesAValue(pages []page.Page) bool {
+	for i := range pages {
+		if value.Has(pages[i].Excerpt) {
+			return true
+		}
+	}
+	return false
 }
 
 // ownFields resolves the website's own fields for a theme.
@@ -359,7 +478,67 @@ func (h *Handler) loadSnippets(r *http.Request, websiteID int64) snippet.Rendere
 		slog.Error("load snippets", "err", err, "website", websiteID)
 		return emptyBlocks()
 	}
+	h.resolveSnippetValues(r, websiteID, &rendered)
 	return rendered
+}
+
+// resolveSnippetValues puts the website's values into every snippet that names
+// one, and folds their newest time into the snippets' own.
+//
+// Here and not only in pageContent, because a theme prints snippets on every
+// route through .Site.Snippets — a footer that names the version is the
+// realistic case, and it stands on the 404 page and the maintenance page as
+// much as on an article. pageContent's snippet.Expand then inserts snippets
+// whose values are already resolved, and its own value pass finds nothing left
+// in them.
+//
+// The time goes into LatestUpdate because that is what every validator built
+// from the snippets already reads: contentModTime on the page path, the feed's
+// newest. A value change that moved only the text would leave a browser holding
+// a date with the old footer.
+//
+// The same rules as resolveValues: no query when no snippet carries the prefix,
+// and without a store or on a load error every marker renders as nothing.
+func (h *Handler) resolveSnippetValues(r *http.Request, websiteID int64, rendered *snippet.Rendered) {
+	named := false
+	for _, html := range rendered.HTML {
+		if value.Has(string(html)) {
+			named = true
+			break
+		}
+	}
+	if !named {
+		return
+	}
+	texts, latest := h.valueTexts(r.Context(), websiteID)
+	for key, html := range rendered.HTML {
+		if value.Has(string(html)) {
+			// The cast keeps the promise LoadRendered's own makes: the input
+			// went through goldmark and bluemonday, and value.Resolve escapes
+			// every text it puts in.
+			rendered.HTML[key] = template.HTML(value.Resolve(string(html), texts))
+		}
+	}
+	if latest.After(rendered.LatestUpdate) {
+		rendered.LatestUpdate = latest
+	}
+}
+
+// valueTexts loads the website's values for one resolution, and never fails.
+//
+// Without a store, or when the texts cannot be read, it answers the empty map
+// and the zero time: every marker then renders as nothing, which is what a key
+// nobody defined does, and is better than printing [[wert:…]] to a reader.
+func (h *Handler) valueTexts(ctx context.Context, websiteID int64) (map[string]string, time.Time) {
+	if h.valueStore == nil {
+		return nil, time.Time{}
+	}
+	texts, latest, err := h.valueStore.Texts(ctx, websiteID)
+	if err != nil {
+		slog.Error("load values", "err", err, "website", websiteID)
+		return nil, time.Time{}
+	}
+	return texts, latest
 }
 
 func emptyBlocks() snippet.Rendered {
@@ -437,8 +616,13 @@ func (h *Handler) albumsFor(r *http.Request, websiteID int64, body string) album
 // words is the feed's language, and a feed has exactly one: HandleFeed lists
 // only the pages published in it, because "a reader who subscribed to the
 // French feed did not ask for German articles in among them".
-func expandForFeed(html string, snippets snippet.Rendered, albums album.Set, words func(string) string) string {
-	return block.ResolveWords(album.Expand(snippet.Expand(html, snippets.HTML), albums), words)
+//
+// texts are the website's values, last and for the page's reason: a subscriber
+// reads the version number where a visitor reads it, and the snippets arrive
+// here with theirs already resolved by loadSnippets. A nil map renders every
+// marker as nothing, never as the marker.
+func expandForFeed(html string, snippets snippet.Rendered, albums album.Set, words func(string) string, texts map[string]string) string {
+	return value.Resolve(block.ResolveWords(album.Expand(snippet.Expand(html, snippets.HTML), albums), words), texts)
 }
 
 // contentModTime is the validator for conditional requests.

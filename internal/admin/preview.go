@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -18,6 +19,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -56,11 +58,12 @@ func (h *Handler) HandlePreview(w http.ResponseWriter, r *http.Request) error {
 		ws = &probe
 	}
 	site := previewSiteData(ws)
+	inhalt := h.previewPageContent(r, ws, pg)
 	data := tmpl.PageData{
 		Site:  site,
-		Page:  h.previewPageContent(r, ws, pg),
+		Page:  inhalt,
 		Menus: h.loadPreviewMenus(r, ws.ID),
-		Meta:  previewMeta(site, pg, "/"),
+		Meta:  previewMeta(site, pg, inhalt.Excerpt, "/"),
 	}
 
 	content, err := h.loader.RenderPage(r.Context(), ws.ID, "home.html", data)
@@ -108,11 +111,12 @@ func (h *Handler) HandlePreviewPage(w http.ResponseWriter, r *http.Request) erro
 	}
 
 	site := previewSiteData(ws)
+	inhalt := h.previewPageContent(r, ws, pg)
 	data := tmpl.PageData{
 		Site:  site,
-		Page:  h.previewPageContent(r, ws, pg),
+		Page:  inhalt,
 		Menus: h.loadPreviewMenus(r, ws.ID),
-		Meta:  previewMeta(site, pg, "/"+pg.Slug),
+		Meta:  previewMeta(site, pg, inhalt.Excerpt, "/"+pg.Slug),
 	}
 
 	content, err := h.loader.RenderPage(r.Context(), ws.ID, "page.html", data)
@@ -282,15 +286,29 @@ func previewSiteData(ws *domain.Website) tmpl.SiteData {
 // It also does not run the plugin filter or the responsive rewrite, for the
 // same reason internal/public/pagedata.go's expandForFeed does not: neither
 // leaves anything unreadable behind.
+//
+// ws is never nil: both callers, HandlePreview and HandlePreviewPage, have
+// read ws.ID before they get here, and what this calls relies on that.
 func (h *Handler) previewPageContent(r *http.Request, ws *domain.Website, pg *page.Page) tmpl.PageContent {
 	updated := pg.UpdatedAt
+	body := block.ResolveWords(album.Expand(pg.ContentHTML, h.previewAlbums(r, ws, pg.ContentHTML)), previewWords(ws, pg))
+	// The website's values last, as on the public page: a preview shows what a
+	// visitor would read, and a visitor reads the version number, not the
+	// marker that stands for it.
+	//
+	// The summary from the same load: the excerpt keeps a value marker for
+	// delivery (page.Excerpt), and the preview's head and .Page.Excerpt say
+	// what the public ones will. The typed meta description is not touched
+	// (D-11).
+	texts := h.previewValueTexts(r, ws, body, pg.Excerpt)
+	body = value.Resolve(body, texts)
 	return tmpl.PageContent{
 		Title:         pg.Title,
-		ContentHTML:   template.HTML(block.ResolveWords(album.Expand(pg.ContentHTML, h.previewAlbums(r, ws, pg.ContentHTML)), previewWords(ws, pg))),
+		ContentHTML:   template.HTML(body),
 		Slug:          pg.Slug,
 		PublishedAt:   pg.PublishedAt,
 		UpdatedAt:     &updated,
-		Excerpt:       pg.Excerpt,
+		Excerpt:       value.ResolveSummary(pg.Excerpt, texts),
 		HasOwnHeading: startsWithHeading(pg.ContentHTML),
 		// The preview has to lay a product out as a product, or it is not a
 		// preview of the page that will be published.
@@ -341,6 +359,25 @@ func (h *Handler) previewAlbums(r *http.Request, ws *domain.Website, html string
 	return set
 }
 
+// previewValueTexts loads the previewed website's values, only when one of the
+// documents — the body, the excerpt — names one, and never fails.
+//
+// Without a store, or when the texts cannot be read, it answers nil, and
+// value.Resolve renders every marker as nothing — what the public page does in
+// the same case, so the preview does not promise a text the visitor would not
+// get. Not shared with internal/public for the reason previewAlbums gives.
+func (h *Handler) previewValueTexts(r *http.Request, ws *domain.Website, docs ...string) map[string]string {
+	if h.valueStore == nil || !slices.ContainsFunc(docs, value.Has) {
+		return nil
+	}
+	texts, _, err := h.valueStore.Texts(r.Context(), ws.ID)
+	if err != nil {
+		slog.Error("load values for preview", "err", err, "website", ws.ID)
+		return nil
+	}
+	return texts
+}
+
 // startsWithHeading mirrors the public handler: a page whose content already
 // opens with an <h1> must not get a second one from the theme.
 func startsWithHeading(html string) bool {
@@ -348,9 +385,11 @@ func startsWithHeading(html string) bool {
 	return strings.HasPrefix(strings.ToLower(trimmed), "<h1")
 }
 
-func previewMeta(site tmpl.SiteData, pg *page.Page, path string) tmpl.MetaData {
+// previewMeta is the preview's head. excerpt is the page's summary with its
+// values in (previewPageContent), not pg.Excerpt, which keeps the marker.
+func previewMeta(site tmpl.SiteData, pg *page.Page, excerpt, path string) tmpl.MetaData {
 	description := pg.MetaDescription
-	for _, fallback := range []string{pg.Excerpt, site.MetaDescription, site.Description} {
+	for _, fallback := range []string{excerpt, site.MetaDescription, site.Description} {
 		if strings.TrimSpace(description) != "" {
 			break
 		}

@@ -37,6 +37,7 @@ import (
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // Report says what an import did, in the words the operator needs.
@@ -51,6 +52,8 @@ type Report struct {
 	Snippets  int
 	Terms     int
 	Albums    int
+	// Values counts the website's named texts the import created.
+	Values int
 	// Warnings are the things that did not come through. Each one names what
 	// was lost and why; none of them stops the import.
 	//
@@ -162,6 +165,10 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 	// entries point at pages by address and therefore need the pages
 	// (cleanSnippetValues).
 	albumSlugs := importAlbums(ctx, s, websiteID, manifest, mediaByName, report)
+	// The values before the pages: a page's sentence names one by key, and the
+	// first time an imported page is read it should already find its words.
+	// Nothing about a value depends on a page, so nothing argues for later.
+	importValues(ctx, s, websiteID, manifest, report)
 	pages := importPages(ctx, s, websiteID, manifest, mediaByName, albumSlugs, fieldKinds, set, report)
 	// After the pages, and it has to be: a snippet's reference field names a
 	// page of this same bundle, and only now does every address have an id.
@@ -891,6 +898,40 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	}
 
 	return pages
+}
+
+// importValues creates the website's named texts.
+//
+// Every entry goes through value.Store.Set and never through an INSERT of its
+// own: a manifest is a file somebody handed the program, and Set is where the
+// key and the text are checked, the same checks the Values screen and the MCP
+// tools run. Only the new website is written to; the import created it a
+// moment ago.
+//
+// What the store refuses is named in the report with the store's reason, and
+// the import goes on, as it does for a snippet. A key the bundle names twice
+// keeps its first text: Set would quietly replace it with the second, and an
+// archive is read by hand often enough for that to be a mistake rather than
+// an intention.
+func importValues(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) {
+	if s.Values == nil {
+		return
+	}
+	seen := map[string]bool{}
+	for _, v := range m.Values {
+		created, err := false, error(value.ErrKeyTaken)
+		if !seen[v.Key] {
+			_, created, err = s.Values.Set(ctx, websiteID, v.Key, v.Value)
+		}
+		if err != nil {
+			report.warnf(i18n.N("value %q could not be created: %v"), v.Key, err)
+			continue
+		}
+		seen[v.Key] = true
+		if created {
+			report.Values++
+		}
+	}
 }
 
 func importSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest,

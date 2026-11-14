@@ -13,6 +13,11 @@ type SearchResult struct {
 	// Snippet is the matching passage with the search terms wrapped in <mark>.
 	// It is built from escaped text, never from stored HTML.
 	Snippet template.HTML
+	// Raw is the same passage before Highlight: plain text taken from the
+	// Markdown source, with markStart and markEnd still standing around the
+	// terms. It is not HTML and must be escaped before it is printed — the one
+	// way to do that is Highlight, after whatever the caller changed in it.
+	Raw string
 }
 
 // Sentinels mark the highlighted range inside the snippet FTS5 returns.
@@ -72,17 +77,17 @@ func (s *Store) SearchPages(ctx context.Context, websiteID int64, query string, 
 		if err != nil {
 			return nil, fmt.Errorf("scan search result: %w", err)
 		}
-		results = append(results, SearchResult{Page: *p, Snippet: highlight(raw)})
+		results = append(results, SearchResult{Page: *p, Snippet: Highlight(raw), Raw: raw})
 	}
 	return results, rows.Err()
 }
 
-// highlight escapes the snippet and only then turns the sentinels into <mark>.
+// Highlight escapes the snippet and only then turns the sentinels into <mark>.
 //
 // The order is the whole point: escaping first means a page whose text contains
 // "<script>" cannot become script in the admin's browser, and the only tags in
 // the result are the two this function put there.
-func highlight(snippet string) template.HTML {
+func Highlight(snippet string) template.HTML {
 	escaped := template.HTMLEscapeString(snippet)
 	escaped = strings.ReplaceAll(escaped, markStart, "<mark>")
 	escaped = strings.ReplaceAll(escaped, markEnd, "</mark>")

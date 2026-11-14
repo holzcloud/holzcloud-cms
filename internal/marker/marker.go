@@ -1,11 +1,14 @@
 // Package marker is the one place that knows what it costs to expand a marker
 // by replacing a string.
 //
-// Three mechanisms in this program write a marker into stored HTML and resolve
+// Four mechanisms in this program write a marker into stored HTML and resolve
 // it at delivery: the album gallery (internal/block), the text snippet
-// (internal/snippet) and the late-resolved word (internal/block/words.go). All
-// three replace with a regular expression over the whole document, which is
-// fast, simple, and blind to where in the document the match sits.
+// (internal/snippet), the late-resolved word (internal/block/words.go) and the
+// website's value (internal/value). The first three replace with a regular
+// expression over the whole document, which is fast, simple, and blind to where
+// in the document the match sits. The value tokenizes, because it may stand in
+// a link address and has to be written differently there; this package's part
+// in it is RestoreEncodedValueMarkers, which the save path calls.
 //
 // # Why that blindness is a hole
 //
@@ -52,6 +55,67 @@ import (
 
 	"golang.org/x/net/html"
 )
+
+// encodedValueMarker is what goldmark writes for [[wert:key]] inside a link
+// destination: the brackets percent-encoded (upper-case hex from goldmark; the
+// lower-case spelling is accepted too, because an editor's raw HTML may carry
+// it). The key alphabet is internal/value's.
+var encodedValueMarker = regexp.MustCompile(`%5[Bb]%5[Bb]wert:([a-z0-9][a-z0-9_-]*)%5[Dd]%5[Dd]`)
+
+// RestoreEncodedValueMarkers writes every percent-encoded value marker back in
+// its literal spelling.
+//
+// goldmark percent-encodes the brackets of a marker it finds in a Markdown link
+// destination or a bare autolink, and bluemonday keeps them, so a value marker
+// in a link is stored as %5B%5Bwert:key%5D%5D. Delivery could look for both
+// spellings, and that costs three and a half times the single guard on every
+// page view (33-RESEARCH.md F2). Restoring the literal spelling once, here, on
+// the save path, keeps delivery on the one prefix internal/value.Has asks for.
+//
+// A literal [[wert:key]] inside a double-quoted href is valid HTML: brackets
+// need no escaping in an attribute value, and the resolver percent-encodes what
+// it puts in their place.
+//
+// Only a link address is touched: the value of an href or a src attribute in a
+// tag, which is where goldmark puts the encoded spelling. The same spelling in
+// prose, in code or in any other attribute is what the editor typed and stays
+// as typed. Restoring it over the whole document turned the sentence
+// "Literal %5B%5Bwert:k%5D%5D" into a live marker that the visitor read as the
+// value and that no scan of the page's source could see (WR-02 of the phase 33
+// review).
+//
+// Nothing else is touched — a snippet or album marker in a link is not a value
+// and stays as goldmark wrote it, and a document without "wert:" comes back as
+// it came. The input is the sanitiser's output, which writes every attribute
+// value in double quotes; a tag is changed only inside those quotes, and
+// everything else is written back as its raw bytes.
+func RestoreEncodedValueMarkers(doc string) string {
+	if !strings.Contains(doc, "wert:") || !encodedValueMarker.MatchString(doc) {
+		return doc
+	}
+	z := html.NewTokenizer(strings.NewReader(doc))
+	var out strings.Builder
+	out.Grow(len(doc))
+	for {
+		tt := z.Next()
+		if tt == html.ErrorToken {
+			// io.EOF: the end of the document (OnlyInText says why).
+			break
+		}
+		raw := string(z.Raw())
+		if (tt == html.StartTagToken || tt == html.SelfClosingTagToken) && encodedValueMarker.MatchString(raw) {
+			raw = addressAttribute.ReplaceAllStringFunc(raw, func(attr string) string {
+				return encodedValueMarker.ReplaceAllString(attr, "[[wert:$1]]")
+			})
+		}
+		out.WriteString(raw)
+	}
+	return out.String()
+}
+
+// addressAttribute is an href or a src attribute with its double-quoted value,
+// standing in a tag after whitespace.
+var addressAttribute = regexp.MustCompile(`(?i)\s(?:href|src)="[^"]*"`)
 
 // rawTextElements are the elements whose content the browser does not read as
 // character data, so a marker inside one is not in text however much it looks

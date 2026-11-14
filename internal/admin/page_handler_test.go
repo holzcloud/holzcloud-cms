@@ -25,6 +25,7 @@ import (
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 	"github.com/holzcloud/holzcloud-cms/internal/wording"
 )
@@ -86,6 +87,9 @@ func newTestAdmin(t *testing.T) (*Handler, *scs.SessionManager, *db.DB, *domain.
 		loader,
 		cfg, nil, nil)
 	h.SetWording(wordingStore)
+	// The real wiring, as main.go has it, so a test of the values screen or a
+	// preview that resolves values does not meet a nil store.
+	h.SetValueStore(value.NewStore(database))
 
 	return h, sm, database, ws
 }

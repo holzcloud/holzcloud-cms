@@ -12,6 +12,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // atomFeed and atomEntry model Atom 1.0 (RFC 4287), through encoding/xml with
@@ -90,6 +91,17 @@ func (h *Handler) HandleFeed(w http.ResponseWriter, r *http.Request) error {
 		scan.WriteString(snippet.Expand(p.ContentHTML, snippets.HTML))
 	}
 	albums := h.albumsFor(r, website.ID, scan.String())
+	// The values of the whole feed in one load too, and only when an entry
+	// names one: a feed that uses no value costs one strings.Contains over the
+	// scan and no query. The snippets' own values are already in the scan,
+	// resolved by loadSnippets, so what is looked for here is the pages'.
+	var texts map[string]string
+	var valuesAt time.Time
+	// An entry's <summary> is its excerpt, which keeps a value marker for
+	// delivery (page.Excerpt), so a summary that names a value asks too.
+	if value.Has(scan.String()) || anySummaryNamesAValue(pages) {
+		texts, valuesAt = h.valueTexts(r.Context(), website.ID)
+	}
 
 	feed := atomFeed{
 		Title: website.Name,
@@ -111,10 +123,10 @@ func (h *Handler) HandleFeed(w http.ResponseWriter, r *http.Request) error {
 			ID:      url,
 			Updated: p.UpdatedAt.UTC().Format(time.RFC3339),
 			Links:   []atomLink{{Rel: "alternate", Type: "text/html", Href: url}},
-			Summary: p.Excerpt,
+			Summary: value.ResolveSummary(p.Excerpt, texts),
 			// content_html is already sanitised; encoding/xml escapes it into
 			// the element, which is what type="html" means.
-			Content: atomContent{Type: "html", Body: expandForFeed(p.ContentHTML, snippets, albums, pageWords(r.Context()))},
+			Content: atomContent{Type: "html", Body: expandForFeed(p.ContentHTML, snippets, albums, pageWords(r.Context()), texts)},
 		}
 		if p.PublishedAt != nil {
 			entry.Published = p.PublishedAt.UTC().Format(time.RFC3339)
@@ -134,6 +146,13 @@ func (h *Handler) HandleFeed(w http.ResponseWriter, r *http.Request) error {
 	// old gallery.
 	if latest := albums.Latest(); latest.After(newest) {
 		newest = latest
+	}
+	// And the values, for the same reason a third time: changing the version
+	// number changes every entry that names it without touching a page, which
+	// is VAL-04. Without this the ETag moved and both dates kept the old
+	// moment, and a reader trusting <updated> kept the old version.
+	if valuesAt.After(newest) {
+		newest = valuesAt
 	}
 	feed.Updated = newest.UTC().Format(time.RFC3339)
 

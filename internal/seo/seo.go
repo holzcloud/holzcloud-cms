@@ -64,6 +64,23 @@ const (
 	CodeProtected           = "protected"
 	CodeDraft               = "draft"
 	CodeNoFeaturedImage     = "no-featured-image"
+	// CodeUnknownValue: the text names [[wert:key]] and the website has no
+	// value with that key. Detail is the key.
+	CodeUnknownValue = "unknown-value"
+	// CodeValueOutsideText: a [[wert:key]] in the title or the description for
+	// search engines. Values are replaced in the text of a page, a snippet and
+	// a product description only, so it is shown there as written. Detail is
+	// the key.
+	CodeValueOutsideText = "value-outside-text"
+	// CodeValueBeforeParen: a [[wert:key]] directly followed by "(". Markdown
+	// reads that as a link whose text is [wert:key], so the value is lost.
+	// Detail is the key.
+	CodeValueBeforeParen = "value-followed-by-paren"
+	// CodeValueStartsLink: a relative link address whose first segment holds a
+	// [[wert:key]], such as v[[wert:k]]. The colon of "wert:" makes that
+	// segment read as a scheme, and the link loses its whole address at save.
+	// Detail is the key.
+	CodeValueStartsLink = "value-starts-link"
 )
 
 // Codes is every code Analyze can return, in a stable order. The report
@@ -77,6 +94,7 @@ func Codes() []string {
 		CodeH1InBody, CodeHeadingSkip, CodeImagesNoAlt, CodeThinText, CodeNoInternalLinks,
 		CodeSlugLong, CodeSlugNoise,
 		CodeNoIndex, CodeProtected, CodeDraft, CodeNoFeaturedImage,
+		CodeUnknownValue, CodeValueOutsideText, CodeValueBeforeParen, CodeValueStartsLink,
 	}
 }
 
@@ -170,6 +188,21 @@ type Input struct {
 	Host            string
 	SiteDescription string
 	Others          []Other
+
+	// UsedValues are the keys the page's text names as [[wert:key]], each
+	// once, in the order they first appear. KnownValues are the keys its
+	// website defines; nil means the set could not be read and nothing is
+	// claimed about UsedValues.
+	UsedValues  []string
+	KnownValues map[string]bool
+	// ValuesOutsideText are the keys named in the title or the description,
+	// where values are not replaced. ValuesBeforeParen are the keys whose
+	// placeholder is directly followed by an opening bracket in the text.
+	// ValuesStartingLink are the keys whose placeholder stands in the first
+	// segment of a relative link address, where it costs the link its address.
+	ValuesOutsideText  []string
+	ValuesBeforeParen  []string
+	ValuesStartingLink []string
 }
 
 var (
@@ -368,6 +401,32 @@ func Analyze(in Input) []Finding {
 	}
 	if !in.HasFeatured {
 		add(CodeNoFeaturedImage, SeverityInfo, 0, "")
+	}
+
+	// A key the website does not define shows as nothing on the public page,
+	// never as the raw placeholder, so a visitor cannot tell anything is
+	// missing. The editor is told here instead.
+	if in.KnownValues != nil {
+		for _, k := range in.UsedValues {
+			if !in.KnownValues[k] {
+				add(CodeUnknownValue, SeverityWarn, 0, k)
+			}
+		}
+	}
+	// Values are replaced in the text of a page, not in its title or its
+	// description, so a placeholder there reaches search results as written.
+	for _, k := range in.ValuesOutsideText {
+		add(CodeValueOutsideText, SeverityWarn, 0, k)
+	}
+	// "[[wert:k]](x)" is a Markdown link with the text "[wert:k]": the marker
+	// is gone before any value could be put in its place.
+	for _, k := range in.ValuesBeforeParen {
+		add(CodeValueBeforeParen, SeverityWarn, 0, k)
+	}
+	// "[Release](v[[wert:k]])": the colon of "wert:" in the first segment of a
+	// relative address reads as a scheme, and the sanitiser drops the address.
+	for _, k := range in.ValuesStartingLink {
+		add(CodeValueStartsLink, SeverityWarn, 0, k)
 	}
 
 	sort.SliceStable(out, func(i, j int) bool {

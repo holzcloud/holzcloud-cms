@@ -20,6 +20,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // The host operations a public plugin may call.
@@ -60,10 +61,14 @@ func (h *Handler) hasSearch(websiteID int64) bool {
 
 // expandForPlugin resolves the markers a plugin must never see.
 //
-// All three kinds: a snippet's, an album's, and the words this program mints.
-// A plugin filters what a visitor will read, so it has to be handed what a
-// visitor would read — a module that received [[w:next]] and searched it, or
-// rewrote around it, would be working on this program's internal syntax.
+// All four kinds: a snippet's, an album's, the words this program mints, and
+// the website's values. A plugin filters what a visitor will read, so it has
+// to be handed what a visitor would read — a module that received [[w:next]]
+// or [[wert:version]] and searched it, or rewrote around it, would be working
+// on this program's internal syntax.
+//
+// The values come last in both branches, as on the page: after the snippets,
+// so a footer naming the version is resolved with the page's own text.
 //
 // It takes a context rather than a request because that is what the plugin
 // host is handed; the request is fetched back out of it for the page's
@@ -84,11 +89,21 @@ func (h *Handler) expandForPlugin(ctx context.Context, websiteID int64, body str
 				body = snippet.Expand(body, rendered.HTML)
 			}
 		}
-		return block.ResolveWords(album.Expand(body, album.Set{}), pageWords(ctx))
+		body = block.ResolveWords(album.Expand(body, album.Set{}), pageWords(ctx))
+		// The values need no request, only the website: the store is asked
+		// directly, and a nil store or a failed load renders every marker as
+		// nothing rather than handing it over.
+		if !value.Has(body) {
+			return body
+		}
+		texts, _ := h.valueTexts(ctx, websiteID)
+		return value.Resolve(body, texts)
 	}
 	body = snippet.Expand(body, h.loadSnippets(r, websiteID).HTML)
 	body = album.Expand(body, h.albumsFor(r, websiteID, body))
-	return block.ResolveWords(body, pageWords(r.Context()))
+	body = block.ResolveWords(body, pageWords(r.Context()))
+	body, _ = h.resolveValues(r, websiteID, body)
+	return body
 }
 
 // PagesForPlugin answers the page operations.
@@ -103,6 +118,11 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 		return plugin.PagesResult{}, errors.New("the pages are not available")
 	}
 
+	// A page's summary is its excerpt, which keeps a value marker for
+	// delivery (page.Excerpt). A plugin is a reader like the feed, and gets
+	// the value, not the marker; the values are loaded once, and only when a
+	// summary names one.
+	sum := h.summaries(ctx, websiteID)
 	switch q.Op {
 	case plugin.OpPagesGet:
 		p, err := h.pageStore.GetPublishedPage(ctx, websiteID, strings.TrimPrefix(q.Slug, "/"))
@@ -118,6 +138,7 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 			return plugin.PagesResult{}, nil
 		}
 		info := pageInfo(*p)
+		info.Excerpt = sum.resolve(info.Excerpt)
 		// Expanded, not handed over as it stands. `content_html` is the
 		// FROZEN body and not what a visitor is served: a snippet marker has
 		// survived into it since Phase 8 and an album marker since Phase 11,
@@ -142,12 +163,28 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 			return plugin.PagesResult{}, err
 		}
 		out := plugin.PagesResult{Pages: make([]plugin.PageInfo, 0, len(results))}
+		// The values go into the passage the way HandleSearch puts them in, and
+		// for its reason: the passage is Markdown source, and a marker in it,
+		// whole or cut in half, is this program's syntax and not text. No
+		// request is needed for that, only the website.
+		var texts map[string]string
+		textsLoaded := false
 		for _, res := range results {
 			info := pageInfo(res.Page)
+			info.Excerpt = sum.resolve(info.Excerpt)
 			// The snippet is built from escaped text in internal/page, with
 			// <mark> around the terms. It is passed on as it is; what the
 			// plugin does with it goes through the sanitiser on the way back.
 			info.Snippet = string(res.Snippet)
+			if strings.Contains(res.Raw, "[[") || strings.Contains(res.Raw, "]]") {
+				if !textsLoaded {
+					textsLoaded = true
+					texts, _ = h.valueTexts(ctx, websiteID)
+				}
+				// Resolved first and escaped after, by the same function that
+				// built res.Snippet.
+				info.Snippet = string(page.Highlight(value.ResolvePlain(res.Raw, texts)))
+			}
 			out.Pages = append(out.Pages, info)
 		}
 		out.Total = len(out.Pages)
@@ -165,6 +202,7 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 		out := plugin.PagesResult{Pages: make([]plugin.PageInfo, 0, len(pages)), Total: total}
 		for _, p := range pages {
 			info := pageInfo(p)
+			info.Excerpt = sum.resolve(info.Excerpt)
 			h.addFields(&info, p, q.WithFields)
 			out.Pages = append(out.Pages, info)
 		}

@@ -136,12 +136,23 @@ top:
 | Websites & design | `list_websites` `get_website` `update_website` `create_website`\* `delete_website`\* `add_domain`\* `remove_domain`\* `set_primary_domain`\* `launch_checklist` `translation_matrix` `seo_report` `list_templates` `activate_template` `upload_template`\* `delete_template`\* `get_template_spec` `get_design` `set_design`\* `reset_design`\* `get_wording` `set_wording` |
 | Pages | `list_pages` `read_page` `search_pages` `create_page` `update_page` `publish_page` `get_page_settings` `set_page_slug` `set_page_kind` `set_page_terms` `set_page_seo` `set_page_schedule` `set_page_protection` `list_block_kinds` `get_page_blocks` `set_page_blocks` `insert_block` `list_revisions` `read_revision` `restore_revision` `label_revision` `duplicate_page` `list_translations` `create_translation` `create_share_link` `set_review` `bulk_pages` `list_trash` `trash_page` `restore_page` `purge_page`\* |
 | Media & albums | `list_media` `get_media_library` `list_media_collection` `get_media` `upload_media` `create_upload_link` `update_media` `set_media_focus` `crop_media` `restore_media_original` `delete_media` `list_albums` `get_album` `create_album` `rename_album` `delete_album` `add_album_images` `update_album_image` `remove_album_image` `move_album_image` |
-| Structure | `list_menus` `get_menu` `create_menu` `update_menu` `delete_menu` `list_terms` `rename_term` `delete_term` `list_snippets` `get_snippet` `create_snippet` `update_snippet` `delete_snippet` `list_redirects` `create_redirect` `delete_redirect` `check_links` `list_fields` `create_field`\* `update_field`\* `delete_field`\* `move_field`\* `list_kinds`\* `create_kind`\* `update_kind`\* `delete_kind`\* `move_kind`\* `manage_block_kinds`\* `create_block_kind`\* `update_block_kind`\* `delete_block_kind`\* `move_block_kind`\* |
+| Structure | `list_menus` `get_menu` `create_menu` `update_menu` `delete_menu` `list_terms` `rename_term` `delete_term` `list_snippets` `get_snippet` `create_snippet` `update_snippet` `delete_snippet` `list_values` `get_value` `set_value` `delete_value` `list_redirects` `create_redirect` `delete_redirect` `check_links` `list_fields` `create_field`\* `update_field`\* `delete_field`\* `move_field`\* `list_kinds`\* `create_kind`\* `update_kind`\* `delete_kind`\* `move_kind`\* `manage_block_kinds`\* `create_block_kind`\* `update_block_kind`\* `delete_block_kind`\* `move_block_kind`\* |
 | Shop | `shop_overview` `list_products` `get_product` `create_product` `update_product` `delete_product` `list_orders` `get_order` `set_order_status` `recheck_payment` `resend_order_mail` `get_shop_settings`\* `update_shop_settings`\* |
 | Installation | `key_info` and, admin keys only: `list_users` `get_user` `invite_user` `update_user` `create_password_reset_link` `create_invitation_link` `end_user_sessions` `disable_user_two_factor` `delete_user` `list_ai_keys` `create_ai_key` `revoke_ai_key` `list_plugins` `install_plugin` `enable_plugin` `disable_plugin` `set_plugin_websites` `remove_plugin` `get_mail_status` `retry_mail` `send_test_mail` `list_languages` `install_language` `remove_language` `get_branding` `update_branding` `read_activity_log` |
 
 \* admin key only — the same split as the admin, where these screens are for
 administrators.
+
+Values are one line of plain text per website, named in page text and in a
+product's description as `[[wert:key]]` and resolved at delivery, so
+`set_value` reaches every page and product that names the key without saving
+it. `delete_value` refuses a value a page, product or snippet still names, and
+says which; `list_values` and `get_value` list the products apart from the
+pages, under `products`. A placeholder in a page title, a description for
+search engines, an own field of a page or a snippet, a product's title or
+subtitle or a menu entry is not resolved; `list_values` names each one under
+`outside_text`, with `where` set to `title`, `description`, `field`,
+`snippet-field`, `product-title`, `product-subtitle` or `menu`.
 
 `create_ai_key` issues `read` and `content` keys only; `revoke_ai_key` refuses
 the key that calls it, so an assistant cannot cut its own connection halfway

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -26,7 +27,29 @@ const seoPerPage = 50
 
 // auditSource is what the editor tab and the report read pages through.
 func (h *Handler) auditSource() audit.Source {
-	return audit.Source{Pages: h.pages, Media: h.mediaStore, Domains: h.domains, BlockSet: h.blockSet}
+	return audit.Source{Pages: h.pages, Media: h.mediaStore, Domains: h.domains, BlockSet: h.blockSet,
+		Values: h.OpKnownValues}
+}
+
+// OpKnownValues is the set of value keys a website defines, for the SEO
+// checks. internal/ai's seo_report builds its own audit.Source and reaches
+// this through its Ops, so the editor tab, the report screen and the
+// assistant check against the same set. Without a store the set is empty
+// rather than unknown: every key a page names then shows as nothing on the
+// public page, and that is what the checks should say.
+func (h *Handler) OpKnownValues(ctx context.Context, websiteID int64) (map[string]bool, error) {
+	known := map[string]bool{}
+	if h.valueStore == nil {
+		return known, nil
+	}
+	list, err := h.valueStore.List(ctx, websiteID)
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range list {
+		known[v.Key] = true
+	}
+	return known, nil
 }
 
 // seoPanel is what the editor's SEO tab shows.

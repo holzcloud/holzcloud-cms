@@ -112,3 +112,50 @@ func TestExcerptDropsEveryMarker(t *testing.T) {
 		}
 	}
 }
+
+// A value marker is the one marker the excerpt keeps. The summary is derived
+// from the page's text, and in that text the value stands in the sentence:
+// "Alpha [[wert:v]]: neu" reads "Alpha 0.1.5: neu" on the page, and a summary
+// that dropped the marker read "Alpha : neu" in <meta name="description">.
+// The value is put in at delivery, not here: a text frozen at save would keep
+// the old version after the value changed (VAL-04).
+func TestExcerptKeepsValueMarkers(t *testing.T) {
+	for _, tc := range []struct{ name, markdown, want string }{
+		{"in a sentence, beside a snippet",
+			"Alpha [[wert:v]]: neu\n\n[[snippet:fuss]]\n\n[[formular]]", "Alpha [[wert:v]]: neu"},
+		{"in the visible text of a link",
+			"[Version [[wert:v]]](/release) ist da.", "Version [[wert:v]] ist da."},
+		{"in the alt text of a picture, which goes with the picture",
+			"Vorher ![Logo [[wert:v]]](/logo.png) nachher", "Vorher nachher"},
+		{"in a link address, which goes with the address",
+			"[Release](https://x.ch/v[[wert:v]]) lesen", "Release lesen"},
+		{"a key with an underscore survives the emphasis pass",
+			"Stand [[wert:a_b]] *fett*", "Stand [[wert:a_b]] fett"},
+		{"in a heading and in code",
+			"# Version [[wert:v]]\n\n`[[wert:v]]`", "Version [[wert:v]] [[wert:v]]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := Excerpt(tc.markdown); got != tc.want {
+				t.Errorf("Excerpt(%q) = %q, want %q", tc.markdown, got, tc.want)
+			}
+		})
+	}
+}
+
+// The cut never falls inside a value marker: half a marker is neither text nor
+// syntax that delivery can resolve. Without a space in the first 160
+// characters the cut is mid-word, and that word may be a marker.
+func TestExcerptNeverCutsAValueMarkerInHalf(t *testing.T) {
+	for _, markdown := range []string{
+		strings.Repeat("x", 150) + "[[wert:version-holzcloud-cms]]",
+		strings.Repeat("Wort ", 30) + "[[wert:version-holzcloud-cms]] Ende",
+	} {
+		got := Excerpt(markdown)
+		if i := strings.LastIndex(got, "[["); i >= 0 && !strings.Contains(got[i:], "]]") {
+			t.Errorf("Excerpt cut a marker in half: %q", got)
+		}
+		if strings.Contains(got, "wert:") && !strings.Contains(got, "[[wert:version-holzcloud-cms]]") {
+			t.Errorf("Excerpt left a piece of a marker: %q", got)
+		}
+	}
+}

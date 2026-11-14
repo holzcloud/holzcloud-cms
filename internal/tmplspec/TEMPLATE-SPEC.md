@@ -4,6 +4,10 @@ This document is the complete contract for a public site template. It is
 written to be handed to an AI agent as-is: everything needed to produce a
 working template is here, and nothing here needs to be looked up elsewhere.
 
+This document is **Template contract 1.0**. `holzcloud template check` prints
+the contract it checks against, and a theme may say which contract it was
+written for (§2.4).
+
 Print the current copy from the running binary at any time:
 
     holzcloud template spec
@@ -39,6 +43,7 @@ and each picks its own template.
       checkout.html    optional — the order form
       order.html       optional — the confirmation of a placed order
       style.css        optional, but every real template has one
+      theme.json       optional — {"contract": "1.0"}, the contract this theme was written for
       fonts/…          optional, bundled font files
       *.svg *.png …    optional, bundled images
 
@@ -117,8 +122,20 @@ Allowed: `.html` `.css` `.svg` `.png` `.jpg` `.jpeg` `.gif` `.webp` `.ico`
 `.woff` `.woff2` `.ttf` `.json`. At most 500 files, 10 MB uncompressed by
 default.
 
-`.json` is for `lang/<tag>.json`, your theme's own catalogue (§2.5). It is read
-by the server and never served to a browser.
+`.json` is for `lang/<tag>.json`, your theme's own catalogue (§2.5), and for
+`theme.json`. The server reads both and a page never needs either, so put
+nothing in them you would mind a visitor reading.
+
+`theme.json` at the root of the archive may say which template contract the
+theme was written for, as major.minor:
+
+    {"contract": "1.0"}
+
+Nothing else in the file is read, so other keys are ignored. Without the file,
+`holzcloud template check` reports that the theme declares no contract version.
+A different well-formed version is reported, and never refused. A `theme.json`
+that is not a JSON object, or whose `contract` is not a string of the form
+major.minor, is refused, and the message names `theme.json`.
 
 ### 2.5 A theme carries its own words, in its own catalogue
 
@@ -360,6 +377,22 @@ heading twice — the single most visible defect a new template ships with:
 {{if not .Page.HasOwnHeading}}<h1>{{.Page.Title}}</h1>{{end}}
 ```
 
+**Values (`[[wert:key]]`) are already replaced in `.Page.ContentHTML`.** The
+operator keeps short texts per website — a version number, a phone number —
+and writes them into the text of a page as `[[wert:key]]`; the program puts
+the text in, escaped, before your template sees the body, inside sentences,
+headings, lists and link addresses alike. A theme does nothing for them.
+The summary derived from that text carries the value too: `.Page.Excerpt`,
+`.Excerpt` of an archive entry, and `.Meta.Description` when it is that
+summary. A product's description is the same kind of text:
+`.Product.DescriptionHTML`, the `.Excerpt` of a `ProductEntry` and the
+product page's `.Meta.Description` carry the value as well. `.Page.Title`, a description the operator typed for search engines,
+the website's own fields (`.Page.Fields`, `.Page.FieldList`,
+`.Site.SnippetFields`, `.Site.SnippetList`), a product's `.Title` and
+`.Subtitle` and the labels in `.Menus` are printed as the operator wrote them:
+a placeholder there is not replaced, and the Values screen tells the operator
+so.
+
 ### `.Meta` — for `<head>`
 
 | Field | Type | Notes |
@@ -484,7 +517,7 @@ empty) `.Price` `.PriceNote` `.Available` `.SoldOutLabel` `.Terms`
 | `.Product.Title` | string | |
 | `.Product.Subtitle` | string | "Eiche massiv, geölt" — may be empty |
 | `.Product.Slug` | string | Goes into the buy form |
-| `.Product.DescriptionHTML` | HTML | Already sanitised |
+| `.Product.DescriptionHTML` | HTML | Already sanitised; values (`[[wert:key]]`) already replaced |
 | `.Product.SKU` | string | Artikelnummer, may be empty |
 | `.Product.Price` | string | |
 | `.Product.PriceNote` | string | |
@@ -878,6 +911,10 @@ key. Useful for putting an address in the footer without hard-coding it:
 {{with index .Site.Snippets "footer-kontakt"}}<div>{{.}}</div>{{end}}
 ```
 
+A value (`[[wert:key]]`) inside a snippet is already replaced in
+`.Site.Snippets`, exactly as in `.Page.ContentHTML`; print the snippet and the
+text stands in it.
+
 **A snippet is a body plus optional fields**, exactly as a page is content plus
 optional fields. `.Site.Snippets` still carries the body and has not changed;
 the fields sit beside it in two further maps, keyed by the same snippet key —
@@ -1094,3 +1131,4 @@ mechanically, and its messages name the file, the line, and the fix.
 - [ ] `@media print` exists
 - [ ] Empty archive, empty search, no menu — all render sensibly
 - [ ] Zipped with `layout.html` at the root
+- [ ] `theme.json` declares the contract you wrote against (`holzcloud template check` prints both)

@@ -11,6 +11,7 @@ build of the program.
 - [Content kinds](#content-kinds)
 - [Block kinds](#block-kinds)
 - [Snippets](#snippets)
+- [Values](#values)
 
 ## Fields
 
@@ -233,3 +234,89 @@ Snippets are reusable blocks — an address, opening hours. A
 `[[snippet:key]]` in the page text is replaced at serving time, not at saving
 time, so a change happens in exactly one place. A theme can place a snippet
 itself with `{{index .Site.Snippets "key"}}`.
+
+## Values
+
+A value is a short text a website keeps once and its pages name inside a
+sentence: a version number, a phone number, a price. It is kept on the Values
+screen (Settings → Values, beside Snippets) and written into the text of a page
+as `[[wert:key]]`:
+
+```text
+Alpha [[wert:version-holzcloud-cms]]: what is new
+[Release notes](https://github.com/holzcloud/holzcloud-cms/releases/tag/v[[wert:version-holzcloud-cms]])
+```
+
+**What a value is.** A key — lower-case letters, digits, `-` and `_`, at most
+60 bytes, not starting or ending with `-` or `_` — and one line of plain text,
+at most 400 bytes, without a square bracket (`[` or `]`: a bracket in a value
+could complete a placeholder with the brackets beside it, and the visitor would
+read it raw) and without an invisible character — no line or paragraph
+separator, no right-to-left override or other bidi control, no zero-width
+space or joiner, no byte order mark. The text is never Markdown and never HTML: it is escaped
+wherever it is put, so an angle bracket stays an angle bracket. It is the same
+in every language of the website; words that differ by language belong in the
+page text or in the wording catalogue. A key cannot be renamed once the value
+exists, because every sentence naming the old key would go empty.
+
+**Where it works.** In the text of a page: prose, headings, list items, inline
+code, link addresses (percent-encoded there, and unable to change the address's
+scheme or host), raw HTML in blocks, inside a snippet that the page places, and
+in the description of a shop product (and the product's summary in the
+catalogue).
+The summary built from that text when the excerpt is left empty keeps the
+placeholder, so the value shows in it too — in listings, the feed and, when no
+description for search engines was typed, in the page's description — and
+follows a change like the page does.
+
+**Where it does not.** Page titles, a description for search engines that you
+type yourself, the website's own fields of a page or a snippet, a product's
+title and subtitle, and menu entries show the placeholder as it is written. An
+own field is not the page's text: it may be a date, a choice or an address, and
+the theme decides where it is printed. The Values screen lists every such place in its
+card "Not replaced here", linked to where it can be changed; the SEO check
+reports it for a page.
+
+**When it changes.** The text is put in when the page is delivered, not when
+it is saved. Changing a value changes the next response of every page that
+names it, without saving any of them, and moves the page's Last-Modified so a
+browser holding an old copy fetches the new one.
+
+**An unknown key** shows nothing — never the raw marker. The Values screen lists
+it in its card "Used but not defined" with the pages that name it, linked to
+their editor; the SEO check reports it as well.
+
+**Deleting.** A value that any page (draft or published, any language, not the
+wastebasket), product or snippet still names is not deleted. The refusal names them;
+remove the placeholders first, then delete.
+
+**Who may change it.** Creating, changing and deleting a value needs the
+publishing right, because a value is online the moment it is stored. Without
+it the Values screen is read-only. Over the assistant connection the tools
+`list_values`, `get_value`, `set_value` and `delete_value` follow the key's
+level, as the snippet tools do.
+
+**Escaped brackets are still a placeholder.** What counts is the page as it is
+delivered, not how the Markdown spells it: `\[\[wert:key\]\]` or
+`&#91;&#91;wert:key]]` renders as `[[wert:key]]` and is replaced like any other
+placeholder. The Values screen, the delete refusal and the SEO check read the
+stored page as well as its source, so they count it too — and a typed excerpt
+as well. The percent-encoded spelling `%5B%5Bwert:key%5D%5D` is a placeholder
+only inside a link address; in prose it stays the text you typed.
+
+**A placeholder at the start of a link address.** Start a relative address
+with `/` or a folder: `[Release](/releases/v[[wert:v]])` or
+`[Release](releases/v[[wert:v]])` work, `[Release](v[[wert:v]])` does not. The
+colon in `wert:` would stand in the first part of the address, where it reads
+as the start of a scheme like `https:`, and the link is saved without an
+address. A leading dot alone is not a folder: `./v[[wert:v]]` works,
+`.v[[wert:v]]` does not. The same holds for a reference definition
+(`[Release]: v[[wert:v]]`) and for `href` or `src` in raw HTML. The SEO check
+reports each of them ("Value at the start of a link address").
+
+**A bracket after a placeholder.** `[[wert:v]](beta)` is read as a Markdown
+link. Put a space after the placeholder when a bracket follows it:
+`[[wert:v]] (beta)`. The page editor says so under "Insert a value".
+
+**Search.** The site search finds a page by the words its author wrote, not by
+a value's text: the index holds the page source, where the placeholder stands.

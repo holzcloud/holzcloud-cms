@@ -783,3 +783,68 @@ func TestMigration00056DownAndUp(t *testing.T) {
 		t.Errorf("confirm_senders = %d after the trip; the default is the safe direction", on)
 	}
 }
+
+// TestMigration00062DownAndUp drives the backward half of 00062: the values
+// table goes, the website stays, and on the way back up the unique pair the
+// per-request read and the store's ErrKeyTaken both stand on is there again.
+func TestMigration00062DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+
+	res, err := database.Write.ExecContext(ctx,
+		`INSERT INTO websites (name, description) VALUES ('Hofladen', '')`)
+	if err != nil {
+		t.Fatalf("creating a website: %v", err)
+	}
+	websiteID, _ := res.LastInsertId()
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO site_values (website_id, key, value) VALUES ($1, 'version', '0.1.5')`, websiteID); err != nil {
+		t.Fatalf("storing a value: %v", err)
+	}
+
+	// --- down ---------------------------------------------------------------
+	rollBackTo(t, ctx, provider, 61)
+
+	var tables int
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='site_values'`).
+		Scan(&tables); err != nil {
+		t.Fatalf("looking for the table: %v", err)
+	}
+	if tables != 0 {
+		t.Error("site_values survived its own rollback")
+	}
+	var websites int
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM websites WHERE id = ?`, websiteID).Scan(&websites); err != nil {
+		t.Fatalf("looking for the website: %v", err)
+	}
+	if websites != 1 {
+		t.Fatal("the rollback took the website with it")
+	}
+
+	// --- and up again -------------------------------------------------------
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO site_values (website_id, key, value) VALUES ($1, 'version', '0.1.6')`, websiteID); err != nil {
+		t.Fatalf("the table does not take a row after the trip back up: %v", err)
+	}
+	_, err = database.Write.ExecContext(ctx,
+		`INSERT INTO site_values (website_id, key, value) VALUES ($1, 'version', '0.1.7')`, websiteID)
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "unique") {
+		t.Errorf("a second row for the same website and key = %v; want a unique violation", err)
+	}
+}

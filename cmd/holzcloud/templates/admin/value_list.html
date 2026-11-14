@@ -1,0 +1,181 @@
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Back to the pages"}}</a>{{end}}
+
+{{define "content"}}
+{{template "value_list-content" .}}
+{{end}}
+
+{{define "value_list-content"}}
+{{if .ReadOnly}}{{template "read_only_notice" .}}{{end}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <p class="text-muted">
+        {{th "A value is a short text this website keeps once, such as a version number or a phone number. Write <code>[[wert:key]]</code> into the text of a page, a snippet or a product description – in a sentence, a heading, a list or a link address – and the value is shown there. A change reaches every page and product at once, and the value is the same in every language. Anywhere else, such as a title, a description for search engines or a menu entry, the placeholder is shown as it is written; the card “Not replaced here” lists each such place."}}
+    </p>
+</div>
+
+{{/* Without the publishing right the form is there only for a value opened to
+     look at: its text in a disabled fieldset and nothing to send. */}}
+{{if or (not .ReadOnly) .IsEdit}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{if .ReadOnly}}<code>[[wert:{{.Form.Key}}]]</code>{{else if .IsEdit}}{{t "Edit value"}}{{else}}{{t "New value"}}{{end}}</h2>
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/werte">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        {{if .IsEdit}}<input type="hidden" name="id" value="{{.Form.ID}}">{{end}}
+        <fieldset class="read-only-fields"{{if .ReadOnly}} disabled{{end}}>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="key">{{t "Key"}}</label>
+                {{if .IsEdit}}
+                <input type="text" id="key" class="form-input" value="{{.Form.Key}}" readonly
+                       aria-describedby="key-hint">
+                <p class="form-hint text-muted" id="key-hint">{{t "The key cannot be changed once the value exists."}}</p>
+                {{else}}
+                <input type="text" id="key" name="key" class="form-input" required
+                       value="{{.Form.Key}}" placeholder="{{t "version"}}"
+                       pattern="[a-z0-9][a-z0-9_\-]*"
+                       aria-describedby="key-hint{{with .Errors.key}} key-error{{end}}"
+                       {{with .Errors.key}}aria-invalid="true"{{end}}>
+                {{with .Errors.key}}<p class="form-error" id="key-error">{{t .}}</p>{{end}}
+                <p class="form-hint text-muted" id="key-hint">{{th "This is how you call the value: <code>[[wert:key]]</code>"}}</p>
+                {{end}}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="text">{{t "Text"}}</label>
+                <input type="text" id="text" name="text" class="form-input" required
+                       value="{{.Form.Text}}" maxlength="{{.MaxText}}"
+                       aria-describedby="text-hint{{with .Errors.text}} text-error{{end}}"
+                       {{with .Errors.text}}aria-invalid="true"{{end}}>
+                {{with .Errors.text}}<p class="form-error" id="text-error">{{t .}}</p>{{end}}
+                <p class="form-hint text-muted" id="text-hint">{{t "One line of plain text, at most 400 bytes. It is never Markdown or HTML."}}</p>
+            </div>
+        </div>
+        </fieldset>
+
+        {{if .ReadOnly}}
+        <a href="/admin/websites/{{.WebsiteID}}/werte" class="btn">{{th "&#8592; All values"}}</a>
+        {{else}}
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
+        {{if .IsEdit}}<a href="/admin/websites/{{.WebsiteID}}/werte" class="btn">{{t "Cancel"}}</a>{{end}}
+        {{end}}
+    </form>
+</div>
+{{end}}
+
+<div class="card">
+    {{if .Rows}}
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Placeholder"}}</th>
+                <th scope="col">{{t "Text"}}</th>
+                <th scope="col">{{t "In use"}}</th>
+                <th scope="col">{{t "Changed"}}</th>
+                <th scope="col"><span class="sr-only">{{t "Actions"}}</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Rows}}
+            <tr>
+                <td><code>[[wert:{{.Key}}]]</code></td>
+                <td>{{.Text}}</td>
+                <td class="text-muted">
+                    {{- if .Pages}}{{if eq .Pages 1}}{{t "on one page"}}{{else}}{{tf "on %d pages" .Pages}}{{end}}
+                    {{- if .Snippets}} {{if eq .Snippets 1}}{{t "and in one snippet"}}{{else}}{{tf "and in %d snippets" .Snippets}}{{end}}{{end}}
+                    {{- if .Products}} {{if eq .Products 1}}{{t "and in one product"}}{{else}}{{tf "and in %d products" .Products}}{{end}}{{end}}
+                    {{- else if .Snippets}}{{if eq .Snippets 1}}{{t "in one snippet"}}{{else}}{{tf "in %d snippets" .Snippets}}{{end}}
+                    {{- if .Products}} {{if eq .Products 1}}{{t "and in one product"}}{{else}}{{tf "and in %d products" .Products}}{{end}}{{end}}
+                    {{- else if .Products}}{{if eq .Products 1}}{{t "in one product"}}{{else}}{{tf "in %d products" .Products}}{{end}}
+                    {{- else}}{{t "nowhere"}}{{end -}}
+                </td>
+                <td class="text-muted">{{.UpdatedAt.Format "02.01.2006 15:04"}}</td>
+                <td class="table-actions">
+                    <a href="/admin/websites/{{$.WebsiteID}}/werte?edit={{.ID}}" class="btn btn--sm">{{if $.ReadOnly}}{{t "View"}}{{else}}{{t "Edit"}}{{end}}</a>
+                    {{/* No confirmation step (phase 33, D-13 A6): a value still in use
+                         is refused with the pages named, and an unused one
+                         loses a line nobody reads. */}}
+                    {{if not $.ReadOnly}}
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/werte/{{.ID}}/delete"
+                          hx-post="/admin/websites/{{$.WebsiteID}}/werte/{{.ID}}/delete">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete"}}</button>
+                    </form>
+                    {{end}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="text-muted">{{t "No values yet."}}</p>
+    {{end}}
+</div>
+
+{{if .Undefined}}
+<div class="card" style="margin-top: var(--space-3);">
+    <h2>{{t "Used but not defined"}}</h2>
+    <p class="text-muted">{{t "These pages, products and snippets name a value this website does not have. Visitors see nothing in its place."}}</p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Placeholder"}}</th>
+                <th scope="col">{{t "Named on"}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Undefined}}
+            <tr>
+                <td><code>[[wert:{{.Key}}]]</code></td>
+                <td>
+                    {{- range $i, $u := .Users}}{{if $i}}, {{end}}
+                    {{- if eq $u.Kind "snippet"}}<a href="/admin/websites/{{$.WebsiteID}}/snippets?edit={{$u.ID}}">{{$u.Name}}</a>
+                    {{- else if eq $u.Kind "product"}}<a href="/admin/websites/{{$.WebsiteID}}/produkte/{{$u.ID}}">{{$u.Name}}</a>
+                    {{- else}}<a href="/admin/websites/{{$.WebsiteID}}/pages/{{$u.ID}}/edit">{{$u.Name}}</a>{{end}}
+                    {{- end -}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}
+
+{{if .Outside}}
+<div class="card" style="margin-top: var(--space-3);">
+    <h2>{{t "Not replaced here"}}</h2>
+    <p class="text-muted">{{t "Values are replaced in the text of a page, a snippet and a product description only. Here the placeholder is shown as it is written:"}}</p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Placeholder"}}</th>
+                <th scope="col">{{t "Where"}}</th>
+                <th scope="col">{{t "Named on"}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Outside}}
+            <tr>
+                <td><code>[[wert:{{.Key}}]]</code></td>
+                <td class="text-muted">
+                    {{- if eq .Where "title"}}{{t "Page title"}}
+                    {{- else if eq .Where "description"}}{{t "Description for search engines"}}
+                    {{- else if eq .Where "product-title"}}{{t "Product title"}}
+                    {{- else if eq .Where "product-subtitle"}}{{t "Product subtitle"}}
+                    {{- else if eq .Where "field"}}{{t "Field of a page"}}
+                    {{- else if eq .Where "snippet-field"}}{{t "Field of a snippet"}}
+                    {{- else}}{{t "Menu entry"}}{{end -}}
+                </td>
+                <td>
+                    {{- if eq .Where "menu"}}<a href="/admin/websites/{{$.WebsiteID}}/menus">{{.Title}}</a>
+                    {{- else if or (eq .Where "product-title") (eq .Where "product-subtitle")}}<a href="/admin/websites/{{$.WebsiteID}}/produkte/{{.ID}}">{{.Title}}</a>
+                    {{- else if eq .Where "snippet-field"}}<a href="/admin/websites/{{$.WebsiteID}}/snippets?edit={{.ID}}">{{.Title}}</a>
+                    {{- else}}<a href="/admin/websites/{{$.WebsiteID}}/pages/{{.ID}}/edit">{{.Title}}</a>{{end}}
+                    {{- if .Locale}} ({{.Locale}}){{end -}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}
+{{end}}

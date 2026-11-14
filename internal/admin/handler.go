@@ -34,6 +34,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/term"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 	"github.com/holzcloud/holzcloud-cms/internal/wording"
 )
@@ -83,6 +84,10 @@ type Handler struct {
 	// are simply not wired and every album route answers 404 — see
 	// SetAlbumStore.
 	albumStore *album.Store
+	// valueStore backs the website's values, the [[wert:key]] a page names.
+	// Nil means the values screen and tools have nothing to show — see
+	// SetValueStore.
+	valueStore *value.Store
 	// products, orders and payments back the shop. Each may be nil, in which
 	// case the shop screens do not exist and no shop route answers.
 	products *shop.Store
@@ -276,6 +281,14 @@ func (h *Handler) SetAITokens(s *ai.Store) { h.aiTokens = s }
 // the same tolerance SetProductStore, SetOrderStore, SetOutbox and
 // SetActivityStore already carry.
 func (h *Handler) SetAlbumStore(s *album.Store) { h.albumStore = s }
+
+// SetValueStore attaches the value store.
+//
+// A setter rather than another argument to NewHandler, for the reason
+// SetAlbumStore gives. Nil means the values screen and the assistant's value
+// tools have nothing to show; a page still saves, and its markers render as
+// nothing on the public side.
+func (h *Handler) SetValueStore(s *value.Store) { h.valueStore = s }
 
 // SetWording gives the handler the store behind the wording screen.
 func (h *Handler) SetWording(s *wording.Store) { h.wording = s }

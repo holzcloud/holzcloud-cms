@@ -24,6 +24,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // Stores are the readers an export needs. Passing them in rather than reaching
@@ -47,7 +48,9 @@ type Stores struct {
 	// BlockTypes are the website's own block kinds. Nil means a bundle carries
 	// none.
 	BlockTypes *block.Store
-	DataDir    string
+	// Values are the website's named texts. Nil means a bundle carries none.
+	Values  *value.Store
+	DataDir string
 }
 
 // maxExportPages bounds an export.
@@ -178,6 +181,9 @@ func buildManifest(ctx context.Context, s Stores, ws *domain.Website, version st
 	// label fields are ids in exactly the way a page's are, and translating
 	// them takes the same three maps.
 	if err := exportSnippets(ctx, s, ws.ID, m, mediaByID, slugByID, nameBySlug); err != nil {
+		return nil, err
+	}
+	if err := exportValues(ctx, s, ws.ID, m); err != nil {
 		return nil, err
 	}
 	if err := exportFields(ctx, s, ws.ID, m); err != nil {
@@ -322,6 +328,25 @@ func exportNodes(nodes []menu.MenuNode) []MenuItem {
 		})
 	}
 	return out
+}
+
+// exportValues writes the website's named texts into the manifest.
+//
+// The list is read for this one website and no other: the store's every
+// statement carries the website id, so a neighbour's value cannot end up in
+// somebody else's archive (D-03).
+func exportValues(ctx context.Context, s Stores, websiteID int64, m *Manifest) error {
+	if s.Values == nil {
+		return nil
+	}
+	items, err := s.Values.List(ctx, websiteID)
+	if err != nil {
+		return fmt.Errorf("list values: %w", err)
+	}
+	for _, v := range items {
+		m.Values = append(m.Values, SiteValue{Key: v.Key, Value: v.Text})
+	}
+	return nil
 }
 
 func exportSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest,

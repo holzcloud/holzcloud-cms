@@ -316,6 +316,10 @@ func (h *Handler) saveProduct(ctx context.Context, websiteID int64, values *prod
 		return 0, err
 	}
 
+	// The excerpt keeps a value marker, as a page's does: the shop resolves
+	// values in a product's description and in its summary at delivery
+	// (internal/public/shop.go), so a changed value reaches the catalogue
+	// without saving the product.
 	p := &shop.Product{
 		ID:                  values.ID,
 		WebsiteID:           websiteID,

@@ -375,3 +375,67 @@ func TestCodesAreKnownAndAnalyzeOnlyReturnsKnown(t *testing.T) {
 		t.Error("nonsense is not a code")
 	}
 }
+
+func TestAnalyzeReportsUnknownValues(t *testing.T) {
+	// Not checked: the defined set could not be loaded, so nothing is claimed
+	// about the keys the page names.
+	in := good()
+	in.UsedValues = []string{"v", "nope", "other"}
+	if f, ok := has(Analyze(in), CodeUnknownValue); ok {
+		t.Fatalf("an unchecked set reports %+v", f)
+	}
+
+	in.KnownValues = map[string]bool{"v": true}
+	var got []Finding
+	for _, f := range Analyze(in) {
+		if f.Code == CodeUnknownValue {
+			got = append(got, f)
+		}
+	}
+	if len(got) != 2 {
+		t.Fatalf("unknown-value findings = %+v, want two", got)
+	}
+	for i, want := range []string{"nope", "other"} {
+		if got[i].Severity != SeverityWarn || got[i].Detail != want {
+			t.Errorf("finding %d = %+v, want warn with detail %q", i, got[i], want)
+		}
+	}
+	if !Known("unknown-value") {
+		t.Error("unknown-value is not a known code")
+	}
+
+	in.KnownValues = map[string]bool{"v": true, "nope": true, "other": true}
+	if f, ok := has(Analyze(in), CodeUnknownValue); ok {
+		t.Errorf("a defined key is reported: %+v", f)
+	}
+}
+
+func TestAnalyzeReportsValuesOutsideTextAndBeforeAParen(t *testing.T) {
+	// Neither depends on the defined set: a defined value is not replaced in
+	// a title either, and one before a bracket is lost either way.
+	in := good()
+	in.ValuesOutsideText = []string{"v"}
+	in.ValuesBeforeParen = []string{"w"}
+	fs := Analyze(in)
+	if f, ok := has(fs, CodeValueOutsideText); !ok || f.Severity != SeverityWarn || f.Detail != "v" {
+		t.Errorf("value-outside-text = %+v (found %v), want warn naming v", f, ok)
+	}
+	if f, ok := has(fs, CodeValueBeforeParen); !ok || f.Severity != SeverityWarn || f.Detail != "w" {
+		t.Errorf("value-followed-by-paren = %+v (found %v), want warn naming w", f, ok)
+	}
+	for _, c := range []string{"value-outside-text", "value-followed-by-paren", "value-starts-link"} {
+		if !Known(c) {
+			t.Errorf("%s is not a known code", c)
+		}
+	}
+	// IN-06: a relative link address whose first segment holds a value loses
+	// the whole address, and the editor is told.
+	in = good()
+	in.ValuesStartingLink = []string{"k"}
+	if f, ok := has(Analyze(in), CodeValueStartsLink); !ok || f.Severity != SeverityWarn || f.Detail != "k" {
+		t.Errorf("value-starts-link = %+v (found %v), want warn naming k", f, ok)
+	}
+	if fs := Analyze(good()); len(fs) != 0 {
+		t.Errorf("a page without markers has findings: %+v", fs)
+	}
+}

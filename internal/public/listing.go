@@ -61,6 +61,9 @@ func (h *Handler) listing(r *http.Request, website *domain.Website) ([]listedURL
 			})
 		}
 	}
+	// A description that is the excerpt carries a value marker for this
+	// moment (page.Excerpt); a typed meta description stays as typed (D-11).
+	sum := h.summaries(r.Context(), website.ID)
 	for i := range entries {
 		e := &entries[i]
 		// The start page already stands above, under the root of its language.
@@ -78,10 +81,19 @@ func (h *Handler) listing(r *http.Request, website *domain.Website) ([]listedURL
 			Loc:         base + locale.Path(e.Locale, main, "/"+url.PathEscape(e.Slug)),
 			LastMod:     e.UpdatedAt.UTC().Format("2006-01-02"),
 			Title:       e.Title,
-			Description: e.Description,
+			Description: description(sum, e),
 			Locale:      tag,
 			Entry:       e,
 		})
 	}
 	return out, nil
+}
+
+// description is what llms.txt says about one page: the meta description as
+// the editor typed it, or else the excerpt with its values in.
+func description(sum *summaryValues, e *page.SitemapEntry) string {
+	if e.FromExcerpt {
+		return sum.resolve(e.Description)
+	}
+	return e.Description
 }

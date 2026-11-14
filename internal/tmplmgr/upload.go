@@ -35,12 +35,13 @@ var allowedExtensions = map[string]bool{
 	".woff":  true,
 	".woff2": true,
 	".ttf":   true,
-	// .json is here for lang/<tag>.json, a theme's own catalogue. It is never
-	// served: the loader reads it, the browser never asks for it, and
-	// CheckNoScripts does not need to look at it because a JSON file cannot be
-	// a script — no <script>, no attribute, no javascript: URL. What it can be
-	// is malformed, and template.Check says so at upload rather than at the
-	// visitor.
+	// .json is here for lang/<tag>.json, a theme's own catalogue, and for
+	// theme.json, which may declare the template contract the theme was
+	// written for. Neither is meant for a browser: the server reads them, and
+	// CheckNoScripts does not need to look at them because a JSON file cannot
+	// be a script — no <script>, no attribute, no javascript: URL. What one can
+	// be is malformed, and CheckTemplateDir says so at upload rather than at
+	// the visitor.
 	".json": true,
 }
 
@@ -187,6 +188,16 @@ func CheckTemplateDir(dir string, fallback fs.FS) []string {
 		// Nothing further is meaningful without the two required files, and
 		// every later check would only restate their absence.
 		return []string{err.Error()}
+	}
+
+	// theme.json may say which template contract the theme was written for.
+	// Declaring nothing is allowed, and any well-formed version is reported
+	// rather than judged; only a file that cannot be read as that one shape is
+	// refused, because the author said something nobody would ever hear.
+	if _, _, err := tmpl.DeclaredContract(os.DirFS(dir)); err != nil {
+		problems = append(problems, fmt.Sprintf(
+			`theme.json is not valid (%v) — it may hold {"contract": "%s"}, and nothing else in it is read`,
+			err, tmpl.ContractVersion))
 	}
 
 	// Nothing may be loaded from a third party at runtime (see CLAUDE.md).
