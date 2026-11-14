@@ -307,7 +307,10 @@ with `/` or a folder: `[Release](/releases/v[[wert:v]])` or
 `[Release](releases/v[[wert:v]])` work, `[Release](v[[wert:v]])` does not. The
 colon in `wert:` would stand in the first part of the address, where it reads
 as the start of a scheme like `https:`, and the link is saved without an
-address. The SEO check reports it ("Value at the start of a link address").
+address. A leading dot alone is not a folder: `./v[[wert:v]]` works,
+`.v[[wert:v]]` does not. The same holds for a reference definition
+(`[Release]: v[[wert:v]]`) and for `href` or `src` in raw HTML. The SEO check
+reports each of them ("Value at the start of a link address").
 
 **A bracket after a placeholder.** `[[wert:v]](beta)` is read as a Markdown
 link. Put a space after the placeholder when a bracket follows it:

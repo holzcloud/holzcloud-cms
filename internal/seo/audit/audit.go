@@ -252,9 +252,21 @@ func keysBeforeParen(s string) []string {
 	return out
 }
 
-// linkDestination is the address of a Markdown link or picture, up to the
-// closing bracket or the first space (a title may follow it).
-var linkDestination = regexp.MustCompile(`\]\(([^)\s]*)`)
+// linkDestinations find the address of a link or a picture in the three ways
+// Markdown writes one, each up to the first space, quote or closing bracket (a
+// title may follow it), and without the angle brackets that may enclose it:
+//
+//   - inline, [text](address) and ![alt](address);
+//   - a reference definition, [label]: address, at the start of a line — or,
+//     inside a block's JSON, after an escaped line break or at the start of
+//     the string;
+//   - raw HTML, href= or src= with or without quotes, the quotes escaped in a
+//     block's JSON. A space before the name keeps data-href and the like out.
+var linkDestinations = []*regexp.Regexp{
+	regexp.MustCompile(`\]\([ \t]*<?([^)\s>]*)`),
+	regexp.MustCompile(`(?m)(?:^|\\n|")[ \t]{0,3}\[[^\]\n]+\]:[ \t]*<?([^\s>"\\]*)`),
+	regexp.MustCompile(`(?i)\s(?:href|src)[ \t]*=[ \t]*(?:\\?["'])?([^"'\\\s>]*)`),
+}
 
 // keysStartingLink lists, once each and in order, the keys whose placeholder
 // stands in the first segment of a relative link address (IN-06 of the phase
@@ -264,18 +276,36 @@ var linkDestination = regexp.MustCompile(`\]\(([^)\s]*)`)
 // before any "/", "?" or "#". url.Parse then reads "v[[wert" as a scheme, the
 // sanitiser refuses the address, and the link is stored without one — the
 // editor sees plain text and is told nothing. An address that starts with
-// "/", ".", "#" or "?", that puts a folder first (releases/v[[wert:k]]), or
-// that has a scheme of its own before the placeholder (https://…, mailto:…)
+// "/", "./", "../", "#" or "?", that puts a folder first (releases/v[[wert:k]]),
+// or that has a scheme of its own before the placeholder (https://…, mailto:…)
 // keeps its address.
+//
+// A bare leading dot is not a folder: .v[[wert:k]] and ..[[wert:k]] still have
+// the colon in their first segment and lose the address the same way. Nor is
+// the inline form the only one: a reference definition and an href or src in
+// raw HTML go through the same sanitiser (IN-02 of the second review).
 func keysStartingLink(s string) []string {
 	if !value.Has(s) {
 		return nil
 	}
 	var out []string
 	seen := map[string]bool{}
-	for _, m := range linkDestination.FindAllStringSubmatch(s, -1) {
-		dest := m[1]
-		if dest == "" || strings.ContainsAny(dest[:1], "/.#?") {
+	// The addresses in the order they stand, whichever form wrote them.
+	type found struct {
+		at   int
+		dest string
+	}
+	var dests []found
+	for _, re := range linkDestinations {
+		for _, m := range re.FindAllStringSubmatchIndex(s, -1) {
+			dests = append(dests, found{m[2], s[m[2]:m[3]]})
+		}
+	}
+	sort.SliceStable(dests, func(i, j int) bool { return dests[i].at < dests[j].at })
+	for _, d := range dests {
+		dest := d.dest
+		if dest == "" || strings.ContainsAny(dest[:1], "/#?") ||
+			strings.HasPrefix(dest, "./") || strings.HasPrefix(dest, "../") {
 			continue
 		}
 		first := dest

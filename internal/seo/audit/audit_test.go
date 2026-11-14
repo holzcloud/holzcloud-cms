@@ -127,8 +127,8 @@ func TestAuditFindsValuesOutsideTextAndBeforeAParen(t *testing.T) {
 // IN-06 of the phase 33 review: in [Release](v[[wert:k]]) the colon of
 // "wert:" stands in the first segment of a relative address, url.Parse reads
 // it as a scheme, and the sanitiser drops the address. The audit names the key;
-// an address that starts with "/", ".", "#", "?" or a scheme, or that puts a
-// folder first, keeps it.
+// an address that starts with "/", "./", "../", "#", "?" or a scheme, or that
+// puts a folder first, keeps it.
 func TestAuditFindsAValueThatStartsARelativeLink(t *testing.T) {
 	ctx := context.Background()
 	s := Source{}
@@ -147,6 +147,28 @@ func TestAuditFindsAValueThatStartsARelativeLink(t *testing.T) {
 		{"[Release](#v[[wert:k]])", "", ""},
 		{"[Release](?v=[[wert:k]])", "", ""},
 		{"Alpha [[wert:k]] (beta)", "", ""},
+		// IN-02 of the second review: every one of these is stored without
+		// its address, checked through page.RenderMarkdown.
+		{"[R](.v[[wert:k]])", "", "k"},
+		{"[R](..[[wert:k]])", "", "k"},
+		{"[R](<v[[wert:k]]>)", "", "k"},
+		{"[R]\n\n[R]: v[[wert:k]]", "", "k"},
+		{"[R]\n\n   [R]: <v[[wert:k]]> \"Titel\"", "", "k"},
+		{`<a href="v[[wert:k]]">R</a>`, "", "k"},
+		{`<a href='v[[wert:k]]'>R</a>`, "", "k"},
+		{`<A HREF=v[[wert:k]]>R</A>`, "", "k"},
+		{`<img src="v[[wert:k]].png" alt="x">`, "", "k"},
+		{"", `[{"type":"text","markdown":"[R]\n\n[R]: v[[wert:b]]"}]`, "b"},
+		{"", `[{"type":"text","markdown":"[R]: v[[wert:b]]"}]`, "b"},
+		{"", `[{"type":"text","markdown":"<a href=\"v[[wert:b]]\">R</a>"}]`, "b"},
+		// And these keep it.
+		{"[R](../v[[wert:k]])", "", ""},
+		{"[R]\n\n[R]: /v[[wert:k]]", "", ""},
+		{`<a href="/v[[wert:k]]">R</a>`, "", ""},
+		{`<a href="https://x.ch/[[wert:k]]">R</a>`, "", ""},
+		{`<a data-href="v[[wert:k]]">R</a>`, "", ""},
+		// In the order they stand, whichever form wrote them.
+		{"<a href=\"w[[wert:j]]\">x</a> [R](v[[wert:k]])", "", "j,k"},
 	} {
 		p := valuePage()
 		p.ContentMarkdown, p.Blocks = tc.markdown, tc.blocks
