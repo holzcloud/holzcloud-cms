@@ -978,6 +978,27 @@
         color: var(--color-text);
     }
 
+    /* A group of fields under one heading — the legal frameworks, the
+       details about the business. Not the browser's framed box: a hairline
+       above and the legend set like a label, one step heavier, so the group
+       reads as a section of the same form. min-inline-size: 0 lets a
+       fieldset shrink like any block; by default it will not go narrower
+       than its widest content. */
+    .form-fieldset {
+        border: 0;
+        border-top: 1px solid var(--color-border);
+        margin: var(--space-3) 0;
+        padding: var(--space-2) 0 0;
+        min-inline-size: 0;
+    }
+
+    .form-fieldset > legend {
+        padding: 0 var(--space-1) 0 0;
+        font-size: var(--text-sm);
+        font-weight: 600;
+        color: var(--color-text);
+    }
+
     .form-input {
         display: block;
         width: 100%;
