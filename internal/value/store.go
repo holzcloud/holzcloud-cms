@@ -266,17 +266,19 @@ func (u Use) Name() string {
 }
 
 // Outside is a marker standing where values are not resolved: a page title, a
-// meta description, a menu item (D-11). It prints as written there, so the
-// report names it.
+// meta description, a product's title or subtitle, a menu item (D-11). It
+// prints as written there, so the report names it.
 type Outside struct {
 	Key string
-	// Where is "title", "description" or "menu".
+	// Where is "title", "description", "product-title", "product-subtitle" or
+	// "menu".
 	Where string
-	// ID is the page's id, or the menu item's.
+	// ID is the page's id, the product's or the menu item's.
 	ID int64
-	// Title is the page's title or the menu item's.
+	// Title is the page's title, the product's or the menu item's.
 	Title string
-	// Locale is the page's or the menu's language, empty for the main one.
+	// Locale is the page's or the menu's language, empty for the main one and
+	// for a product.
 	Locale string
 }
 
@@ -291,8 +293,8 @@ type Report struct {
 	Outside []Outside
 }
 
-// Report reads every page, snippet and menu item of one website for value
-// markers. Pages in the wastebasket are not read.
+// Report reads every page, product, snippet and menu item of one website for
+// value markers. Pages in the wastebasket are not read.
 func (s *Store) Report(ctx context.Context, websiteID int64) (Report, error) {
 	used, err := s.usage(ctx, websiteID)
 	if err != nil {
@@ -413,8 +415,8 @@ func (s *Store) usage(ctx context.Context, websiteID int64) (map[string][]Use, e
 	return used, srows.Err()
 }
 
-// outside finds markers in page titles, meta descriptions and menu items of one
-// website — the places D-11 leaves unresolved.
+// outside finds markers in page titles, meta descriptions, product titles and
+// subtitles and menu items of one website — the places D-11 leaves unresolved.
 func (s *Store) outside(ctx context.Context, websiteID int64) ([]Outside, error) {
 	var out []Outside
 	rows, err := s.DB.Read.QueryContext(ctx,
@@ -440,6 +442,38 @@ func (s *Store) outside(ctx context.Context, websiteID int64) ([]Outside, error)
 		}
 	}
 	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// A product's title and subtitle, after the pages (WR-01 of the second
+	// phase 33 review). The shop resolves the description and the summary and
+	// prints these two as written — on the product page, on every catalogue
+	// card, in the JSON-LD name and, while the excerpt is empty, in the
+	// description for search engines — so they are what a page title is to
+	// D-11, and are reported the same way.
+	prows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT id, title, subtitle FROM products
+		  WHERE website_id = $1
+		    AND (instr(title, '[[wert:') > 0 OR instr(subtitle, '[[wert:') > 0)
+		  ORDER BY title, id`, websiteID)
+	if err != nil {
+		return nil, fmt.Errorf("values in product titles: %w", err)
+	}
+	defer prows.Close()
+	for prows.Next() {
+		var id int64
+		var title, subtitle string
+		if err := prows.Scan(&id, &title, &subtitle); err != nil {
+			return nil, fmt.Errorf("scan product: %w", err)
+		}
+		for _, key := range Keys(title) {
+			out = append(out, Outside{Key: key, Where: "product-title", ID: id, Title: title})
+		}
+		for _, key := range Keys(subtitle) {
+			out = append(out, Outside{Key: key, Where: "product-subtitle", ID: id, Title: title})
+		}
+	}
+	if err := prows.Err(); err != nil {
 		return nil, err
 	}
 

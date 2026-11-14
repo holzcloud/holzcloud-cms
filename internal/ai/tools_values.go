@@ -41,7 +41,8 @@ type valueOps interface {
 const valuesAbout = "A value is one line of plain text (at most 400 bytes, no line break, no [ or ]), " +
 	"the same in every language of the website. Its marker [[wert:key]] is replaced in page " +
 	"text — prose, headings, lists, link addresses — and in a product description at delivery, so a change reaches every " +
-	"page without saving it. Titles, descriptions and menu labels do not replace it. A marker " +
+	"page without saving it. Page and product titles, a product's subtitle, descriptions and " +
+	"menu labels do not replace it. A marker " +
 	"whose key the website does not define shows nothing."
 
 var valueKeyProp = Property{Type: "string",
@@ -123,7 +124,9 @@ func listValues(d Deps) Tool {
 		Description: "Lists the values of a website, each with its marker, the pages, products and snippets " +
 			"that name it, and when it last changed. Beside them: undefined, every key a page, product or " +
 			"snippet names that the website does not define, and outside_text, every marker in a " +
-			"title, description or menu entry, where it is printed as written. " + valuesAbout,
+			"page title, a description, a product's title or subtitle or a menu entry, where it is " +
+			"printed as written; where says which of them (title, description, product-title, " +
+			"product-subtitle, menu) and id is the page's, the product's or the menu entry's. " + valuesAbout,
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{"website": structWebsiteProp}, Required: []string{"website"}},
 		Run: func(c Call) (any, error) {

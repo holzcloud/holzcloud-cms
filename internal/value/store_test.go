@@ -584,6 +584,51 @@ func TestTheReportListsUseUndefinedAndOutside(t *testing.T) {
 	}
 }
 
+// TestTheReportNamesAMarkerInAProductTitle is WR-01 of the second phase 33
+// review. The shop prints a product's title and subtitle as they are written —
+// on the product page, on every catalogue card, in the JSON-LD name and, while
+// the excerpt is empty, in the description for search engines — so a marker
+// there reaches a visitor raw. D-11 leaves them unresolved, as a page title is,
+// and like a page title they are reported.
+func TestTheReportNamesAMarkerInAProductTitle(t *testing.T) {
+	ctx := context.Background()
+	s, database := newTestStore(t)
+	ws := website(t, database, "A")
+	other := website(t, database, "B")
+	insert := func(websiteID int64, slug, title, subtitle string) int64 {
+		t.Helper()
+		res, err := database.Write.Exec(
+			`INSERT INTO products (website_id, slug, title, subtitle, status, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, 'draft', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
+			websiteID, slug, title, subtitle)
+		if err != nil {
+			t.Fatalf("insert product: %v", err)
+		}
+		id, _ := res.LastInsertId()
+		return id
+	}
+	tisch := insert(ws, "tisch", "Tisch [[wert:modell]]", "Ab [[wert:preis]]")
+	insert(ws, "stuhl", "Stuhl", "Eiche")
+	insert(other, "bank", "Bank [[wert:fremd]]", "[[wert:fremd]]")
+
+	rep, err := s.Report(ctx, ws)
+	if err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	want := []Outside{
+		{Key: "modell", Where: "product-title", ID: tisch, Title: "Tisch [[wert:modell]]"},
+		{Key: "preis", Where: "product-subtitle", ID: tisch, Title: "Tisch [[wert:modell]]"},
+	}
+	if !reflect.DeepEqual(rep.Outside, want) {
+		t.Errorf("Outside = %+v; want %+v", rep.Outside, want)
+	}
+	// Not resolved means not used: a title cannot keep a value alive, and an
+	// unknown key in it is not "used but not defined" — it is "not replaced".
+	if len(rep.Used) != 0 || len(rep.Undefined) != 0 {
+		t.Errorf("Used = %+v, Undefined = %q; a product title is not a use", rep.Used, rep.Undefined)
+	}
+}
+
 func TestUseNamesItself(t *testing.T) {
 	cases := []struct {
 		u    Use

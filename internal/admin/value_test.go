@@ -397,6 +397,27 @@ func TestTheScreenShowsUseUndefinedAndNotReplaced(t *testing.T) {
 	if !strings.Contains(undefined, fmt.Sprintf(`href="/admin/websites/%d/produkte/%d">Tisch</a>`, ws.ID, productID)) {
 		t.Errorf("the product naming the undefined key is not linked to its editor:\n%s", undefined)
 	}
+
+	// A product's title and subtitle print as written, like a page title, and
+	// are reported with a link to the product (WR-01 of the second review).
+	titledProduct, err := shop.NewStore(database).Create(ctx, &shop.Product{
+		WebsiteID: ws.ID, Slug: "stuhl", Title: "Stuhl [[wert:v]]", Subtitle: "Ab [[wert:v]]",
+		Status: "draft", TaxRate: money.RateStandard,
+	})
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	body = getAs(t, sm, putUser(sm, publisher), h.HandleValueList, list, route)
+	outside = screenValueCard(t, body, "Not replaced here")
+	link := fmt.Sprintf(`href="/admin/websites/%d/produkte/%d">Stuhl [[wert:v]]</a>`, ws.ID, titledProduct)
+	for _, where := range []string{"Product title", "Product subtitle"} {
+		if !strings.Contains(outside, where) {
+			t.Errorf("the card does not name the %s:\n%s", where, outside)
+		}
+	}
+	if strings.Count(outside, link) != 2 {
+		t.Errorf("the product title and subtitle are not linked to the product's editor:\n%s", outside)
+	}
 }
 
 // screenValueCard cuts the card whose heading is title out of a body.

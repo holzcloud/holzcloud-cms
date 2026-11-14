@@ -149,16 +149,23 @@
             <tr>
                 <th scope="col">{{t "Placeholder"}}</th>
                 <th scope="col">{{t "Where"}}</th>
-                <th scope="col">{{t "Page or menu entry"}}</th>
+                <th scope="col">{{t "Named on"}}</th>
             </tr>
         </thead>
         <tbody>
             {{range .Outside}}
             <tr>
                 <td><code>[[wert:{{.Key}}]]</code></td>
-                <td class="text-muted">{{if eq .Where "title"}}{{t "Page title"}}{{else if eq .Where "description"}}{{t "Description for search engines"}}{{else}}{{t "Menu entry"}}{{end}}</td>
+                <td class="text-muted">
+                    {{- if eq .Where "title"}}{{t "Page title"}}
+                    {{- else if eq .Where "description"}}{{t "Description for search engines"}}
+                    {{- else if eq .Where "product-title"}}{{t "Product title"}}
+                    {{- else if eq .Where "product-subtitle"}}{{t "Product subtitle"}}
+                    {{- else}}{{t "Menu entry"}}{{end -}}
+                </td>
                 <td>
                     {{- if eq .Where "menu"}}<a href="/admin/websites/{{$.WebsiteID}}/menus">{{.Title}}</a>
+                    {{- else if or (eq .Where "product-title") (eq .Where "product-subtitle")}}<a href="/admin/websites/{{$.WebsiteID}}/produkte/{{.ID}}">{{.Title}}</a>
                     {{- else}}<a href="/admin/websites/{{$.WebsiteID}}/pages/{{.ID}}/edit">{{.Title}}</a>{{end}}
                     {{- if .Locale}} ({{.Locale}}){{end -}}
                 </td>

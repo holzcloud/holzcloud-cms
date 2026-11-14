@@ -270,8 +270,10 @@ description for search engines was typed, in the page's description — and
 follows a change like the page does.
 
 **Where it does not.** Page titles, a description for search engines that you
-type yourself, and menu entries show the placeholder as it is written. The Values screen lists every
-such place in its card "Not replaced here", and the SEO check reports it.
+type yourself, a product's title and subtitle, and menu entries show the
+placeholder as it is written. The Values screen lists every such place in its
+card "Not replaced here", linked to where it can be changed; the SEO check
+reports it for a page.
 
 **When it changes.** The text is put in when the page is delivered, not when
 it is saved. Changing a value changes the next response of every page that

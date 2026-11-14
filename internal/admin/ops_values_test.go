@@ -320,6 +320,32 @@ func TestListValuesNamesTheProducts(t *testing.T) {
 	}
 }
 
+// A product's title prints as written (WR-01 of the second phase 33 review),
+// so outside_text names it, with the product's id, the way it names a page
+// title.
+func TestListValuesNamesAMarkerInAProductTitle(t *testing.T) {
+	r := newStructureRig(t)
+	id, err := shop.NewStore(r.h.valueStore.DB).Create(context.Background(), &shop.Product{
+		WebsiteID: r.site, Slug: "tisch", Title: "Tisch [[wert:modell]]", Subtitle: "Ab [[wert:preis]]",
+		Status: "draft", TaxRate: money.RateStandard,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := r.must(r.content, "list_values", map[string]any{"website": r.site})
+	got := map[string]bool{}
+	outside, _ := list["outside_text"].([]any)
+	for _, it := range outside {
+		e := it.(map[string]any)
+		if numID(e["id"]) == id && e["title"] == "Tisch [[wert:modell]]" {
+			got[e["key"].(string)+" "+e["where"].(string)] = true
+		}
+	}
+	if !got["modell product-title"] || !got["preis product-subtitle"] {
+		t.Fatalf("outside_text = %v; want the product's title and subtitle", list["outside_text"])
+	}
+}
+
 func TestGetValueOfAnUnknownKey(t *testing.T) {
 	r := newStructureRig(t)
 	reason := r.refused(r.content, "get_value", map[string]any{"website": r.site, "key": "nirgends"})

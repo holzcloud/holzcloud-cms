@@ -41,9 +41,9 @@ type screenValueListData struct {
 	// Undefined are the keys pages or snippets name and this website does not
 	// define, each with who names it (VAL-03). Visitors see nothing there.
 	Undefined []screenValueUndefined
-	// Outside are the markers in page titles, descriptions and menu entries,
-	// where values are not replaced and the placeholder prints as written
-	// (D-11).
+	// Outside are the markers in page titles, descriptions, product titles
+	// and subtitles and menu entries, where values are not replaced and the
+	// placeholder prints as written (D-11).
 	Outside []value.Outside
 }
 
