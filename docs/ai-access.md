@@ -149,9 +149,10 @@ product's description as `[[wert:key]]` and resolved at delivery, so
 it. `delete_value` refuses a value a page, product or snippet still names, and
 says which; `list_values` and `get_value` list the products apart from the
 pages, under `products`. A placeholder in a page title, a description for
-search engines, a product's title or subtitle or a menu entry is not resolved;
-`list_values` names each one under `outside_text`, with `where` set to
-`title`, `description`, `product-title`, `product-subtitle` or `menu`.
+search engines, an own field of a page or a snippet, a product's title or
+subtitle or a menu entry is not resolved; `list_values` names each one under
+`outside_text`, with `where` set to `title`, `description`, `field`,
+`snippet-field`, `product-title`, `product-subtitle` or `menu`.
 
 `create_ai_key` issues `read` and `content` keys only; `revoke_ai_key` refuses
 the key that calls it, so an assistant cannot cut its own connection halfway

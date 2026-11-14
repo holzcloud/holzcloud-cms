@@ -266,16 +266,18 @@ func (u Use) Name() string {
 }
 
 // Outside is a marker standing where values are not resolved: a page title, a
-// meta description, a product's title or subtitle, a menu item (D-11). It
-// prints as written there, so the report names it.
+// meta description, an own field of a page or a snippet, a product's title or
+// subtitle, a menu item (D-11). It prints as written there, so the report
+// names it.
 type Outside struct {
 	Key string
-	// Where is "title", "description", "product-title", "product-subtitle" or
-	// "menu".
+	// Where is "title", "description", "field" (a page's own field),
+	// "product-title", "product-subtitle", "snippet-field" or "menu".
 	Where string
-	// ID is the page's id, the product's or the menu item's.
+	// ID is the page's id, the product's, the snippet's or the menu item's.
 	ID int64
-	// Title is the page's title, the product's or the menu item's.
+	// Title is the page's title, the product's, the snippet's name or the
+	// menu item's title.
 	Title string
 	// Locale is the page's or the menu's language, empty for the main one and
 	// for a product.
@@ -415,14 +417,27 @@ func (s *Store) usage(ctx context.Context, websiteID int64) (map[string][]Use, e
 	return used, srows.Err()
 }
 
-// outside finds markers in page titles, meta descriptions, product titles and
-// subtitles and menu items of one website — the places D-11 leaves unresolved.
+// outside finds markers in page titles, meta descriptions, the own fields of
+// pages and snippets, product titles and subtitles and menu items of one
+// website — the places D-11 leaves unresolved.
+//
+// The own fields are reported rather than resolved (IN-03 of the second phase
+// 33 review), for the reason D-11 gives a title: they are not the page's text.
+// A field is whatever its definition says — a date, a choice, a link to a
+// picture or a page, a number a theme computes with — and the theme prints it
+// where it likes, in an attribute as often as in a sentence. Resolving there
+// would mean resolving for a place this program does not know. Reported, the
+// operator sees it and writes the text out.
 func (s *Store) outside(ctx context.Context, websiteID int64) ([]Outside, error) {
 	var out []Outside
+	// A page's own fields are read as stored: the JSON leaves a key's
+	// alphabet and the brackets as they are, so a marker in any field or group
+	// row stands there literally.
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, title, locale, meta_description FROM pages
+		`SELECT id, title, locale, meta_description, fields FROM pages
 		  WHERE website_id = $1 AND deleted_at IS NULL
-		    AND (instr(title, '[[wert:') > 0 OR instr(meta_description, '[[wert:') > 0)
+		    AND (instr(title, '[[wert:') > 0 OR instr(meta_description, '[[wert:') > 0
+		         OR instr(fields, '[[wert:') > 0)
 		  ORDER BY locale, title, id`, websiteID)
 	if err != nil {
 		return nil, fmt.Errorf("values outside page text: %w", err)
@@ -430,8 +445,8 @@ func (s *Store) outside(ctx context.Context, websiteID int64) ([]Outside, error)
 	defer rows.Close()
 	for rows.Next() {
 		var id int64
-		var title, locale, description string
-		if err := rows.Scan(&id, &title, &locale, &description); err != nil {
+		var title, locale, description, fields string
+		if err := rows.Scan(&id, &title, &locale, &description, &fields); err != nil {
 			return nil, fmt.Errorf("scan page: %w", err)
 		}
 		for _, key := range Keys(title) {
@@ -439,6 +454,9 @@ func (s *Store) outside(ctx context.Context, websiteID int64) ([]Outside, error)
 		}
 		for _, key := range Keys(description) {
 			out = append(out, Outside{Key: key, Where: "description", ID: id, Title: title, Locale: locale})
+		}
+		for _, key := range Keys(fields) {
+			out = append(out, Outside{Key: key, Where: "field", ID: id, Title: title, Locale: locale})
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -474,6 +492,31 @@ func (s *Store) outside(ctx context.Context, websiteID int64) ([]Outside, error)
 		}
 	}
 	if err := prows.Err(); err != nil {
+		return nil, err
+	}
+
+	// A snippet's own fields (IN-03 of the second phase 33 review): its text
+	// is resolved, its fields reach the theme through .Site.SnippetFields as
+	// typed.
+	srows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT id, name, fields FROM snippets
+		  WHERE website_id = $1 AND instr(fields, '[[wert:') > 0
+		  ORDER BY name, id`, websiteID)
+	if err != nil {
+		return nil, fmt.Errorf("values in snippet fields: %w", err)
+	}
+	defer srows.Close()
+	for srows.Next() {
+		var id int64
+		var name, fields string
+		if err := srows.Scan(&id, &name, &fields); err != nil {
+			return nil, fmt.Errorf("scan snippet: %w", err)
+		}
+		for _, key := range Keys(fields) {
+			out = append(out, Outside{Key: key, Where: "snippet-field", ID: id, Title: name})
+		}
+	}
+	if err := srows.Err(); err != nil {
 		return nil, err
 	}
 

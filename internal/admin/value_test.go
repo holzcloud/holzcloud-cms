@@ -428,6 +428,29 @@ func TestTheScreenShowsUseUndefinedAndNotReplaced(t *testing.T) {
 	if strings.Count(outside, link) != 2 {
 		t.Errorf("the product title and subtitle are not linked to the product's editor:\n%s", outside)
 	}
+
+	// An own field of a page or a snippet reaches the theme as typed, and is
+	// reported with a link to where it is typed (IN-03 of the second review).
+	fielded := screenValueSeedPage(t, h, ws.ID, "Preise", "preise", "", "draft", "Nichts")
+	if _, err := database.Write.Exec(`UPDATE pages SET fields = $1 WHERE id = $2`,
+		`{"werte":{"preis":"Ab [[wert:v]]"}}`, fielded.ID); err != nil {
+		t.Fatalf("page fields: %v", err)
+	}
+	sn := seedSnippet(t, h.snippets, ws.ID, "kontakt", "Kontakt", "Text")
+	if _, err := database.Write.Exec(`UPDATE snippets SET fields = $1 WHERE id = $2`,
+		`{"werte":{"telefon":"[[wert:v]]"}}`, sn.ID); err != nil {
+		t.Fatalf("snippet fields: %v", err)
+	}
+	body = getAs(t, sm, putUser(sm, publisher), h.HandleValueList, list, route)
+	outside = screenValueCard(t, body, "Not replaced here")
+	if !strings.Contains(outside, "Field of a page") ||
+		!strings.Contains(outside, fmt.Sprintf(`href="/admin/websites/%d/pages/%d/edit">Preise</a>`, ws.ID, fielded.ID)) {
+		t.Errorf("the marker in a page's own field is not reported with its page:\n%s", outside)
+	}
+	if !strings.Contains(outside, "Field of a snippet") ||
+		!strings.Contains(outside, fmt.Sprintf(`href="/admin/websites/%d/snippets?edit=%d">Kontakt</a>`, ws.ID, sn.ID)) {
+		t.Errorf("the marker in a snippet's own field is not reported with its snippet:\n%s", outside)
+	}
 }
 
 // screenValueCard cuts the card whose heading is title out of a body.

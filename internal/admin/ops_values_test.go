@@ -351,6 +351,27 @@ func TestListValuesNamesAMarkerInAProductTitle(t *testing.T) {
 	}
 }
 
+// An own field of a page prints as typed (IN-03 of the second phase 33
+// review), so outside_text names it with the page's id.
+func TestListValuesNamesAMarkerInAnOwnField(t *testing.T) {
+	r := newStructureRig(t)
+	p := mcpValuePage(r, r.site, "Preise", "preise", "draft", "", "Text")
+	if _, err := r.h.valueStore.DB.Write.Exec(`UPDATE pages SET fields = $1 WHERE id = $2`,
+		`{"werte":{"preis":"Ab [[wert:preis]]"}}`, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	list := r.must(r.content, "list_values", map[string]any{"website": r.site})
+	found := false
+	outside, _ := list["outside_text"].([]any)
+	for _, it := range outside {
+		e := it.(map[string]any)
+		found = found || (e["key"] == "preis" && e["where"] == "field" && numID(e["id"]) == p.ID)
+	}
+	if !found {
+		t.Fatalf("outside_text = %v; want the page's own field", list["outside_text"])
+	}
+}
+
 func TestGetValueOfAnUnknownKey(t *testing.T) {
 	r := newStructureRig(t)
 	reason := r.refused(r.content, "get_value", map[string]any{"website": r.site, "key": "nirgends"})

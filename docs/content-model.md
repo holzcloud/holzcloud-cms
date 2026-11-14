@@ -270,8 +270,10 @@ description for search engines was typed, in the page's description — and
 follows a change like the page does.
 
 **Where it does not.** Page titles, a description for search engines that you
-type yourself, a product's title and subtitle, and menu entries show the
-placeholder as it is written. The Values screen lists every such place in its
+type yourself, the website's own fields of a page or a snippet, a product's
+title and subtitle, and menu entries show the placeholder as it is written. An
+own field is not the page's text: it may be a date, a choice or an address, and
+the theme decides where it is printed. The Values screen lists every such place in its
 card "Not replaced here", linked to where it can be changed; the SEO check
 reports it for a page.
 

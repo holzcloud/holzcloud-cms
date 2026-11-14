@@ -387,9 +387,11 @@ The summary derived from that text carries the value too: `.Page.Excerpt`,
 summary. A product's description is the same kind of text:
 `.Product.DescriptionHTML`, the `.Excerpt` of a `ProductEntry` and the
 product page's `.Meta.Description` carry the value as well. `.Page.Title`, a description the operator typed for search engines,
-a product's `.Title` and `.Subtitle` and the labels in `.Menus` are printed as
-the operator wrote them: a placeholder there is not replaced, and the Values
-screen tells the operator so.
+the website's own fields (`.Page.Fields`, `.Page.FieldList`,
+`.Site.SnippetFields`, `.Site.SnippetList`), a product's `.Title` and
+`.Subtitle` and the labels in `.Menus` are printed as the operator wrote them:
+a placeholder there is not replaced, and the Values screen tells the operator
+so.
 
 ### `.Meta` — for `<head>`
 

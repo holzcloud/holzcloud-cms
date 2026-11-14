@@ -629,6 +629,58 @@ func TestTheReportNamesAMarkerInAProductTitle(t *testing.T) {
 	}
 }
 
+// TestTheReportNamesAMarkerInAnOwnField is IN-03 of the second phase 33
+// review. A website's own fields of a page (.Page.Fields) and of a snippet
+// (.Site.SnippetFields) reach the theme as the operator typed them. They are
+// not the page's text, so D-11 leaves them unresolved, and like a title they
+// are reported — never a raw marker that nobody is told about.
+func TestTheReportNamesAMarkerInAnOwnField(t *testing.T) {
+	ctx := context.Background()
+	s, database := newTestStore(t)
+	ws := website(t, database, "A")
+	other := website(t, database, "B")
+	setFields := func(table string, id int64, fields string) {
+		t.Helper()
+		if _, err := database.Write.Exec(`UPDATE `+table+` SET fields = $1 WHERE id = $2`, fields, id); err != nil {
+			t.Fatalf("fields: %v", err)
+		}
+	}
+	page := pageWith(t, database, ws, "Preise", "preise", "fr", "draft", "", "")
+	setFields("pages", page, `{"werte":{"preis":"Ab [[wert:preis]]"},"gruppen":{"zeilen":[{"x":"[[wert:zeile]]"}]}}`)
+	trashed := pageWith(t, database, ws, "Weg", "weg", "", "published", "", "")
+	setFields("pages", trashed, `{"werte":{"a":"[[wert:geloescht]]"}}`)
+	if _, err := database.Write.Exec(`UPDATE pages SET deleted_at = '2026-01-01T00:00:00Z' WHERE id = $1`, trashed); err != nil {
+		t.Fatalf("trash: %v", err)
+	}
+	foreign := pageWith(t, database, other, "Fremd", "fremd", "", "published", "", "")
+	setFields("pages", foreign, `{"werte":{"a":"[[wert:fremd]]"}}`)
+
+	snippetWith(t, database, ws, "fuss", "Fuss", "Text")
+	var snippetID int64
+	if err := database.Read.QueryRow(`SELECT id FROM snippets WHERE website_id = $1 AND key = 'fuss'`, ws).Scan(&snippetID); err != nil {
+		t.Fatalf("snippet id: %v", err)
+	}
+	setFields("snippets", snippetID, `{"werte":{"telefon":"[[wert:telefon]]"}}`)
+
+	rep, err := s.Report(ctx, ws)
+	if err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	want := []Outside{
+		{Key: "preis", Where: "field", ID: page, Title: "Preise", Locale: "fr"},
+		{Key: "zeile", Where: "field", ID: page, Title: "Preise", Locale: "fr"},
+		{Key: "telefon", Where: "snippet-field", ID: snippetID, Title: "Fuss"},
+	}
+	if !reflect.DeepEqual(rep.Outside, want) {
+		t.Errorf("Outside = %+v; want %+v", rep.Outside, want)
+	}
+	// A field is not resolved, so it is no use: it neither keeps a value
+	// alive nor makes a key "used but not defined".
+	if len(rep.Used) != 0 || len(rep.Undefined) != 0 {
+		t.Errorf("Used = %+v, Undefined = %q; an own field is not a use", rep.Used, rep.Undefined)
+	}
+}
+
 func TestUseNamesItself(t *testing.T) {
 	cases := []struct {
 		u    Use

@@ -161,11 +161,14 @@
                     {{- else if eq .Where "description"}}{{t "Description for search engines"}}
                     {{- else if eq .Where "product-title"}}{{t "Product title"}}
                     {{- else if eq .Where "product-subtitle"}}{{t "Product subtitle"}}
+                    {{- else if eq .Where "field"}}{{t "Field of a page"}}
+                    {{- else if eq .Where "snippet-field"}}{{t "Field of a snippet"}}
                     {{- else}}{{t "Menu entry"}}{{end -}}
                 </td>
                 <td>
                     {{- if eq .Where "menu"}}<a href="/admin/websites/{{$.WebsiteID}}/menus">{{.Title}}</a>
                     {{- else if or (eq .Where "product-title") (eq .Where "product-subtitle")}}<a href="/admin/websites/{{$.WebsiteID}}/produkte/{{.ID}}">{{.Title}}</a>
+                    {{- else if eq .Where "snippet-field"}}<a href="/admin/websites/{{$.WebsiteID}}/snippets?edit={{.ID}}">{{.Title}}</a>
                     {{- else}}<a href="/admin/websites/{{$.WebsiteID}}/pages/{{.ID}}/edit">{{.Title}}</a>{{end}}
                     {{- if .Locale}} ({{.Locale}}){{end -}}
                 </td>
