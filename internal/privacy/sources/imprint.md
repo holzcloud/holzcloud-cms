@@ -46,6 +46,31 @@ fill-in covers either case.
   2000/31/EC first and § 5 DDG for providers established in Germany.
 - The Swiss act is named in each language by its official abbreviation of
   SR 241: UWG (de), LCD (fr), LCSl (it); English uses "Federal Act against
-  Unfair Competition" with UWG, and Romansh keeps UWG.
-- Test anchors every language carries verbatim (case-insensitive): EU
-  "2000/31", CH "sr 241", UK "2002/2013".
+  Unfair Competition" ("Unfair Competition Act") with UWG, and Romansh keeps
+  UWG. The classified compilation is cited as SR 241 in de, en and rm and as
+  RS 241 in fr and it, the form fedlex uses in those languages.
+- Article references follow each language's Swiss form: "Art. 3 Abs. 1 lit. s
+  Ziff. 1" (de), "art. 3, al. 1, let. s, ch. 1" (fr), "art. 3 cpv. 1 lett. s
+  n. 1" (it), "Art. 3 para. 1 let. s no. 1" (en), "art. 3 al. 1 lit. s
+  cifra 1" (rm). The UID is IDE in French and IDI in Italian.
+- The German statutes in the EU block keep their German names in brackets in
+  every language (DDG, UStG, AO, MStV, VSBG), so a reader can find them; the
+  UK statutory instruments keep their English titles in every language.
+- Test anchors every language carries (case-insensitive): EU "2000/31", CH
+  "sr 241" or "rs 241", UK "2002/2013".
+
+## Romansh
+
+The Romansh texts are machine-written Rumantsch Grischun and carry the
+machine notice of `texts/rm/lang.json` (D-07); a Romansh speaker checks them
+before a page is published. No federal act cited here was found in an
+official Romansh version (see 33.1-RESEARCH.md, Romansh), so the statute
+names stay with their official abbreviations (UWG, SR 241, DDG) and the UK
+instruments with their English titles. The vocabulary follows the usage of
+the Lia Rumantscha dictionary Pledari Grond (https://www.pledarigrond.ch) and
+of the Canton of Graubünden's Romansh publications, as plan 05 does for the
+privacy page: "purschider" (provider), "furma giuridica" (legal form),
+"register da commerzi" (commercial register), "taglia sin la plivavalur"
+(value added tax), "autoritad da surveglianza" (supervisory authority),
+"Reginavel Unì" (United Kingdom). The terms were not checked against the
+dictionary in this session; that check is part of the speaker's review.

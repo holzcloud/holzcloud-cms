@@ -18,11 +18,25 @@ import (
 var imprintFrameworks = []legal.Framework{legal.EU, legal.CH, legal.UK}
 
 // imprintAnchors are the citations each framework block carries in every
-// language, compared case-insensitively.
-var imprintAnchors = map[legal.Framework]string{
-	legal.EU: "2000/31",
-	legal.CH: "sr 241",
-	legal.UK: "2002/2013",
+// language, compared case-insensitively; one of the spellings is enough. The
+// Swiss classified compilation is the SR in German, English and Romansh and
+// the RS in French and Italian, and an imprint should cite it the way its
+// readers find it.
+var imprintAnchors = map[legal.Framework][]string{
+	legal.EU: {"2000/31"},
+	legal.CH: {"sr 241", "rs 241"},
+	legal.UK: {"2002/2013"},
+}
+
+// imprintCites reports whether the lower-cased text carries one of the
+// anchors of the framework.
+func imprintCites(lower string, fw legal.Framework) bool {
+	for _, a := range imprintAnchors[fw] {
+		if strings.Contains(lower, a) {
+			return true
+		}
+	}
+	return false
 }
 
 // imprintHeadings lists the ## headings of a composed imprint, in order.
@@ -81,7 +95,7 @@ func TestEachFrameworkAddsItsImprintBlock(t *testing.T) {
 					t.Errorf("%s %q: imprint block %s occurs %d times, want %d", lang, set, fw, got, want)
 					continue
 				}
-				if has := strings.Contains(lower, imprintAnchors[fw]); has != set.Has(fw) {
+				if has := imprintCites(lower, fw); has != set.Has(fw) {
 					t.Errorf("%s %q: anchor %q present = %v, want %v", lang, set, imprintAnchors[fw], has, set.Has(fw))
 				}
 				if want == 1 {
@@ -171,6 +185,65 @@ func TestTheImprintTakesNoOperatorString(t *testing.T) {
 	for _, bad := range []string{"domain.", "internal/domain", "VATNumber", "Address"} {
 		if strings.Contains(string(src), bad) {
 			t.Errorf("imprint.go mentions %q: the imprint must not read a stored website field", bad)
+		}
+	}
+}
+
+func TestTheImprintExistsInEveryLanguage(t *testing.T) {
+	want := map[string][2]string{
+		"de": {"Impressum", "impressum"},
+		"en": {"Imprint", "imprint"},
+		"fr": {"Mentions légales", "mentions-legales"},
+		"it": {"Note legali", "note-legali"},
+		"rm": {"Impressum", "impressum"},
+	}
+	langs := imprintLanguages(t)
+	roles := RoleSlugs(KindImprint)
+	for lang, ts := range want {
+		if !slices.Contains(langs, lang) {
+			t.Errorf("%s has no imprint texts", lang)
+			continue
+		}
+		if got := Title(KindImprint, lang); got != ts[0] {
+			t.Errorf("Title(imprint, %s) = %q, want %q", lang, got, ts[0])
+		}
+		if got := Slug(KindImprint, lang); got != ts[1] {
+			t.Errorf("Slug(imprint, %s) = %q, want %q", lang, got, ts[1])
+		}
+		if !slices.Contains(roles, ts[1]) {
+			t.Errorf("RoleSlugs(imprint) = %v, lacks %q", roles, ts[1])
+		}
+		if d := DraftSlug(KindImprint, lang); d == "" || d == ts[1] {
+			t.Errorf("DraftSlug(imprint, %s) = %q, want a slug of its own", lang, d)
+		}
+	}
+	if !slices.Contains(roles, "legal-notice") {
+		t.Errorf("RoleSlugs(imprint) = %v, lacks legal-notice", roles)
+	}
+}
+
+// Each language names the Swiss act by the abbreviation SR 241 uses in it.
+func TestTheImprintNamesTheSwissActInEachLanguage(t *testing.T) {
+	want := map[string][]string{
+		"de": {"UWG"},
+		"fr": {"LCD"},
+		"it": {"LCSl"},
+		"en": {"Unfair Competition Act", "UWG"},
+		"rm": {"UWG"},
+	}
+	for lang, names := range want {
+		if TextLang(KindImprint, lang) != lang {
+			t.Errorf("%s has no imprint texts", lang)
+			continue
+		}
+		text := ComposeImprint(Request{Lang: lang, Set: legal.ParseSet("ch")})
+		for _, name := range names {
+			if !strings.Contains(text, name) {
+				t.Errorf("%s with CH chosen: the imprint does not name %q", lang, name)
+			}
+		}
+		if lean := ComposeImprint(Request{Lang: lang, Set: legal.ParseSet("")}); imprintCites(strings.ToLower(lean), legal.CH) {
+			t.Errorf("%s without CH: the imprint cites SR 241", lang)
 		}
 	}
 }
