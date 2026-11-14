@@ -85,7 +85,12 @@ type Handler struct {
 	// label, so a stamp minted for this form never validates as a preview link
 	// or an unlock cookie. Nil has the same effect as a nil request store.
 	optoutSigner *sharelink.Signer
-	loader       *tmpl.Loader
+	// optoutNets is the opt-out form's per-network budget (optout_limit.go),
+	// and clientIP names the network a request comes from. A nil clientIP
+	// means the peer address, which is right without a reverse proxy.
+	optoutNets *netBudget
+	clientIP   *web.ClientIPResolver
+	loader     *tmpl.Loader
 	// resolver supplies the canonical host. It may be nil, in which case the
 	// requested host is used.
 	resolver *domain.Resolver
@@ -117,8 +122,13 @@ func NewHandler(pageStore *page.Store, menuStore *menu.Store, mediaStore *media.
 		dataDir:      dataDir,
 		defaultFS:    defaultFS,
 		secure:       secure,
+		optoutNets:   newNetBudget(optoutNetworkLimit, time.Hour),
 	}
 }
+
+// SetClientIP attaches the resolver that reads a visitor's address behind
+// the trusted reverse proxies — the one the admin's login throttle uses.
+func (h *Handler) SetClientIP(r *web.ClientIPResolver) { h.clientIP = r }
 
 // SetNotify attaches what a plugin needs to notify the operator: the website
 // settings, for the address, and the outbox, for the sending.

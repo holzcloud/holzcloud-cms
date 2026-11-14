@@ -17,6 +17,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/money"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"github.com/holzcloud/holzcloud-cms/internal/public"
 	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
 	"github.com/holzcloud/holzcloud-cms/internal/shop"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
@@ -356,10 +357,15 @@ func TestTheOptOutPostSetsNoCookie(t *testing.T) {
 	handler, _, database := testRouterWith(t, routerTweaks{
 		shop: true, secure: true, searchPlugin: true, seed: seedThemeSites,
 	})
-	// The test router's signer, as main_test.go wires it; minted ten seconds
-	// ago so the time trap lets it through.
-	issued := time.Now().Add(-10 * time.Second)
-	stamp := sharelink.New([]byte("optout")).Token(issued.Unix(), issued.Add(12*time.Hour))
+	// The test router's signer, as main_test.go wires it, bound to the
+	// website the form posts to; minted ten seconds ago so the time trap
+	// lets it through.
+	var websiteID int64
+	if err := database.Read.QueryRow(`SELECT id FROM websites WHERE name = ?`,
+		cookieTestSiteName("default")).Scan(&websiteID); err != nil {
+		t.Fatalf("find website: %v", err)
+	}
+	stamp := public.OptOutStamp(sharelink.New([]byte("optout")), websiteID, time.Now().Add(-10*time.Second))
 
 	rec := postForm(handler, "default.test", "/widerspruch", url.Values{
 		"seite": {cookieTestOptOutSlug}, "stempel": {stamp}, "name": {"Ada"},

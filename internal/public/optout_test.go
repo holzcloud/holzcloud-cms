@@ -3,6 +3,7 @@ package public
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -95,6 +96,10 @@ func optoutDo(fn func(http.ResponseWriter, *http.Request) error, ws *domain.Webs
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 	for k, vs := range hdr {
+		if k == optoutRemote {
+			req.RemoteAddr = vs[0]
+			continue
+		}
 		for _, v := range vs {
 			req.Header.Add(k, v)
 		}
@@ -125,16 +130,24 @@ func optoutGPC(v string) http.Header {
 	return http.Header{"Sec-Gpc": []string{v}}
 }
 
-// optoutStamp mints the hidden time stamp as the widget does, age ago.
-func optoutStamp(age time.Duration) string {
-	issued := time.Now().Add(-age)
-	return optoutSigner.Token(issued.Unix(), issued.Add(12*time.Hour))
+// optoutRemote is not a header: optoutDo takes it out of the headers and
+// makes it the request's peer address, so a test can post from somewhere.
+const optoutRemote = "X-Test-Remote-Addr"
+
+// optoutFrom is the header set that makes a post come from addr.
+func optoutFrom(addr string) http.Header {
+	return http.Header{optoutRemote: {addr}}
 }
 
-func optoutForm(slug string) url.Values {
+// optoutStamp mints the hidden time stamp as the widget does on ws, age ago.
+func optoutStamp(ws *domain.Website, age time.Duration) string {
+	return OptOutStamp(optoutSigner, ws.ID, time.Now().Add(-age))
+}
+
+func optoutForm(ws *domain.Website, slug string) url.Values {
 	return url.Values{
 		"seite":   {slug},
-		"stempel": {optoutStamp(10 * time.Second)},
+		"stempel": {optoutStamp(ws, 10*time.Second)},
 		"name":    {"Ada"},
 		"email":   {"ada@example.com"},
 		"note":    {"bitte"},
@@ -306,7 +319,7 @@ func TestNoWidgetWithoutUS(t *testing.T) {
 		t.Errorf("the rest of the page went with the marker:\n%s", body)
 	}
 
-	rec := optoutDo(h.HandleOptOut, ws, http.MethodPost, "/widerspruch", optoutForm("do-not-sell"), nil)
+	rec := optoutDo(h.HandleOptOut, ws, http.MethodPost, "/widerspruch", optoutForm(ws, "do-not-sell"), nil)
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("POST /widerspruch without US = %d; want 404", rec.Code)
 	}
@@ -335,7 +348,7 @@ func TestASubmissionIsStored(t *testing.T) {
 	h, database, ws := optoutSite(t, "eu,us", "")
 	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
 
-	rec := optoutDo(h.HandleOptOut, ws, http.MethodPost, "/widerspruch", optoutForm("do-not-sell"), optoutGPC("1"))
+	rec := optoutDo(h.HandleOptOut, ws, http.MethodPost, "/widerspruch", optoutForm(ws, "do-not-sell"), optoutGPC("1"))
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("POST = %d; want 303\n%s", rec.Code, rec.Body.String())
 	}
@@ -423,7 +436,7 @@ func TestTheHoneypotAndTheStampAnswerLikeASuccess(t *testing.T) {
 		{"a filled honeypot", func(f url.Values) { f.Set("website", "https://spam.example") }},
 		{"a filled honeypot with a stale stamp", func(f url.Values) {
 			f.Set("website", "https://spam.example")
-			f.Set("stempel", optoutStamp(time.Second))
+			f.Set("stempel", optoutStamp(ws, time.Second))
 		}},
 		{"no stamp", func(f url.Values) { f.Del("stempel") }},
 		{"a forged stamp", func(f url.Values) { f.Set("stempel", "1700000000-1900000000.forged") }},
@@ -432,7 +445,7 @@ func TestTheHoneypotAndTheStampAnswerLikeASuccess(t *testing.T) {
 			f.Set("stempel", sharelink.New([]byte("other")).Token(issued.Unix(), issued.Add(time.Hour)))
 		}},
 	} {
-		form := optoutForm("do-not-sell")
+		form := optoutForm(ws, "do-not-sell")
 		tc.change(form)
 		rec := optoutPost(h, ws, form, nil)
 		if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/do-not-sell?widerspruch=eingegangen" {
@@ -460,10 +473,10 @@ func TestAGenuineButStaleStampAsksToSendAgain(t *testing.T) {
 		name  string
 		stamp string
 	}{
-		{"an expired stamp", optoutSigner.Token(expired.Unix(), expired.Add(optoutMaxAge))},
-		{"a stamp younger than a person reads", optoutStamp(0)},
+		{"an expired stamp", OptOutStamp(optoutSigner, ws.ID, expired)},
+		{"a stamp younger than a person reads", optoutStamp(ws, 0)},
 	} {
-		form := optoutForm("do-not-sell")
+		form := optoutForm(ws, "do-not-sell")
 		form.Set("stempel", tc.stamp)
 		rec := optoutPost(h, ws, form, nil)
 		if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/do-not-sell?widerspruch=abgelaufen" {
@@ -496,18 +509,13 @@ func TestTheHourlyCapRefuses(t *testing.T) {
 	other := optoutAddSite(t, database, "Nachbar", "us")
 	optoutPage(t, database, other.ID, "do-not-sell", optoutMarkerPage, "")
 
-	for i := 0; i < 30; i++ {
-		if _, err := database.Write.Exec(
-			`INSERT INTO privacy_requests (website_id, kind, name) VALUES ($1, 'optout', 'earlier')`, ws.ID); err != nil {
-			t.Fatalf("seed: %v", err)
-		}
-	}
-	rec := optoutPost(h, ws, optoutForm("do-not-sell"), nil)
+	optoutSeed(t, database, ws.ID, optoutSiteLimit)
+	rec := optoutPost(h, ws, optoutForm(ws, "do-not-sell"), nil)
 	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/do-not-sell?widerspruch=spaeter" {
-		t.Errorf("the 31st opt-out in an hour: %d %q; want 303 to ?widerspruch=spaeter", rec.Code, rec.Header().Get("Location"))
+		t.Errorf("one opt-out over the website's hourly ceiling: %d %q; want 303 to ?widerspruch=spaeter", rec.Code, rec.Header().Get("Location"))
 	}
-	if n := optoutRows(t, database, ws.ID); n != 30 {
-		t.Errorf("%d rows; want the 30 there were", n)
+	if n := optoutRows(t, database, ws.ID); n != optoutSiteLimit {
+		t.Errorf("%d rows; want the %d there were", n, optoutSiteLimit)
 	}
 	body := optoutGet(t, h, ws, "/do-not-sell?widerspruch=spaeter", nil).Body.String()
 	notice := i18n.T(ws.Locale, "Too many requests at the moment. Please try again in an hour.")
@@ -515,18 +523,32 @@ func TestTheHourlyCapRefuses(t *testing.T) {
 		t.Errorf("the page does not show the cap notice %q:\n%s", notice, body)
 	}
 
-	rec = optoutPost(h, other, optoutForm("do-not-sell"), nil)
+	rec = optoutPost(h, other, optoutForm(other, "do-not-sell"), nil)
 	if rec.Header().Get("Location") != "/do-not-sell?widerspruch=eingegangen" || optoutRows(t, database, other.ID) != 1 {
 		t.Errorf("another website was capped by the first one's requests: %q", rec.Header().Get("Location"))
 	}
 }
 
+// optoutSeed stores n opt-outs on a website, made just now.
+func optoutSeed(t *testing.T, database *db.DB, websiteID int64, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		if _, err := database.Write.Exec(
+			`INSERT INTO privacy_requests (website_id, kind, name) VALUES ($1, 'optout', 'earlier')`, websiteID); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+}
+
 // TestTheHourlyCapHoldsUnderABurst sends far more valid posts at once than
-// the cap allows. Before the count moved into the insert, 120 of them stored
-// 119 rows against a cap of 30.
+// the website has room for, each from its own address so that only the
+// website's ceiling can stop them. Before the count moved into the insert,
+// 120 parallel posts stored 119 rows against a cap of 30.
 func TestTheHourlyCapHoldsUnderABurst(t *testing.T) {
 	h, database, ws := optoutSite(t, "eu,us", "")
 	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+	const room = 30
+	optoutSeed(t, database, ws.ID, optoutSiteLimit-room)
 
 	var wg sync.WaitGroup
 	start := make(chan struct{})
@@ -535,13 +557,97 @@ func TestTheHourlyCapHoldsUnderABurst(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			optoutPost(h, ws, optoutForm("do-not-sell"), nil)
+			optoutPost(h, ws, optoutForm(ws, "do-not-sell"), optoutFrom(fmt.Sprintf("198.51.100.%d:4000", i)))
 		}()
 	}
 	close(start)
 	wg.Wait()
-	if n := optoutRows(t, database, ws.ID); n != optoutHourlyLimit {
-		t.Errorf("%d rows after 120 parallel posts; want exactly the cap, %d", n, optoutHourlyLimit)
+	if n := optoutRows(t, database, ws.ID); n != optoutSiteLimit {
+		t.Errorf("%d rows after 120 parallel posts into room for %d; want exactly the ceiling, %d", n, room, optoutSiteLimit)
+	}
+}
+
+// TestOneNetworkCannotLockOutTheOthers is WR-01 of the 33.1 review: one
+// stamp and thirty posts an hour used to answer "Too many requests" to every
+// real visitor of the website. A network now has a budget of its own, far
+// below the website's, and spending it closes the form to that network only.
+func TestOneNetworkCannotLockOutTheOthers(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+
+	stamp := optoutStamp(ws, 10*time.Second)
+	for i := 0; i < optoutNetworkLimit+5; i++ {
+		form := optoutForm(ws, "do-not-sell")
+		form.Set("stempel", stamp)
+		rec := optoutPost(h, ws, form, optoutFrom("203.0.113.7:5000"))
+		want := "/do-not-sell?widerspruch=eingegangen"
+		if i >= optoutNetworkLimit {
+			want = "/do-not-sell?widerspruch=spaeter"
+		}
+		if loc := rec.Header().Get("Location"); loc != want {
+			t.Fatalf("post %d from one address: %q; want %q", i+1, loc, want)
+		}
+	}
+	if n := optoutRows(t, database, ws.ID); n != optoutNetworkLimit {
+		t.Errorf("%d rows from one address; want its budget, %d", n, optoutNetworkLimit)
+	}
+
+	// Another address of another network still gets through.
+	rec := optoutPost(h, ws, optoutForm(ws, "do-not-sell"), optoutFrom("192.0.2.44:5000"))
+	if loc := rec.Header().Get("Location"); loc != "/do-not-sell?widerspruch=eingegangen" {
+		t.Errorf("a visitor from elsewhere after the flood: %q; want recorded", loc)
+	}
+
+	// An IPv6 subscriber chooses the low 64 bits of its address freely, so
+	// the budget is the /64's and not the address's.
+	for i := 0; i < optoutNetworkLimit; i++ {
+		optoutPost(h, ws, optoutForm(ws, "do-not-sell"), optoutFrom(fmt.Sprintf("[2001:db8:1:2::%x]:5000", i+1)))
+	}
+	rec = optoutPost(h, ws, optoutForm(ws, "do-not-sell"), optoutFrom("[2001:db8:1:2:ffff::1]:5000"))
+	if loc := rec.Header().Get("Location"); loc != "/do-not-sell?widerspruch=spaeter" {
+		t.Errorf("a fresh address in a spent /64: %q; want refused", loc)
+	}
+	rec = optoutPost(h, ws, optoutForm(ws, "do-not-sell"), optoutFrom("[2001:db8:1:3::1]:5000"))
+	if loc := rec.Header().Get("Location"); loc != "/do-not-sell?widerspruch=eingegangen" {
+		t.Errorf("the neighbouring /64: %q; want recorded", loc)
+	}
+}
+
+// A stamp is drawn for one website. Taken to another — one GET on a
+// website that has the form, posts to all the others — it is a stamp the
+// other website did not draw, which is the robot's answer.
+func TestAStampIsBoundToItsWebsite(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+	other := optoutAddSite(t, database, "Nachbar", "us")
+	optoutPage(t, database, other.ID, "do-not-sell", optoutMarkerPage, "")
+
+	doc, err := xhtml.Parse(strings.NewReader(optoutGet(t, h, ws, "/do-not-sell", nil).Body.String()))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	input := optoutFind(doc, optoutNamed("stempel"))
+	if input == nil {
+		t.Fatal("the page carries no stamp")
+	}
+	stamp, _ := optoutAttr(input, "value")
+	// The stamp was drawn a moment ago; let it be as old as a person needs.
+	time.Sleep(optoutMinAge)
+
+	form := optoutForm(other, "do-not-sell")
+	form.Set("stempel", stamp)
+	if loc := optoutPost(h, other, form, nil).Header().Get("Location"); loc != "/do-not-sell?widerspruch=eingegangen" {
+		t.Errorf("a stamp from another website: %q; want the robot's answer", loc)
+	}
+	if n := optoutRows(t, database, other.ID); n != 0 {
+		t.Errorf("a stamp from another website stored %d rows", n)
+	}
+
+	form = optoutForm(ws, "do-not-sell")
+	form.Set("stempel", stamp)
+	optoutPost(h, ws, form, nil)
+	if n := optoutRows(t, database, ws.ID); n != 1 {
+		t.Errorf("the stamp on its own website stored %d rows; want 1", n)
 	}
 }
 
@@ -549,7 +655,7 @@ func TestACrossSitePostIsRefused(t *testing.T) {
 	h, database, ws := optoutSite(t, "eu,us", "")
 	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
 
-	rec := optoutPost(h, ws, optoutForm("do-not-sell"), http.Header{"Sec-Fetch-Site": {"cross-site"}})
+	rec := optoutPost(h, ws, optoutForm(ws, "do-not-sell"), http.Header{"Sec-Fetch-Site": {"cross-site"}})
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("a cross-site POST = %d; want 403", rec.Code)
 	}
@@ -558,7 +664,7 @@ func TestACrossSitePostIsRefused(t *testing.T) {
 	}
 	for _, hdr := range []http.Header{{"Sec-Fetch-Site": {"same-origin"}}, nil} {
 		before := optoutRows(t, database, ws.ID)
-		rec := optoutPost(h, ws, optoutForm("do-not-sell"), hdr)
+		rec := optoutPost(h, ws, optoutForm(ws, "do-not-sell"), hdr)
 		if rec.Code != http.StatusSeeOther || optoutRows(t, database, ws.ID) != before+1 {
 			t.Errorf("Sec-Fetch-Site %v: %d; want accepted and stored", hdr, rec.Code)
 		}
@@ -569,7 +675,7 @@ func TestABodyTooLargeIsRefused(t *testing.T) {
 	h, database, ws := optoutSite(t, "eu,us", "")
 	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
 
-	form := optoutForm("do-not-sell")
+	form := optoutForm(ws, "do-not-sell")
 	form.Set("note", strings.Repeat("x", 20<<10))
 	rec := optoutPost(h, ws, form, nil)
 	if rec.Code != http.StatusRequestEntityTooLarge && rec.Code != http.StatusBadRequest {
@@ -620,7 +726,7 @@ func TestTheOperatorIsToldInTheWebsitesLanguage(t *testing.T) {
 	enabled := mail.NewQueue(database, mail.NewSender(mail.Config{Host: "smtp.example", Port: 587, From: "cms@example.com"}), nil)
 	h.SetNotify(domain.NewStore(database), enabled)
 
-	form := optoutForm("do-not-sell")
+	form := optoutForm(ws, "do-not-sell")
 	form.Set("note", "merci")
 	if rec := optoutPost(h, ws, form, optoutGPC("1")); rec.Code != http.StatusSeeOther {
 		t.Fatalf("POST = %d", rec.Code)
@@ -650,7 +756,7 @@ func TestTheOperatorIsToldInTheWebsitesLanguage(t *testing.T) {
 
 	// No notification address: nothing is sent, and the request is still kept.
 	ws = optoutReload(t, database, ws, `notify_email = ''`)
-	optoutPost(h, ws, optoutForm("do-not-sell"), nil)
+	optoutPost(h, ws, optoutForm(ws, "do-not-sell"), nil)
 	if n := len(optoutOutbox(t, database, ws.ID)); n != 1 {
 		t.Errorf("%d messages after a request without a notification address; want still 1", n)
 	}
@@ -658,12 +764,38 @@ func TestTheOperatorIsToldInTheWebsitesLanguage(t *testing.T) {
 	// Mail not set up: nothing is sent either.
 	ws = optoutReload(t, database, ws, `notify_email = 'owner@example.com'`)
 	h.SetNotify(domain.NewStore(database), mail.NewQueue(database, nil, nil))
-	optoutPost(h, ws, optoutForm("do-not-sell"), nil)
+	optoutPost(h, ws, optoutForm(ws, "do-not-sell"), nil)
 	if n := len(optoutOutbox(t, database, ws.ID)); n != 1 {
 		t.Errorf("%d messages with no mail server; want still 1", n)
 	}
 	if n := optoutRows(t, database, ws.ID); n != 3 {
 		t.Errorf("%d requests stored; want all 3, sent or not", n)
+	}
+}
+
+// Above optoutMailLimit in an hour a request is still stored and listed, but
+// the operator's inbox is spared: the ceiling that protects the record is
+// higher than the one that protects the inbox (WR-01).
+func TestAFloodIsStoredButNotMailed(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+	ws = optoutReload(t, database, ws, `notify_email = 'owner@example.com'`)
+	h.SetNotify(domain.NewStore(database), mail.NewQueue(database, mail.NewSender(mail.Config{Host: "smtp.example", Port: 587, From: "cms@example.com"}), nil))
+
+	optoutSeed(t, database, ws.ID, optoutMailLimit-1)
+	optoutPost(h, ws, optoutForm(ws, "do-not-sell"), optoutFrom("192.0.2.1:1"))
+	if n := len(optoutOutbox(t, database, ws.ID)); n != 1 {
+		t.Fatalf("%d messages for the last request under the mail limit; want 1", n)
+	}
+	rec := optoutPost(h, ws, optoutForm(ws, "do-not-sell"), optoutFrom("192.0.2.2:1"))
+	if loc := rec.Header().Get("Location"); loc != "/do-not-sell?widerspruch=eingegangen" {
+		t.Errorf("a request over the mail limit: %q; want recorded", loc)
+	}
+	if n := optoutRows(t, database, ws.ID); n != optoutMailLimit+1 {
+		t.Errorf("%d rows; want %d — the request over the mail limit is kept", n, optoutMailLimit+1)
+	}
+	if n := len(optoutOutbox(t, database, ws.ID)); n != 1 {
+		t.Errorf("%d messages; want still 1 — no mail over the limit", n)
 	}
 }
 

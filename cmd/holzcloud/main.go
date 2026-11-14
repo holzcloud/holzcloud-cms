@@ -1461,6 +1461,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	publicHandler.SetShareSigners(d.shareSigner, d.unlockSigner)
 	publicHandler.SetRequestStore(d.requestStore)
 	publicHandler.SetOptOutSigner(d.optoutSigner)
+	publicHandler.SetClientIP(d.clientIP)
 	publicMux := http.NewServeMux()
 	publicMux.HandleFunc("GET /t/{path...}", publicHandler.ErrHandler(publicHandler.HandleTemplateAsset))
 	publicMux.HandleFunc("GET /sitemap.xml", publicHandler.ErrHandler(publicHandler.HandleSitemap))

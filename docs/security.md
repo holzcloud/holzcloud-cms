@@ -307,8 +307,18 @@ database, table `privacy_requests` (migration `00064_privacy_requests.sql`,
 It stores **no IP address and no user agent**, and the form sets no cookie
 (`TestTheOptOutPostSetsNoCookie`). The spam protection needs none either: a
 honeypot field, a signed time stamp in the form that has to be between two
-seconds and twelve hours old, and at most 30 requests per website and hour,
-counted in the database so a restart does not reset it. A cross-site POST is
+seconds and two hours old and is valid only on the website that drew it, and
+two limits per hour. One network — an IPv4 address, or an IPv6 /64 — may send
+10 requests an hour; that budget is kept in memory only, so no address is
+stored, and spending it closes the form to that network and nobody else
+(`TestOneNetworkCannotLockOutTheOthers`). The website as a whole stores at
+most 300 an hour, counted inside the insert so that neither a restart nor a
+burst of parallel posts gets past it (`TestTheHourlyCapHoldsUnderABurst`).
+The operator is mailed about the first 30 of an hour; any further request is
+stored and listed, not mailed. Behind a reverse proxy the per-network budget
+needs `HOLZCLOUD_TRUSTED_PROXIES`, as the login throttle does; a request whose
+address is loopback or private gets no network budget and meets only the
+website's limit. A cross-site POST is
 refused before anything is read (`HandleOptOut`). A request caught by the
 honeypot, or carrying a stamp this page did not sign, gets the same answer as
 an accepted one, so a robot does not learn which trap caught it. A stamp this

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -56,13 +57,27 @@ const (
 	// in name and address lets a person send within a second or two; one who
 	// is quicker still is asked to send again, not turned away.
 	optoutMinAge = 2 * time.Second
-	// optoutMaxAge is how long a drawn form's time stamp stays valid. A page
-	// can stand in a tab for a long time; the point is only that a stamp
-	// copied once is not reusable for weeks.
-	optoutMaxAge = 12 * time.Hour
-	// optoutHourlyLimit is how many opt-outs a website takes per hour,
-	// counted in the database so that a restart does not reset it.
-	optoutHourlyLimit = 30
+	// optoutMaxAge is how long a drawn form's time stamp stays valid: long
+	// enough to read the page and fill in the form, short enough that one
+	// stamp fetched once does not feed a robot for a day. A person whose tab
+	// stood open longer is asked to send again (stampStale), so the price of
+	// a short lifetime is one more click and never a lost request.
+	optoutMaxAge = 2 * time.Hour
+	// optoutSiteLimit is how many opt-outs a website stores per hour,
+	// counted inside the insert (dsr.Store.AddWithin) so that a restart does
+	// not reset it and a burst does not slip past it. It protects the disk —
+	// three hundred requests of at most 2500 characters are under a megabyte
+	// an hour — and it is high on purpose, because reaching it closes the
+	// form for everybody.
+	optoutSiteLimit = 300
+	// optoutNetworkLimit is how many of them one network may send per hour
+	// (optout_limit.go). A person sends one; an office behind one address a
+	// few. Reaching it closes the form for that network only.
+	optoutNetworkLimit = 10
+	// optoutMailLimit is how many notifications a website's operator gets
+	// per hour. A request above it is stored and listed, not mailed: the
+	// record matters more than the inbox, and a flood should fill neither.
+	optoutMailLimit = 30
 	// optoutMaxBody bounds what the form may send. The three fields together
 	// are under 2500 characters; sixteen KiB leaves room for any encoding of
 	// them and none for anything else.
@@ -205,10 +220,8 @@ func (h *Handler) optoutWidget(r *http.Request, ws *domain.Website, pg *page.Pag
 		slug = pg.Slug
 	}
 	fmt.Fprintf(&b, `<input type="hidden" name="seite" value="%s">`, e(slug))
-	// The issue time in the id slot of a share-link token: signed, so a robot
-	// cannot back-date it, and checked for its age when the form comes back.
 	fmt.Fprintf(&b, `<input type="hidden" name="stempel" value="%s">`,
-		e(h.optoutSigner.Token(now.Unix(), now.Add(optoutMaxAge))))
+		e(OptOutStamp(h.optoutSigner, ws.ID, now)))
 
 	fmt.Fprintf(&b, `<div class="contact-form__field"><label for="hc-optout-name">%s</label>`+
 		`<input type="text" id="hc-optout-name" name="name" maxlength="%d" autocomplete="name"></div>`,
@@ -289,13 +302,19 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 
 	// The honeypot before the stamp's age: a robot that kept a real stamp
 	// must still learn nothing from the answer.
-	verdict := h.optoutStampCheck(r.PostFormValue("stempel"), now)
+	verdict := h.optoutStampCheck(ws, r.PostFormValue("stempel"), now)
 	if r.PostFormValue("website") != "" || verdict == stampForged {
 		optoutRedirect(w, r, back, "eingegangen")
 		return nil
 	}
 	if verdict == stampStale {
 		optoutRedirect(w, r, back, "abgelaufen")
+		return nil
+	}
+	// The network's budget before the website's ceiling, so that one
+	// network that spent its own never reaches the one everybody shares.
+	if network, ok := h.optoutNetwork(r); ok && h.optoutNets != nil && !h.optoutNets.take(network, now) {
+		optoutRedirect(w, r, back, "spaeter")
 		return nil
 	}
 	lang := LocaleFrom(ctx)
@@ -313,7 +332,8 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	}
 	// The hourly limit is counted inside the insert, not before it: a count
 	// read first lets a burst of parallel posts all read the same number.
-	_, err = h.requests.AddWithin(ctx, req, now.Add(-time.Hour), optoutHourlyLimit)
+	hourAgo := now.Add(-time.Hour)
+	_, err = h.requests.AddWithin(ctx, req, hourAgo, optoutSiteLimit)
 	switch {
 	case errors.Is(err, dsr.ErrLimit):
 		optoutRedirect(w, r, back, "spaeter")
@@ -324,10 +344,26 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	case err != nil:
 		return fmt.Errorf("store opt-out: %w", err)
 	default:
-		h.optoutNotify(ctx, ws, req)
+		h.optoutNotifyWithin(ctx, ws, req, hourAgo)
 		optoutRedirect(w, r, back, "eingegangen")
 	}
 	return nil
+}
+
+// optoutNotifyWithin mails the operator about a stored request unless the
+// website already took optoutMailLimit of them this hour. The count is read
+// after this request's own insert, so it is never below this request's place
+// in the hour: a burst can only send fewer mails than the limit, never more.
+func (h *Handler) optoutNotifyWithin(ctx context.Context, ws *domain.Website, req dsr.Request, since time.Time) {
+	n, err := h.requests.CountSince(ctx, ws.ID, dsr.KindOptOut, since)
+	if err != nil {
+		slog.Error("count opt-outs for the notification", "err", err, "website", ws.ID)
+		return
+	}
+	if n > optoutMailLimit {
+		return
+	}
+	h.optoutNotify(ctx, ws, req)
 }
 
 // optoutBack is the address the form came from: the published page in the
@@ -367,16 +403,31 @@ const (
 	stampForged
 )
 
-// optoutStampCheck tells the three kinds of stamp apart. The id slot of the
-// token holds the moment the form was drawn, in Unix seconds.
+// OptOutStamp is the time stamp the opt-out form of a website carries, drawn
+// at issued: the issue time in the id slot of a share-link token, signed so
+// that a robot cannot back-date it, and checked for its age when the form
+// comes back.
+//
+// The signer is derived per website, so a stamp drawn on one website is a
+// forgery on every other: one signer for all of them let a single GET feed
+// posts to every website of the installation (WR-01).
+func OptOutStamp(signer *sharelink.Signer, websiteID int64, issued time.Time) string {
+	return optoutStampSigner(signer, websiteID).Token(issued.Unix(), issued.Add(optoutMaxAge))
+}
+
+func optoutStampSigner(signer *sharelink.Signer, websiteID int64) *sharelink.Signer {
+	return signer.Derive("website:" + strconv.FormatInt(websiteID, 10))
+}
+
+// optoutStampCheck tells the three kinds of stamp apart.
 //
 // The signature decides between a person and a robot, and the age only
 // between "now" and "please again": a stamp that verifies proves it came from
-// this page, so answering its sender honestly tells a robot nothing it did
-// not already know. sharelink checks expiry after the signature for exactly
-// this distinction.
-func (h *Handler) optoutStampCheck(stamp string, now time.Time) stampVerdict {
-	issued, err := h.optoutSigner.Check(stamp, now)
+// this website's page, so answering its sender honestly tells a robot nothing
+// it did not already know. sharelink checks expiry after the signature for
+// exactly this distinction.
+func (h *Handler) optoutStampCheck(ws *domain.Website, stamp string, now time.Time) stampVerdict {
+	issued, err := optoutStampSigner(h.optoutSigner, ws.ID).Check(stamp, now)
 	switch {
 	case errors.Is(err, sharelink.ErrExpired):
 		return stampStale

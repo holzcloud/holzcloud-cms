@@ -48,6 +48,19 @@ func New(secret []byte) *Signer {
 	return &Signer{key: mac.Sum(nil)}
 }
 
+// Derive returns a signer for one part of this signer's purpose, named by
+// label: a token it mints validates with the same derivation and with
+// nothing else — not with this signer, not with another label.
+//
+// The opt-out form uses it to bind its stamp to one website ("website:7"):
+// one signer for every website would let a stamp drawn on one website pass
+// on all the others.
+func (s *Signer) Derive(label string) *Signer {
+	mac := hmac.New(sha256.New, s.key)
+	mac.Write([]byte("derive:" + label))
+	return &Signer{key: mac.Sum(nil)}
+}
+
 // Token mints a link for one page, valid until expires.
 //
 // The page id is in the token rather than in a separate path segment, so a
