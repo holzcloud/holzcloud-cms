@@ -24,9 +24,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alexedwards/scs/v2"
+
+	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
+	"github.com/holzcloud/holzcloud-cms/internal/user"
 )
 
 // Field is one value of a record.
@@ -150,6 +154,14 @@ type Service struct {
 	// failKind lets a test break one kind of one website in the retention
 	// job; nil everywhere else.
 	failKind func(websiteID int64, kind string) error
+	// users and sessions delete the staff accounts the retention job
+	// expires, and end their sessions. Nil users means the accounts are not
+	// this service's to expire: the job then leaves them alone.
+	users    *user.Store
+	sessions *scs.SessionManager
+	// activity receives one summary entry per website from every retention
+	// run that deleted something. Nil writes none.
+	activity *activity.Store
 }
 
 // NewService builds the search over the database.
@@ -163,6 +175,17 @@ func (s *Service) SetPlugins(m *plugin.Manager) { s.plugins = m }
 // files live under, so the retention job can delete the attachments of what
 // it expires.
 func (s *Service) SetMedia(m *media.Store, dataDir string) { s.media, s.dataDir = m, dataDir }
+
+// SetUsers hands the service the staff accounts and the session manager, so
+// the retention job can delete the accounts without a sign-in and end their
+// sessions. An account is deleted through the store and never by a statement
+// of this package, so the store's own rules — the last administrator stays —
+// hold for the job as for the screen.
+func (s *Service) SetUsers(u *user.Store, sm *scs.SessionManager) { s.users, s.sessions = u, sm }
+
+// SetActivity hands the service the activity log, for the summary of each
+// retention run.
+func (s *Service) SetActivity(a *activity.Store) { s.activity = a }
 
 // Find searches every source of the website for the address.
 //

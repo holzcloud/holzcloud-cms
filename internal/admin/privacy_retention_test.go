@@ -16,6 +16,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
+	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
@@ -392,5 +393,170 @@ func TestTheRetentionScreenWarnsWhenOverdue(t *testing.T) {
 	}
 	if body := retentionGet(t, h, sm, ws.ID); strings.Contains(body, retentionSays(stalledSentence)) {
 		t.Error("the Retention screen warns although the job succeeded an hour ago")
+	}
+}
+
+// retentionAs runs a handler of the screen for a signed-in user of the role,
+// and hands back the flashes.
+func retentionAs(t *testing.T, h *Handler, sm *scs.SessionManager, userID int64, role string,
+	fn func(http.ResponseWriter, *http.Request) error, req *http.Request) (rec *httptest.ResponseRecorder, bad, good string) {
+	t.Helper()
+	rec = httptest.NewRecorder()
+	var handlerErr error
+	sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sm.Put(r.Context(), auth.SessionKeyUserID, userID)
+		sm.Put(r.Context(), auth.SessionKeyUserRole, role)
+		handlerErr = fn(w, r)
+		bad = sm.GetString(r.Context(), "flash_error")
+		good = sm.GetString(r.Context(), "flash_success")
+	})).ServeHTTP(rec, req)
+	if handlerErr != nil {
+		t.Fatalf("handler: %v", handlerErr)
+	}
+	return rec, bad, good
+}
+
+// retentionAdminAccount creates an administrator who last signed in at.
+func retentionAdminAccount(t *testing.T, database *db.DB, email string, login time.Time) int64 {
+	t.Helper()
+	res, err := database.Write.Exec(`INSERT INTO users (email, password, role, name, created_at, last_login_at)
+		VALUES ($1, 'x', 'admin', 'Chef', '2020-01-01T00:00:00Z', $2)`, email, login.UTC().Format("2006-01-02T15:04:05Z"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _ := res.LastInsertId()
+	return id
+}
+
+const retentionAccountsAddress = "/admin/aufbewahrung/konten"
+
+func TestTheRetentionScreenShowsTheInstallationKinds(t *testing.T) {
+	h, sm, database, ws, _ := retentionAdmin(t)
+	admin := retentionAdminAccount(t, database, "chef@example.com", time.Now().AddDate(0, -30, 0))
+	retentionAdminAccount(t, database, "chefin@example.com", time.Now().AddDate(0, -1, 0))
+
+	req := httptest.NewRequest(http.MethodGet, retentionAddress(ws.ID), nil)
+	req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
+	rec, _, _ := retentionAs(t, h, sm, admin, "admin", h.HandlePrivacyRetention, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	body := rec.Body.String()
+
+	account := retentionSection(body, "retention-account")
+	for _, want := range []string{
+		retentionSays("Staff accounts without a sign-in"),
+		retentionSays("for the whole installation"),
+		retentionSays("One administrator account has not signed in for longer than this. Administrators are never deleted automatically."),
+		`action="` + retentionAccountsAddress + `"`,
+		`hx-disabled-elt="this"`,
+		`name="website_id" value="` + strconv.FormatInt(ws.ID, 10) + `"`,
+	} {
+		if !strings.Contains(account, want) {
+			t.Errorf("the account row lacks %q:\n%s", want, account)
+		}
+	}
+	if input := retentionInput(account, "account"); !strings.Contains(input, `value="24"`) {
+		t.Errorf("the account field does not show 24 months: %q", input)
+	}
+	if strings.Contains(account, "hx-confirm") {
+		t.Error("the account form carries an htmx confirmation; the password is the step in front")
+	}
+
+	mail := retentionSection(body, "retention-mail_failed")
+	if !strings.Contains(mail, retentionSays("Failed mail")) ||
+		!strings.Contains(mail, retentionSays("90 days after it was queued, in both mail queues; it cannot be changed here.")) {
+		t.Errorf("the failed-mail row does not say 90 days:\n%s", mail)
+	}
+	if strings.Contains(mail, "<input") {
+		t.Error("the failed-mail period can be typed into")
+	}
+
+	// Two inactive administrators: the plural.
+	retentionAdminAccount(t, database, "chef2@example.com", time.Now().AddDate(0, -40, 0))
+	rec, _, _ = retentionAs(t, h, sm, admin, "admin", h.HandlePrivacyRetention, req)
+	if !strings.Contains(rec.Body.String(), retentionSays("%d administrator accounts have not signed in for longer than this. Administrators are never deleted automatically.", 2)) {
+		t.Error("two inactive administrators are not counted")
+	}
+
+	// An editor sees the value and no form for it.
+	editor := editorWithoutPublishing(t, database, ws.ID)
+	rec, _, _ = retentionAs(t, h, sm, editor, "editor", h.HandlePrivacyRetention, req)
+	account = retentionSection(rec.Body.String(), "retention-account")
+	if strings.Contains(account, retentionAccountsAddress) || strings.Contains(account, "<input") {
+		t.Errorf("an editor gets the account form:\n%s", account)
+	}
+	if !strings.Contains(account, "24") {
+		t.Errorf("an editor does not see the account period:\n%s", account)
+	}
+}
+
+// retentionAccountsPost is the account form as the browser sends it.
+func retentionAccountsPost(months string, websiteID int64) *http.Request {
+	return postForm(retentionAccountsAddress, url.Values{
+		"account":    {months},
+		"website_id": {strconv.FormatInt(websiteID, 10)},
+	}, nil)
+}
+
+func TestOnlyAnAdministratorWithAFreshPasswordSetsTheAccountPeriod(t *testing.T) {
+	h, sm, database, ws, s := retentionAdmin(t)
+	ctx := context.Background()
+	admin := retentionAdminAccount(t, database, "chef@example.com", time.Now())
+
+	// An editor is refused, also when the route's own guard were missing.
+	editor := editorWithoutPublishing(t, database, ws.ID)
+	rec, _, _ := retentionAs(t, h, sm, editor, "editor", h.HandleRetentionAccounts, retentionAccountsPost("6", ws.ID))
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("an editor's save: status %d, want 403", rec.Code)
+	}
+	if m, _ := s.AccountMonths(ctx); m != 24 {
+		t.Fatalf("an editor changed the account period to %d", m)
+	}
+
+	rec, _, good := retentionAs(t, h, sm, admin, "admin", h.HandleRetentionAccounts, retentionAccountsPost("6", ws.ID))
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != retentionAddress(ws.ID) {
+		t.Fatalf("save: status %d to %q, want 303 to the screen it came from", rec.Code, rec.Header().Get("Location"))
+	}
+	if good != "Account period saved." {
+		t.Errorf("flash %q", good)
+	}
+	if m, _ := s.AccountMonths(ctx); m != 6 {
+		t.Errorf("stored %d, want 6", m)
+	}
+	var n int
+	var metadata string
+	if err := database.Read.QueryRow(`SELECT COUNT(*), COALESCE(MAX(metadata), '') FROM activity_log
+		WHERE action = $1 AND website_id IS NULL`, activity.ActionPrivacyPeriods).Scan(&n, &metadata); err != nil {
+		t.Fatal(err)
+	}
+	var meta map[string]any
+	if n != 1 || json.Unmarshal([]byte(metadata), &meta) != nil || meta[dsr.RetentionAccount] != float64(6) {
+		t.Errorf("%d installation entries %s with %q, want one with account: 6", n, activity.ActionPrivacyPeriods, metadata)
+	}
+
+	// Out of range: the screen again with the sentence, nothing stored.
+	rec, _, _ = retentionAs(t, h, sm, admin, "admin", h.HandleRetentionAccounts, retentionAccountsPost("0", ws.ID))
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("a period of 0: status %d, want 422", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(retentionSection(body, "retention-account"), retentionSays("A period must be between 1 and 600 months.")) {
+		t.Error("a period of 0 is refused without its sentence at the account field")
+	}
+	if !strings.Contains(retentionInput(body, "account"), `value="0"`) {
+		t.Error("the refused value is not shown again")
+	}
+	if m, _ := s.AccountMonths(ctx); m != 6 {
+		t.Errorf("after a refused save the period is %d, want still 6", m)
+	}
+
+	// From no website, or one that does not exist: back to the dashboard.
+	rec, _, _ = retentionAs(t, h, sm, admin, "admin", h.HandleRetentionAccounts, retentionAccountsPost("12", 999))
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin" {
+		t.Errorf("from an unknown website: status %d to %q, want 303 to /admin", rec.Code, rec.Header().Get("Location"))
+	}
+	if m, _ := s.AccountMonths(ctx); m != 12 {
+		t.Errorf("stored %d, want 12", m)
 	}
 }

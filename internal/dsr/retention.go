@@ -30,6 +30,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/legal"
 )
 
@@ -374,6 +375,23 @@ func (s *Service) RunRetention(ctx context.Context, now time.Time) (*RunReport, 
 			rep.Deleted += kr.Deleted
 		}
 	}
+	// The kinds that belong to no website, after the websites: staff
+	// accounts and the installation's own unsent mail (D-09). Their rows
+	// carry no website.
+	results, err := s.expireInstallation(ctx, now)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	for _, kr := range results {
+		if err := s.recordDeletion(ctx, id, kr); err != nil {
+			errs = append(errs, err)
+		}
+		rep.Kinds = append(rep.Kinds, kr)
+		rep.Deleted += kr.Deleted
+	}
+	// One line per website in the activity log, for whoever asks later what
+	// the job deleted and when; nothing in it names a person.
+	s.logRetention(ctx, id, rep.Kinds)
 
 	rep.Status = RunOK
 	if len(errs) > 0 {
@@ -395,6 +413,42 @@ func (s *Service) RunRetention(ctx context.Context, now time.Time) (*RunReport, 
 	}
 	slog.Info("retention run", "run", id, "status", rep.Status, "deleted", rep.Deleted, "kinds", len(rep.Kinds))
 	return rep, joined
+}
+
+// logRetention writes the summary of a run to the activity log: one entry
+// per website that had something deleted, and one without a website for the
+// installation's kinds. The metadata holds the run's id and the count per
+// kind that deleted something — never an address or a name, because the log
+// outlives what it describes. A run that deleted nothing writes nothing: a
+// line a day saying so would bury the entries that matter.
+func (s *Service) logRetention(ctx context.Context, runID int64, results []KindResult) {
+	if s.activity == nil {
+		return
+	}
+	var order []int64
+	byWebsite := map[int64]map[string]any{}
+	for _, kr := range results {
+		if kr.Deleted == 0 {
+			continue
+		}
+		meta, ok := byWebsite[kr.WebsiteID]
+		if !ok {
+			meta = map[string]any{"run": runID}
+			byWebsite[kr.WebsiteID] = meta
+			order = append(order, kr.WebsiteID)
+		}
+		meta[kr.Kind] = kr.Deleted
+	}
+	for _, id := range order {
+		e := activity.Entry{Action: activity.ActionPrivacyRetention, Metadata: byWebsite[id]}
+		if id == 0 {
+			e.EntityType = "installation"
+		} else {
+			websiteID := id
+			e.EntityType, e.EntityID, e.WebsiteID = "website", id, &websiteID
+		}
+		s.activity.Log(ctx, e)
+	}
 }
 
 // interruptedError is the error of a run a process left unfinished.
@@ -467,29 +521,29 @@ func (s *Service) expireWebsite(ctx context.Context, ws retentionWebsite, now ti
 	var results []KindResult
 	var errs []error
 	for _, p := range periods {
-		kr := KindResult{WebsiteID: ws.id, Kind: p.Kind}
-		var n int
-		var err error
-		if s.failKind != nil {
-			err = s.failKind(ws.id, p.Kind)
-		}
-		if err == nil {
-			n, err = s.expireKind(ctx, ws, p, now, covered, holdersErr)
-		}
-		kr.Deleted = n
-		if err != nil {
-			kr.Err = bounded(err.Error(), 2000)
-			errs = append(errs, fmt.Errorf("website %d, %s: %w", ws.id, p.Kind, err))
-		}
-		results = append(results, kr)
+		kr, err := s.runKind(ws.id, p.Kind, func() (int, error) {
+			return s.expireKind(ctx, ws, p, now, covered, holdersErr)
+		})
+		results, errs = append(results, kr), append(errs, err)
 	}
+	// Unsent mail has no period to choose (D-09): it goes 90 days after it
+	// was queued, on every website alike.
+	kr, err := s.runKind(ws.id, RetentionMailFailed, func() (int, error) {
+		return s.expireFailedMail(ctx, ws.id, now)
+	})
+	results, errs = append(results, kr), append(errs, err)
 	return results, errors.Join(errs...)
 }
 
-// recordDeletion writes one website's result of one kind.
+// recordDeletion writes one website's result of one kind; WebsiteID 0 is
+// the installation's, stored with no website.
 func (s *Service) recordDeletion(ctx context.Context, runID int64, kr KindResult) error {
+	var website any
+	if kr.WebsiteID != 0 {
+		website = kr.WebsiteID
+	}
 	if _, err := s.db.Write.ExecContext(ctx, `INSERT INTO retention_deletions (run_id, website_id, kind, deleted, error)
-		VALUES ($1, $2, $3, $4, $5)`, runID, kr.WebsiteID, kr.Kind, kr.Deleted, kr.Err); err != nil {
+		VALUES ($1, $2, $3, $4, $5)`, runID, website, kr.Kind, kr.Deleted, kr.Err); err != nil {
 		return fmt.Errorf("record retention of website %d, %s: %w", kr.WebsiteID, kr.Kind, err)
 	}
 	return nil

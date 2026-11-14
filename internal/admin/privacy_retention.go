@@ -86,6 +86,25 @@ type privacyRetentionData struct {
 	// NotCovered are the plugins that keep data for the website and do not
 	// answer the privacy hook: the job cannot delete what they keep.
 	NotCovered []dsr.Holder
+	// Account is the installation's account period, shown on every
+	// website's screen and changed by administrators only.
+	Account retentionAccountView
+	// MailFailed is what the last run did with the website's unsent mail.
+	MailFailed retentionPeriodView
+	// MailFailedDays is how long unsent mail is kept, which nobody sets.
+	MailFailedDays int
+}
+
+// retentionAccountView is the installation's account period (D-09).
+type retentionAccountView struct {
+	// Value is the period in months, or what was typed when the save was
+	// refused.
+	Value string
+	// InactiveAdmins is how many administrators are past the period; the
+	// job never deletes them, so the screen says how many there are.
+	InactiveAdmins int
+	// Error is the refusal, a catalogue key.
+	Error string
 }
 
 // retentionPeriodView is one kind as the form shows it.
@@ -330,7 +349,94 @@ func (h *Handler) privacyRetentionData(r *http.Request, ws *domain.Website, type
 			data.NotCovered = append(data.NotCovered, hd)
 		}
 	}
+
+	months, err := h.dataRights.AccountMonths(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inactive, err := h.dataRights.InactiveAdmins(ctx, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	data.Account = retentionAccountView{Value: strconv.Itoa(months), InactiveAdmins: inactive}
+	data.MailFailedDays = int(dsr.MailFailedAfter / (24 * time.Hour))
+	data.MailFailed = retentionPeriodView{Kind: dsr.RetentionMailFailed}
+	if k, ok := lastOf[dsr.RetentionMailFailed]; ok {
+		data.MailFailed.HasLast, data.MailFailed.LastDeleted = true, k.Deleted
+		data.MailFailed.LastFailure = retentionFailures[dsr.FailureOf(k.Err)]
+	}
 	data.ActiveNav = "privacy-retention"
 	data.CurrentWebsite = ws
 	return data, nil
+}
+
+// HandleRetentionAccounts stores the installation's account period (POST
+// /admin/aufbewahrung/konten, behind requireAdmin and requireFresh in
+// main.go).
+//
+// The period applies to the staff of every website, so only an
+// administrator sets it — asked here once more, in case the route's own
+// guard is ever lost — and a shorter one deletes accounts at the next run of
+// the job without a further question, so the password is asked again. The
+// form sits on each website's Retention screen and says which one in a
+// hidden field; the answer goes back there when the person may open it, and
+// to the dashboard otherwise. A plain POST, as the periods form: a refused
+// value comes back as the screen with a 422, which htmx would not show.
+func (h *Handler) HandleRetentionAccounts(w http.ResponseWriter, r *http.Request) error {
+	if h.dataRights == nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	if !h.isAdmin(r) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return nil
+	}
+	if err := r.ParseForm(); err != nil {
+		return err
+	}
+	ctx := r.Context()
+	var ws *domain.Website
+	if id, err := strconv.ParseInt(r.PostForm.Get("website_id"), 10, 64); err == nil && id > 0 && h.rightsOf(r).MayUse(id) {
+		found, err := h.domains.GetWebsite(ctx, id)
+		if err != nil {
+			return err
+		}
+		ws = found
+	}
+	back := "/admin"
+	if ws != nil {
+		back = privacyRetentionAddress(ws.ID)
+	}
+
+	raw := strings.TrimSpace(r.PostForm.Get(dsr.RetentionAccount))
+	months, convErr := strconv.Atoi(raw)
+	err := dsr.ErrBadPeriod
+	if convErr == nil {
+		err = h.dataRights.SetAccountMonths(ctx, months)
+	}
+	switch {
+	case errors.Is(err, dsr.ErrBadPeriod):
+		if ws == nil {
+			web.SetFlashError(h.sm, ctx, retentionBadPeriod)
+			return h.redirect(w, r, back)
+		}
+		data, err := h.privacyRetentionData(r, ws, nil)
+		if err != nil {
+			return err
+		}
+		data.Account.Value, data.Account.Error = raw, retentionBadPeriod
+		data.Errors = web.FormErrors{}
+		data.Errors.Add(dsr.RetentionAccount, retentionBadPeriod)
+		return web.RenderFormError(w, h.templates, r, "privacy_retention", data)
+	case err != nil:
+		return err
+	}
+
+	h.LogActivity(r, activity.Entry{
+		Action:     activity.ActionPrivacyPeriods,
+		EntityType: "installation",
+		Metadata:   map[string]any{dsr.RetentionAccount: months},
+	})
+	web.SetFlashSuccess(h.sm, ctx, "Account period saved.")
+	return h.redirect(w, r, back)
 }

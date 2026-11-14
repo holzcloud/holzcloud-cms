@@ -344,7 +344,11 @@ func main() {
 	adminHandler.SetAITokens(aiTokens)
 	// The activity log. It hangs off nothing but the database, which is why it
 	// stands here and not further down among the services that need each other.
-	adminHandler.SetActivityStore(activity.NewStore(database))
+	// One store, handed to the admin and to the retention job, which writes a
+	// summary of every run that deleted something (Phase 33.2, plan 07).
+	activityStore := activity.NewStore(database)
+	adminHandler.SetActivityStore(activityStore)
+	dataRights.SetActivity(activityStore)
 	// The assistant's tools go through the same handler the screens use,
 	// wherever a screen does more than one store call — see internal/admin/ops.go.
 	aiServer, aiUpload := aiConnection(cfg, ai.Deps{
@@ -421,6 +425,9 @@ func main() {
 
 	// Who may enter which website is needed by both the switcher and the router.
 	userStore := user.NewStore(database, argon2Params)
+	// The retention job deletes staff accounts without a sign-in through the
+	// same store, and ends their sessions (Phase 33.2, D-09).
+	dataRights.SetUsers(userStore, sm)
 
 	readiness := web.NewReadinessProbe(Version, Commit, integrity)
 	readiness.MinFreeBytes = cfg.MinFreeBytes
@@ -1219,6 +1226,10 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// (Phase 33.2, D-04).
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/datenschutz/aufbewahrung", adminHandler.ErrHandler(adminHandler.HandlePrivacyRetention))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/datenschutz/aufbewahrung", requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePrivacyRetention))))
+	// The account period is the installation's: it applies to the staff of
+	// every website, and a shorter one deletes accounts at the next run, so
+	// only an administrator sets it, with the password again (D-09).
+	adminProtectedMux.Handle("POST /admin/aufbewahrung/konten", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleRetentionAccounts)))))
 	adminProtectedMux.Handle("GET /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	// A website's own mail account. Admins only: it holds a password, and

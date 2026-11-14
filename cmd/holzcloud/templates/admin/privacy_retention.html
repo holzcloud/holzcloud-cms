@@ -59,6 +59,17 @@
                 {{if .Error}}<p class="form-error" id="period-{{.Kind}}-error">{{if .ErrorArg}}{{tf .Error .ErrorArg}}{{else}}{{t .Error}}{{end}}</p>{{end}}
             </div>
             {{end}}
+            <div class="form-group" id="retention-mail_failed">
+                <span class="form-label">{{t "Failed mail"}}</span>
+                <p class="form-hint">{{t "90 days after it was queued, in both mail queues; it cannot be changed here."}}</p>
+                {{with .MailFailed}}{{if .HasLast}}
+                {{if .LastFailure}}
+                <p class="form-error"><strong>{{t "Failed in the last run"}}</strong> {{t .LastFailure}}</p>
+                {{else}}
+                <p class="form-hint">{{t "Last run"}}: {{tf "%d deleted" .LastDeleted}}</p>
+                {{end}}
+                {{end}}{{end}}
+            </div>
             <div class="form-group" id="retention-logs">
                 <span class="form-label">{{t "Server log"}}</span>
                 <p class="form-hint">{{tf "%d days, enforced by the system journal (deploy/journald-holzcloud.conf) for the whole server; it cannot be changed here." .LogDays}}</p>
@@ -66,6 +77,38 @@
             <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
         </fieldset>
     </form>
+</div>
+
+{{/* Die Frist für Konten ohne Anmeldung gilt für die ganze Installation (D-09):
+     sie steht auf jedem Aufbewahrungs-Bildschirm, ändern dürfen sie nur Admins,
+     mit dem Passwort davor (requireFresh). Admins werden nie automatisch
+     gelöscht; wie viele über der Frist sind, steht darunter. Ein gewöhnlicher
+     POST wie oben, aus demselben Grund. */}}
+<div class="card" id="retention-account" style="margin-top: var(--space-3);">
+    {{if .IsAdmin}}
+    <form method="POST" action="/admin/aufbewahrung/konten">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <input type="hidden" name="website_id" value="{{.WebsiteID}}">
+        <div class="form-group">
+            <label class="form-label" for="period-account">{{t "Staff accounts without a sign-in"}} <span class="badge badge--draft">{{t "for the whole installation"}}</span></label>
+            <div style="display:flex; align-items:center; gap: var(--space-1);">
+                <input type="number" id="period-account" name="account" class="form-input" style="max-width: 8rem;"
+                       required inputmode="numeric" min="1" max="600" step="1" value="{{.Account.Value}}"
+                       {{if .Account.Error}}aria-invalid="true" aria-describedby="period-account-error"{{end}}>
+                <span>{{t "months"}}</span>
+            </div>
+            {{template "retention_inactive_admins" .Account}}
+            {{if .Account.Error}}<p class="form-error" id="period-account-error">{{t .Account.Error}}</p>{{end}}
+        </div>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
+    </form>
+    {{else}}
+    <div class="form-group">
+        <span class="form-label">{{t "Staff accounts without a sign-in"}} <span class="badge badge--draft">{{t "for the whole installation"}}</span></span>
+        <p>{{.Account.Value}} {{t "months"}}</p>
+        {{template "retention_inactive_admins" .Account}}
+    </div>
+    {{end}}
 </div>
 
 {{/* Was der Job nicht erreicht: Plugins mit Daten dieser Website, die den
@@ -82,4 +125,11 @@
     </ul>
 </div>
 {{end}}
+{{end}}
+
+{{/* Wie viele Admins länger als die Frist nicht angemeldet waren. Der Job löscht
+     sie nie; der Satz sagt es, damit jemand von Hand entscheidet. */}}
+{{define "retention_inactive_admins"}}
+{{if eq .InactiveAdmins 1}}<p class="form-hint">{{t "One administrator account has not signed in for longer than this. Administrators are never deleted automatically."}}</p>
+{{else if .InactiveAdmins}}<p class="form-hint">{{tf "%d administrator accounts have not signed in for longer than this. Administrators are never deleted automatically." .InactiveAdmins}}</p>{{end}}
 {{end}}

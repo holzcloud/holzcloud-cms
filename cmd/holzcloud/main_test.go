@@ -559,6 +559,8 @@ var adminOnlyRoutes = []route{
 	{pattern: "POST /admin/users/{id}/delete"},
 	{pattern: "POST /admin/users/{id}/link"},
 	{pattern: "POST /admin/users/{id}/sessions/revoke"},
+	// Phase 33.2, D-09: the account period applies to every website's staff.
+	{pattern: "POST /admin/aufbewahrung/konten"},
 	{pattern: "GET /admin/mail"},
 	{pattern: "POST /admin/mail/test"},
 	{pattern: "POST /admin/mail/retry"},
@@ -1375,6 +1377,15 @@ func TestSensitiveRoutesAskForThePasswordAgain(t *testing.T) {
 	if err := database.Read.QueryRow(`SELECT COUNT(*) FROM retention_periods`).Scan(&stored); err != nil || stored != 0 {
 		t.Errorf("%d periods stored without the password (%v)", stored, err)
 	}
+	// The account period: a shorter one deletes staff accounts at the next
+	// run (Phase 33.2, D-09).
+	rec = do(handler, "POST", "/admin/aufbewahrung/konten", admin)
+	if loc := rec.Header().Get("Location"); rec.Code != http.StatusSeeOther || !strings.HasPrefix(loc, auth.ConfirmPath) {
+		t.Errorf("POST the account period: got %d to %q, want a redirect to %s", rec.Code, loc, auth.ConfirmPath)
+	}
+	if err := database.Read.QueryRow(`SELECT COUNT(*) FROM app_settings WHERE key = 'retention.account_months'`).Scan(&stored); err != nil || stored != 0 {
+		t.Errorf("the account period was stored without the password (%v)", err)
+	}
 
 	src, err := os.ReadFile("main.go")
 	if err != nil {
@@ -1394,6 +1405,8 @@ func TestSensitiveRoutesAskForThePasswordAgain(t *testing.T) {
 		// Phase 33.2, D-04: a shortened retention period deletes personal
 		// data at the next run of the job, without a further question.
 		"POST /admin/websites/{id}/datenschutz/aufbewahrung",
+		// Phase 33.2, D-09: a shorter account period deletes staff accounts.
+		"POST /admin/aufbewahrung/konten",
 	} {
 		found := false
 		for _, l := range lines {
