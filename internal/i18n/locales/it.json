@@ -2105,7 +2105,7 @@
 "the values of snippet %q could not be stored: %v": "Non è stato possibile salvare i valori del frammento %q: %v",
 "the values of snippet %q could not be taken over: %v": "Non è stato possibile acquisire i valori del frammento %q: %v",
 "the website's own block kinds could not be created.": "Non è stato possibile creare i tipi di blocco propri del sito web.",
-"the website's own fields could not be created.": "Non è stato possibile créer les champs propres.",
+"the website's own fields could not be created.": "Non è stato possibile creare i campi propri del sito web.",
 "there is no field of this kind": "questo tipo di campo non esiste",
 "there is no group inside a group": "non esiste un gruppo dentro un gruppo",
 "there is no heading inside a group": "non esiste un’intestazione dentro un gruppo",
