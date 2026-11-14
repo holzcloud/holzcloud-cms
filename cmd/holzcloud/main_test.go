@@ -26,6 +26,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/config"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
@@ -144,6 +145,10 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 	// added for them later is classified against the real handler.
 	valueStore := value.NewStore(database)
 	adminHandler.SetValueStore(valueStore)
+	// The Opt-outs screen reaches its store, as in main.go, so its routes are
+	// classified against the real handler rather than its nil-store 404.
+	requestStore := dsr.NewStore(database)
+	adminHandler.SetRequestStore(requestStore)
 
 	var tokens *ai.Store
 	if tw.oauth || tw.mcp {
@@ -209,6 +214,8 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 		termStore:       term.NewStore(database),
 		shareSigner:     sharelink.New([]byte("share")),
 		unlockSigner:    sharelink.New([]byte("unlock")),
+		optoutSigner:    sharelink.New([]byte("optout")),
+		requestStore:    requestStore,
 		templateLoader:  loader,
 		publicDefaultFS: publicDefaultFS,
 		aiServer:        aiServer,
@@ -615,7 +622,7 @@ var editorOpenRoutes = []route{
 	{pattern: "GET /admin/websites/{id}/uebersetzungen"},
 	{pattern: "GET /admin/websites/{id}/pages/new"},
 	{pattern: "POST /admin/websites/{id}/pages/new"},
-	{pattern: "POST /admin/websites/{id}/datenschutz-vorlage"},
+	{pattern: "POST /admin/websites/{id}/rechtstexte"},
 	{pattern: "GET /admin/websites/{id}/pages/{pageID}/edit"},
 	{pattern: "POST /admin/websites/{id}/pages/{pageID}/edit"},
 	{pattern: "POST /admin/websites/{id}/pages/{pageID}/delete"},
@@ -669,6 +676,10 @@ var editorOpenRoutes = []route{
 	{pattern: "GET /admin/websites/{id}/bestellungen/{number}"},
 	{pattern: "POST /admin/websites/{id}/bestellungen/{number}"},
 	{pattern: "GET /admin/websites/{id}/bestellungen/{number}/{kind}"},
+	// Opt-outs follow the order book: reading one and recording the answer
+	// publishes nothing (phase 33.1 D-14).
+	{pattern: "GET /admin/websites/{id}/widersprueche"},
+	{pattern: "POST /admin/websites/{id}/widersprueche/{requestID}/erledigt"},
 	{pattern: "GET /admin/websites/{id}/menus"},
 	{pattern: "POST /admin/websites/{id}/menus"},
 	{pattern: "GET /admin/websites/{id}/menus/{menuID}"},

@@ -34,6 +34,7 @@ func (h *Handler) bundleStores() bundle.Stores {
 		Kinds:      h.kinds,
 		BlockTypes: h.blockTypes,
 		Values:     h.valueStore,
+		Requests:   h.requests,
 		DataDir:    h.cfg.DataDir,
 	}
 }

@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"mime"
+	"mime/quotedprintable"
 	"net"
 	"net/smtp"
 	"strings"
@@ -224,14 +225,31 @@ func (s *Sender) compose(m Message) string {
 	b.WriteString("Date: " + time.Now().Format(time.RFC1123Z) + "\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
 	b.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
-	b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
+	// Quoted-printable and not 8bit: a line of a mail may be at most 998
+	// octets (RFC 5322 2.1.1), and a body built from what a visitor typed —
+	// an opt-out's note of 2000 characters on one line is 8000 octets in
+	// UTF-8 — goes past that. Some servers refuse such a mail, others cut it.
+	// Quoted-printable wraps with soft breaks under 77 octets, and every mail
+	// client turns it back into the text exactly (IN-09 of the 33.1 review).
+	b.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 	// Not an automatic reply to an automatic reply: without this, an out-of-
 	// office on the other end and a notification on this end can bounce back and
 	// forth until someone notices.
 	b.WriteString("Auto-Submitted: auto-generated\r\n")
 	b.WriteString("\r\n")
-	b.WriteString(normaliseNewlines(m.Body))
+	b.WriteString(quotedPrintable(normaliseNewlines(m.Body)))
 	return b.String()
+}
+
+// quotedPrintable encodes a body whose line breaks are already CRLF. The
+// writer turns each CRLF into a hard line break and breaks every longer line
+// softly; a write to a strings.Builder cannot fail.
+func quotedPrintable(body string) string {
+	var out strings.Builder
+	w := quotedprintable.NewWriter(&out)
+	_, _ = w.Write([]byte(body))
+	_ = w.Close()
+	return out.String()
 }
 
 // header strips anything that could start a new header line.

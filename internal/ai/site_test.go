@@ -11,6 +11,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/design"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/legal"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
@@ -33,6 +34,9 @@ type fakeSite struct {
 	words    map[string]string
 	activate [2]int64
 	logged   []string
+	// apply, when set, stores a change the way the handler would, for a test
+	// that reads the answer of update_website rather than what was handed on.
+	apply func(ctx context.Context, id int64, ch map[string]string) error
 }
 
 func (f *fakeSite) OpLog(_ context.Context, _ string, e activity.Entry) {
@@ -46,6 +50,11 @@ func (f *fakeSite) OpCreateWebsite(ctx context.Context, name, desc string, start
 }
 func (f *fakeSite) OpUpdateWebsite(ctx context.Context, id int64, ch map[string]string) (*domain.Website, error) {
 	f.updates = append(f.updates, ch)
+	if f.apply != nil {
+		if err := f.apply(ctx, id, ch); err != nil {
+			return nil, err
+		}
+	}
 	return f.domains.GetWebsite(ctx, id)
 }
 func (f *fakeSite) OpDeleteWebsite(_ context.Context, id int64) error {
@@ -387,5 +396,61 @@ func TestTranslationMatrixNamesTheGaps(t *testing.T) {
 	fr := langs[1].(map[string]any)
 	if fr["language"] != "fr" || fr["missing"].(float64) != 1 {
 		t.Errorf("french column %v", fr)
+	}
+}
+
+func TestGetWebsiteShowsTheLegalFrameworks(t *testing.T) {
+	ts, _, _, first, _, k := siteSetUp(t)
+
+	got, failed := callTool(t, ts, k.admin, "get_website", map[string]any{"website": first})
+	if failed {
+		t.Fatalf("get_website: %v", got["text"])
+	}
+	if got["legal_frameworks"] != "eu,ch" {
+		t.Errorf("legal_frameworks = %#v, want \"eu,ch\" for a fresh website", got["legal_frameworks"])
+	}
+}
+
+func TestUpdateWebsiteReportsANormalisedSet(t *testing.T) {
+	ts, fake, domains, first, second, k := siteSetUp(t)
+	// The handler's rule, in short: settingsFrom parses the set and the store
+	// writes the canonical form. What is under test here is the tool: that it
+	// hands the value on under the form's name and reports what was stored.
+	fake.apply = func(ctx context.Context, id int64, ch map[string]string) error {
+		v, ok := ch["legal_frameworks"]
+		if !ok {
+			return nil
+		}
+		_, err := domains.DB.Write.ExecContext(ctx,
+			`UPDATE websites SET legal_frameworks = $1 WHERE id = $2`, legal.ParseSet(v).String(), id)
+		return err
+	}
+
+	got, failed := callTool(t, ts, k.admin, "update_website", map[string]any{
+		"website": first, "legal_frameworks": "EU, xx",
+	})
+	if failed {
+		t.Fatalf("update_website: %v", got["text"])
+	}
+	if fake.updates[0]["legal_frameworks"] != "EU, xx" {
+		t.Errorf("handed on %v, want the value under the form's name", fake.updates[0])
+	}
+	if got["legal_frameworks"] != "eu" {
+		t.Errorf("answer legal_frameworks = %#v, want \"eu\"", got["legal_frameworks"])
+	}
+	adj, _ := got["adjusted"].(map[string]any)
+	entry, _ := adj["legal_frameworks"].(map[string]any)
+	if entry == nil || entry["given"] != "EU, xx" || entry["stored"] != "eu" {
+		t.Errorf("adjusted = %#v, want legal_frameworks given \"EU, xx\" stored \"eu\"", got["adjusted"])
+	}
+
+	if _, failed := callTool(t, ts, k.onlyFirst, "update_website", map[string]any{
+		"website": second, "legal_frameworks": "us",
+	}); !failed {
+		t.Error("a key for the first website changed the second's frameworks")
+	}
+	other, _ := domains.GetWebsite(context.Background(), second)
+	if other.LegalFrameworks != "eu,ch" {
+		t.Errorf("the second website's set became %q", other.LegalFrameworks)
 	}
 }

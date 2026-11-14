@@ -40,9 +40,11 @@ func TestOpCreateWebsiteSeedsWhatTheFormSeeds(t *testing.T) {
 	for _, p := range pages {
 		slugs[p.Slug] = p.Status
 	}
+	// A new website is German, so the legal pages stand at their German slugs.
 	for _, sp := range starterPages {
-		if slugs[sp.slug] != sp.status {
-			t.Errorf("starter page %q: status %q, want %q", sp.slug, slugs[sp.slug], sp.status)
+		_, slug := sp.titleSlug(ws.Locale)
+		if slugs[slug] != sp.status {
+			t.Errorf("starter page %q: status %q, want %q", slug, slugs[slug], sp.status)
 		}
 	}
 	for _, loc := range []string{"main", "footer"} {

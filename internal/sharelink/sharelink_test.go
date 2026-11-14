@@ -98,6 +98,28 @@ func TestMalformedTokensAreRefused(t *testing.T) {
 	}
 }
 
+// A derived signer is a signer of its own: what one label signs, neither the
+// parent nor another label accepts, and the same label derives the same key
+// every time, so a token survives a restart.
+func TestADerivedSignerKeepsItsTokensToItself(t *testing.T) {
+	parent := New([]byte("installation secret"))
+	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+
+	token := parent.Derive("website:1").Token(42, now.Add(time.Hour))
+	if _, err := parent.Derive("website:1").Check(token, now); err != nil {
+		t.Errorf("the same label refused its own token: %v", err)
+	}
+	if _, err := parent.Derive("website:2").Check(token, now); !errors.Is(err, ErrInvalid) {
+		t.Errorf("another label accepted the token: %v", err)
+	}
+	if _, err := parent.Check(token, now); !errors.Is(err, ErrInvalid) {
+		t.Errorf("the parent accepted a derived token: %v", err)
+	}
+	if _, err := parent.Derive("website:1").Check(parent.Token(42, now.Add(time.Hour)), now); !errors.Is(err, ErrInvalid) {
+		t.Errorf("a derived signer accepted the parent's token: %v", err)
+	}
+}
+
 func TestPathIsTheAddressAVisitorGets(t *testing.T) {
 	if got := Path("42-1234.sig"); got != "/vorschau/42-1234.sig" {
 		t.Errorf("Path = %q", got)

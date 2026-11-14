@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -109,14 +110,14 @@ type websiteFormData struct {
 	// MailConfigured says whether this installation can send at all, so the
 	// notification field can admit that filling it in would do nothing.
 	MailConfigured bool
-	// PrivacyHint says what the website's privacy page is, for the card that
-	// offers the current template as a draft. Its zero value has no State and
-	// the card is then not drawn.
-	PrivacyHint privacyHint
+	// Legal is the "Legal pages" card: which page each language has of every
+	// kind the chosen frameworks call for. Its zero value has no rows and the
+	// card is then not drawn.
+	Legal legalCard
 	// ReadOnly is set on the edit screen for somebody without the publishing
 	// right: the settings are online the moment they are saved, so the values
-	// stand in a disabled fieldset and there is no Save (D-05). The privacy
-	// card stays, because it only makes a draft. The create screen is the
+	// stand in a disabled fieldset and there is no Save (D-05). The legal card
+	// stays, because it only makes drafts. The create screen is the
 	// administrator's and never sets it.
 	ReadOnly bool
 }
@@ -266,7 +267,7 @@ func (h *Handler) HandleWebsiteEdit(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	hint, err := h.privacyHint(r.Context(), ws)
+	legalPages, err := h.legalCard(r.Context(), ws)
 	if err != nil {
 		return err
 	}
@@ -284,7 +285,7 @@ func (h *Handler) HandleWebsiteEdit(w http.ResponseWriter, r *http.Request) erro
 		Checks:     h.siteChecks(r.Context(), ws, domains),
 
 		MailConfigured: h.mail.EnabledFor(r.Context(), ws.ID),
-		PrivacyHint:    hint,
+		Legal:          legalPages,
 		ReadOnly:       h.readOnly(r),
 	}
 	if h.mediaStore != nil {
@@ -319,7 +320,29 @@ func (h *Handler) handleWebsiteEditPost(w http.ResponseWriter, r *http.Request, 
 		return nil
 	}
 
-	if err := h.saveWebsite(r.Context(), id, r.FormValue); err != nil {
+	// The legal frameworks are a group of checkboxes, and r.FormValue hands
+	// back the first ticked box only, so the getter joins all of them. A post
+	// that did not draw the group must not empty the set either: four unticked
+	// boxes and no boxes at all look the same on the wire, which is what the
+	// hidden marker beside them is for. Without it, the stored set stands.
+	stored, err := h.domains.GetWebsite(r.Context(), id)
+	if err != nil {
+		return err
+	}
+	if stored == nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	get := func(k string) string {
+		if k != "legal_frameworks" {
+			return r.FormValue(k)
+		}
+		if r.PostForm.Has("legal_frameworks_shown") {
+			return strings.Join(r.PostForm["legal_frameworks"], ",")
+		}
+		return stored.LegalFrameworks
+	}
+	if err := h.saveWebsite(r.Context(), id, get); err != nil {
 		return err
 	}
 
@@ -342,7 +365,13 @@ func (h *Handler) HandleWebsiteDelete(w http.ResponseWriter, r *http.Request) er
 	}
 
 	if err := h.deleteWebsite(r.Context(), id); err != nil {
-		return err
+		if !errors.Is(err, domain.ErrWebsiteKeepsRequests) {
+			return err
+		}
+		// Refused by the database (migration 00065): the website's opt-outs
+		// are the record § 7101 asks to be kept, and they would go with it.
+		web.SetFlashError(h.sm, r.Context(), "This website received opt-out or privacy requests in the last 24 months. US law asks for them to be kept that long, so the website cannot be deleted yet. Export it to keep a copy, or deactivate it.")
+		return h.redirect(w, r, "/admin/websites/"+strconv.FormatInt(id, 10))
 	}
 
 	web.SetFlashSuccess(h.sm, r.Context(), "Website deleted")

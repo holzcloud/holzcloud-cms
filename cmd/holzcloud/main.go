@@ -31,6 +31,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/csvimport"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/jobs"
@@ -248,6 +249,13 @@ func main() {
 	// protected page, and an unlock cookie must never show a draft.
 	shareSigner := sharelink.New(append([]byte("share:"), csrfKey...))
 	unlockSigner := sharelink.New(append([]byte("unlock:"), csrfKey...))
+	// The opt-out form's time stamp gets a third label, so a stamp minted for
+	// that form never validates as a preview link or an unlock cookie, and
+	// neither of those as a stamp.
+	optoutSigner := sharelink.New(append([]byte("optout:"), csrfKey...))
+	// The requests visitors make about their data — the opt-outs of a website
+	// that follows US law. Written by the public form, never deleted here.
+	requestStore := dsr.NewStore(database)
 	// Public template loader (created early so admin handler can invalidate cache)
 	publicDefaultFS, err := fs.Sub(staticFS, "templates/public/default")
 	if err != nil {
@@ -290,6 +298,8 @@ func main() {
 	// including cmd/holzcloud/main_test.go.
 	adminHandler.SetAlbumStore(albumStore)
 	adminHandler.SetValueStore(valueStore)
+	// The Opt-outs screen reads what the public form writes.
+	adminHandler.SetRequestStore(requestStore)
 	adminHandler.SetWording(wordingStore)
 	adminHandler.SetProductStore(productStore)
 	adminHandler.SetOrderStore(orderStore)
@@ -448,6 +458,8 @@ func main() {
 		outboxStore:     outboxStore,
 		shareSigner:     shareSigner,
 		unlockSigner:    unlockSigner,
+		optoutSigner:    optoutSigner,
+		requestStore:    requestStore,
 		pluginRT:        pluginRT,
 		mailQueue:       mailQueue,
 		aiServer:        aiServer,
@@ -853,14 +865,19 @@ type routerDeps struct {
 	mediaStore   *media.Store
 	snippetStore *snippet.Store
 	// valueStore resolves the [[wert:key]] markers of a page at request time.
-	valueStore      *value.Store
-	termStore       *term.Store
-	productStore    *shop.Store
-	cartStore       *shop.CartStore
-	orderStore      *shop.OrderStore
-	outboxStore     *outbox.Store
-	shareSigner     *sharelink.Signer
-	unlockSigner    *sharelink.Signer
+	valueStore   *value.Store
+	termStore    *term.Store
+	productStore *shop.Store
+	cartStore    *shop.CartStore
+	orderStore   *shop.OrderStore
+	outboxStore  *outbox.Store
+	shareSigner  *sharelink.Signer
+	unlockSigner *sharelink.Signer
+	// optoutSigner signs the opt-out form's time stamp, and requestStore
+	// keeps what the form takes. Either nil leaves the [[widerspruch]] widget
+	// empty and POST /widerspruch a 404.
+	optoutSigner    *sharelink.Signer
+	requestStore    *dsr.Store
 	templateLoader  *tmpl.Loader
 	publicDefaultFS fs.FS
 	readiness       *web.ReadinessProbe
@@ -1084,8 +1101,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/uebersetzungen", adminHandler.ErrHandler(adminHandler.HandleTranslations))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/pages/new", adminHandler.ErrHandler(adminHandler.HandlePageCreate))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/pages/new", adminHandler.ErrHandler(adminHandler.HandlePageCreate))
-	// Creates the current privacy template as a new draft; open to editors like page creation (D-06).
-	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/datenschutz-vorlage", adminHandler.ErrHandler(adminHandler.HandlePrivacyDraft))
+	// Creates the missing legal pages, or one template to compare, as drafts; open to editors like page creation (D-01).
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/rechtstexte", adminHandler.ErrHandler(adminHandler.HandleLegalDrafts))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/pages/{pageID}/edit", adminHandler.ErrHandler(adminHandler.HandlePageEdit))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/pages/{pageID}/edit", adminHandler.ErrHandler(adminHandler.HandlePageEdit))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/pages/{pageID}/delete", adminHandler.ErrHandler(adminHandler.HandlePageDelete))
@@ -1152,6 +1169,11 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// Invoice and delivery note for printing. A page of its own without the
 	// admin's navigation, which has no business on paper.
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/bestellungen/{number}/{kind}", adminHandler.ErrHandler(adminHandler.HandleOrderDocument))
+	// The opt-outs a US website's "Do Not Sell or Share" page took. Open to
+	// everybody with access to the website, like the order book: nothing here
+	// publishes, and nothing here deletes (phase 33.1 D-14).
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/widersprueche", adminHandler.ErrHandler(adminHandler.HandleOptOutList))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/widersprueche/{requestID}/erledigt", adminHandler.ErrHandler(adminHandler.HandleOptOutHandled))
 	adminProtectedMux.Handle("GET /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	// A website's own mail account. Admins only: it holds a password, and
@@ -1437,6 +1459,9 @@ func newRouter(d routerDeps) (http.Handler, error) {
 		BaseURL:  cfg.PayrexxBaseURL,
 	})
 	publicHandler.SetShareSigners(d.shareSigner, d.unlockSigner)
+	publicHandler.SetRequestStore(d.requestStore)
+	publicHandler.SetOptOutSigner(d.optoutSigner)
+	publicHandler.SetClientIP(d.clientIP)
 	publicMux := http.NewServeMux()
 	publicMux.HandleFunc("GET /t/{path...}", publicHandler.ErrHandler(publicHandler.HandleTemplateAsset))
 	publicMux.HandleFunc("GET /sitemap.xml", publicHandler.ErrHandler(publicHandler.HandleSitemap))
@@ -1445,6 +1470,12 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	publicMux.HandleFunc("GET /feed.xml", publicHandler.ErrHandler(publicHandler.HandleFeed))
 	publicMux.HandleFunc("GET /tag/{slug}", publicHandler.ErrHandler(publicHandler.HandleTag))
 	publicMux.HandleFunc("POST /freischalten", publicHandler.ErrHandler(publicHandler.HandleUnlock))
+	// The opt-out form of a website that follows US law. Like /freischalten
+	// it takes no CSRF token, because it rides no session (D-03).
+	publicMux.HandleFunc("POST /widerspruch", publicHandler.ErrHandler(publicHandler.HandleOptOut))
+	// The Global Privacy Control statement of a website that follows US law;
+	// 404 on every other.
+	publicMux.HandleFunc("GET /.well-known/gpc.json", publicHandler.ErrHandler(publicHandler.HandleGPCJSON))
 	publicMux.HandleFunc("GET /vorschau/{token}", publicHandler.ErrHandler(publicHandler.HandleShareLink))
 	publicMux.HandleFunc("POST /preise", publicHandler.ErrHandler(publicHandler.HandlePriceSwitch))
 	publicMux.HandleFunc("GET /warenkorb", publicHandler.ErrHandler(publicHandler.HandleCart))

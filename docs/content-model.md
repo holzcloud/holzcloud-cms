@@ -12,6 +12,7 @@ build of the program.
 - [Block kinds](#block-kinds)
 - [Snippets](#snippets)
 - [Values](#values)
+- [The opt-out widget](#the-opt-out-widget)
 
 ## Fields
 
@@ -320,3 +321,46 @@ link. Put a space after the placeholder when a bracket follows it:
 
 **Search.** The site search finds a page by the words its author wrote, not by
 a value's text: the index holds the page source, where the placeholder stands.
+
+## The opt-out widget
+
+`[[widerspruch]]` in the text of a page places the opt-out widget of a website
+that follows US law (Settings → General, "Legal frameworks", United States):
+
+- a status line saying whether the visitor's browser sends the Global Privacy
+  Control signal — "Opt-Out Request Honored" when it does;
+- a form that takes a request not to sell or share personal information:
+  name, e-mail address and a note, each optional, without an account and
+  without a cookie. What it stores and where the operator reads it is in
+  [security](security.md#opt-out-requests).
+
+It is drawn when the page is delivered, not when it is saved, because the
+status line depends on the request. It speaks the page's language (English
+on a Spanish or Romansh page) and is styled by the theme's contact-form classes
+(`.contact-form` and its parts), which every shipped theme already has, so it
+looks like the contact form a visitor knows from the same website. It uses no
+script.
+
+**On a website without the United States** among its frameworks it shows
+nothing — neither the marker nor a form — and the form's address answers 404.
+A page that loses US keeps its text and loses only the form.
+
+**Where it works.** On a line of its own, where the paragraph goes with it, or
+inside a sentence. A marker typed into a link address or another attribute is
+removed, not expanded (`marker.OnlyInText`). One widget per page: a second
+marker shows nothing. A feed entry and what a plugin reads get no form, and
+never the marker (`withoutOptOut`).
+
+**The Do Not Sell or Share page** that the Legal pages card creates carries the
+marker already, alone on its line, below the paragraph that introduces the
+form ([security](security.md#global-privacy-control-and-the-do-not-sell-or-share-page)).
+Any other page may carry it too.
+
+**Caching.** The page that holds the widget answers with `Vary: Sec-GPC`, so a
+shared cache keeps the two status lines apart; every other page is the same
+with and without the signal and does not name it (`optoutVary`).
+
+**In the preview** the editor's pane and the themed preview show a dashed box
+where the widget goes, saying what visitors see there, or that they see
+nothing on a website without US (`expandOptOutPreview`). The real widget needs
+the visitor's request, and its form posts to the public site.

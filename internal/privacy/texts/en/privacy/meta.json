@@ -1,0 +1,50 @@
+{
+  "title": "Privacy notice",
+  "slug": "privacy",
+  "also_slugs": ["privacy-policy", "privacy-notice", "privacy-statement", "data-protection"],
+  "draft_title": "Privacy notice (new template)",
+  "draft_slug": "privacy-template",
+
+  "cookie_header": "| Name | Purpose | Lifetime | Why no consent is needed |",
+  "processor_header": "| Recipient | Task | Data passed on | Contract |",
+  "purpose_basket": "Set when you put something in the basket. Remembers your basket until you order or it expires.",
+  "purpose_price_view": "Set when you switch the price view. Remembers whether you are shown prices for private customers or for business customers.",
+  "purpose_unlock": "Set when you enter the password of a protected page. N stands for the number of the protected page. Remembers that you have unlocked the page.",
+  "why_no_consent": "Strictly necessary for what you asked for",
+  "no_cookies": "This website sets no cookies.",
+  "cookies_some": "Your browser only stores something when you do one of the things listed below. Such a cookie is strictly necessary for what you asked for, so it needs neither consent nor a cookie banner.",
+  "processor_hosting": "| Hosting provider {fillin}, country of the server {fillin} | Running the server | Connection data as in the section Server log | Data processing agreement, where the server is run by a third party |",
+  "processor_payment": "| Payrexx, payment provider, Switzerland, name and address {fillin} | Handling the online payment | Amount, currency, order number with the name of the website, name, e-mail address, street, postcode, town and country | Data processing agreement, date of the agreement {fillin} |",
+
+  "lifetime_day_one": "{n} day",
+  "lifetime_day_many": "{n} days",
+  "lifetime_hour_one": "{n} hour",
+  "lifetime_hour_many": "{n} hours",
+  "lifetime_minute_one": "{n} minute",
+  "lifetime_minute_many": "{n} minutes",
+
+  "basis_eu_log": "Server log: Art. 6(1)(f) GDPR. The legitimate interest is the operation and security of the website.",
+  "basis_eu_cookies": "Cookies in the table above: Art. 6(1)(f) GDPR, and for the basket of an order Art. 6(1)(b) GDPR. Storing them in your browser is governed by the cookie rule at the end of this section.",
+  "basis_eu_orders": "Orders: Art. 6(1)(b) GDPR (contract). Without these details an order cannot be carried out. For accounting records Art. 6(1)(c) GDPR (legal obligation to keep them) applies as well.",
+  "basis_eu_payment": "Online payment: Art. 6(1)(b) GDPR (contract).",
+  "basis_eu_forms": "Forms: Art. 6(1)(b) GDPR where your enquiry concerns a contract, otherwise Art. 6(1)(f) GDPR. The legitimate interest is answering your enquiry.",
+  "basis_eu_staff": "Accounts in the admin area: Art. 6(1)(b) GDPR (employment or service relationship) and Art. 6(1)(f) GDPR. The legitimate interest is the security of the admin area.",
+
+  "basis_ch_log": "Server log: operation and security of the website. The justification is the overriding private interest of the controller (Art. 31 para. 1 FADP).",
+  "basis_ch_cookies": "Cookies in the table above: what you asked for. How you can refuse them is set out at the end of this section.",
+  "basis_ch_orders": "Orders: concluding and performing the contract with you (Art. 31 para. 2 let. a FADP). Without these details an order cannot be carried out.",
+  "basis_ch_payment": "Online payment: performing the contract with you (Art. 31 para. 2 let. a FADP).",
+  "basis_ch_forms": "Forms: answering your enquiry.",
+  "basis_ch_staff": "Accounts in the admin area: work on the website and protection of the admin area.",
+
+  "basis_uk_log": "Server log: Art. 6(1)(f) UK GDPR. The legitimate interest is the operation and security of the website.",
+  "basis_uk_cookies": "Cookies in the table above: Art. 6(1)(f) UK GDPR, and for the basket of an order Art. 6(1)(b) UK GDPR. Storing them in your browser is governed by the cookie rule at the end of this section.",
+  "basis_uk_orders": "Orders: Art. 6(1)(b) UK GDPR (contract). Without these details an order cannot be carried out.",
+  "basis_uk_payment": "Online payment: Art. 6(1)(b) UK GDPR (contract).",
+  "basis_uk_forms": "Forms: Art. 6(1)(b) UK GDPR where your enquiry concerns a contract, otherwise Art. 6(1)(f) UK GDPR. The legitimate interest is answering your enquiry.",
+  "basis_uk_staff": "Accounts in the admin area: Art. 6(1)(b) and (f) UK GDPR. The legitimate interest is the security of the admin area.",
+
+  "category_us_identifiers": "Identifiers: the name and e-mail address you write into a form or into the opt-out form, and the accounts of the people who work on the website.",
+  "category_us_commercial": "Commercial information: your orders with your address, the items and your choice of delivery and payment.",
+  "category_us_internet": "Internet or other electronic network activity information: the lines of the server log, with a truncated IP address."
+}

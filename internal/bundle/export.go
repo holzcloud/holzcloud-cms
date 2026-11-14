@@ -17,6 +17,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/kind"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
@@ -49,8 +50,11 @@ type Stores struct {
 	// none.
 	BlockTypes *block.Store
 	// Values are the website's named texts. Nil means a bundle carries none.
-	Values  *value.Store
-	DataDir string
+	Values *value.Store
+	// Requests are the website's privacy requests. Nil means a bundle carries
+	// none, and an import of one that does reports them as not taken over.
+	Requests *dsr.Store
+	DataDir  string
 }
 
 // maxExportPages bounds an export.
@@ -125,6 +129,7 @@ func copyMedia(zw *zip.Writer, dir, filename string) error {
 }
 
 func buildManifest(ctx context.Context, s Stores, ws *domain.Website, version string) (*Manifest, error) {
+	frameworks := ws.LegalFrameworks
 	m := &Manifest{
 		Version:     Version,
 		ExportedAt:  time.Now().UTC().Format(time.RFC3339),
@@ -133,6 +138,7 @@ func buildManifest(ctx context.Context, s Stores, ws *domain.Website, version st
 			Name: ws.Name, Description: ws.Description,
 			Locale: ws.Locale, ExtraLocales: ws.ExtraLocales, TimeZone: ws.TimeZone,
 			MetaDescription: ws.MetaDescription,
+			LegalFrameworks: &frameworks,
 			BlogBase:        ws.BlogBase, PostsPerPage: ws.PostsPerPage,
 			ContactEmail: ws.ContactEmail,
 			OrgType:      ws.OrgType, Street: ws.Street, PostalCode: ws.PostalCode,
@@ -184,6 +190,9 @@ func buildManifest(ctx context.Context, s Stores, ws *domain.Website, version st
 		return nil, err
 	}
 	if err := exportValues(ctx, s, ws.ID, m); err != nil {
+		return nil, err
+	}
+	if err := exportRequests(ctx, s, ws.ID, m); err != nil {
 		return nil, err
 	}
 	if err := exportFields(ctx, s, ws.ID, m); err != nil {
@@ -345,6 +354,30 @@ func exportValues(ctx context.Context, s Stores, websiteID int64, m *Manifest) e
 	}
 	for _, v := range items {
 		m.Values = append(m.Values, SiteValue{Key: v.Key, Value: v.Text})
+	}
+	return nil
+}
+
+// exportRequests writes the website's privacy requests into the manifest,
+// with the dates they arrived and were answered. The store keys every
+// statement by website, so no other website's request can come along.
+func exportRequests(ctx context.Context, s Stores, websiteID int64, m *Manifest) error {
+	if s.Requests == nil {
+		return nil
+	}
+	items, err := s.Requests.ListAll(ctx, websiteID)
+	if err != nil {
+		return fmt.Errorf("list privacy requests: %w", err)
+	}
+	for _, r := range items {
+		out := PrivacyRequest{
+			Kind: r.Kind, Locale: r.Locale, Name: r.Name, Email: r.Email, Note: r.Note, GPC: r.GPC,
+			CreatedAt: r.CreatedAt.UTC().Format(time.RFC3339),
+		}
+		if r.HandledAt != nil {
+			out.HandledAt = r.HandledAt.UTC().Format(time.RFC3339)
+		}
+		m.PrivacyRequests = append(m.PrivacyRequests, out)
 	}
 	return nil
 }

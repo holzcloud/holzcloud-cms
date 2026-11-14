@@ -1,0 +1,1 @@
+Pour le paiement en ligne d’une commande, le prestataire de paiement Payrexx, Suisse, reçoit le montant, la devise, le numéro de commande, votre nom, votre adresse e-mail et votre adresse postale, uniquement pour traiter le paiement.

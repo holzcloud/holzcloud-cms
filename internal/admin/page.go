@@ -338,7 +338,7 @@ func (h *Handler) newPageFormData(r *http.Request, websiteID int64, title string
 		FormState:   web.NewFormState(),
 		WebsiteID:   websiteID,
 		Values:      values,
-		PreviewHTML: h.renderPreview(r.Context(), websiteID, values.Markdown),
+		PreviewHTML: h.renderPreview(r, websiteID, values.Markdown),
 	}
 	data.ActiveNav = "pages"
 	if h.snippets != nil {
@@ -398,7 +398,11 @@ func (h *Handler) newPageFormData(r *http.Request, websiteID int64, title string
 // HTML at all rather than the unsanitised source. The texts are loaded only
 // when the Markdown names a value, and a failed load resolves against none,
 // so every marker shows as nothing, the way the public page answers it.
-func (h *Handler) renderPreview(ctx context.Context, websiteID int64, markdown string) template.HTML {
+//
+// The opt-out marker becomes a box saying what goes there
+// (expandOptOutPreview); the website is read only when the Markdown has one.
+func (h *Handler) renderPreview(r *http.Request, websiteID int64, markdown string) template.HTML {
+	ctx := r.Context()
 	if strings.TrimSpace(markdown) == "" {
 		return ""
 	}
@@ -416,6 +420,14 @@ func (h *Handler) renderPreview(ctx context.Context, websiteID int64, markdown s
 			}
 		}
 		out = value.Resolve(out, texts)
+	}
+	if strings.Contains(out, optoutPreviewMarker) {
+		ws, err := h.domains.GetWebsite(ctx, websiteID)
+		if err != nil {
+			slog.Error("preview: reading the website failed", "website_id", websiteID, "err", err)
+			ws = nil
+		}
+		out = expandOptOutPreview(r, ws, out)
 	}
 	return template.HTML(out)
 }
@@ -441,7 +453,7 @@ func (h *Handler) HandlePagePreview(w http.ResponseWriter, r *http.Request) erro
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
-	return web.RenderPartial(w, h.templates, r, "preview_pane", h.renderPreview(r.Context(), websiteID, r.FormValue("content_markdown")))
+	return web.RenderPartial(w, h.templates, r, "preview_pane", h.renderPreview(r, websiteID, r.FormValue("content_markdown")))
 }
 
 func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, websiteID int64, websiteName string) error {

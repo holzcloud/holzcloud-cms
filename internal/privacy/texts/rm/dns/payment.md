@@ -1,0 +1,1 @@
+Per il pajament online d’ina empustaziun survegn il purschider da pajament Payrexx, Svizra, l’import, la valuta, il numer da l’empustaziun, tes num, tia adressa d’e-mail e tia adressa postala. El dovra quellas datas mo per elavurar il pajament.

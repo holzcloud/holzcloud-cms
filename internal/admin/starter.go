@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/holzcloud/holzcloud-cms/internal/legal"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/privacy"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
@@ -16,9 +17,23 @@ type starterPage struct {
 	slug     string
 	status   string
 	markdown string
-	// compose, when set, writes the Markdown from what the website uses at the
-	// moment it is created, and markdown stays empty.
-	compose func(privacy.Features) string
+	// kind, when set, makes the page a legal page: its title and slug are
+	// those of that kind in the website's main language (privacy.Title,
+	// privacy.Slug), and title and slug above stay empty.
+	kind privacy.Kind
+	// compose, when set, writes the Markdown from what the website uses and
+	// the frameworks it follows at the moment it is created, and markdown
+	// stays empty.
+	compose func(privacy.Request) string
+}
+
+// titleSlug is the title and the slug the page gets on a website whose main
+// language is tag.
+func (sp starterPage) titleSlug(tag string) (title, slug string) {
+	if sp.kind == "" {
+		return sp.title, sp.slug
+	}
+	return privacy.Title(sp.kind, tag), privacy.Slug(sp.kind, tag)
 }
 
 // starterPages are what a brand-new website starts with.
@@ -28,11 +43,20 @@ type starterPage struct {
 // legal pages are drafts: they are scaffolding to fill in, and publishing an
 // empty imprint would be worse than having none.
 //
-// The privacy page is composed when the website is created, from the functions
-// the website uses (internal/privacy), so it never says the site sets no
-// cookies while a shop on it does. It is a draft for the reason above: the
-// responsible body and the processors are fill-in markers. The page types
-// are the ones that always existed; only this page's content is new.
+// Both legal pages are composed when the website is created, from the same
+// request: the website's main language, its spelling and the legal frameworks
+// it follows (internal/privacy). The privacy page also follows the functions
+// the website uses, so it never says the site sets no cookies while a shop on
+// it does. The imprint follows only the frameworks (D-09): every website gets
+// one, with the items of the EU, Swiss and UK rules when those are chosen and
+// just who and how to reach otherwise. Both stay drafts for the reason above:
+// the responsible body, the address and the processors are fill-in markers.
+// Title and slug are those of the website's main language, the same ones the
+// Legal pages card looks for (privacy.Title, privacy.Slug): "Impressum" at
+// /impressum on a German website, "Mentions légales" at /mentions-legales on
+// a French one. Drafts in the further languages are offered later. Only a
+// brand-new website gets these pages; an existing imprint or privacy page is
+// never touched (D-01).
 var starterPages = []starterPage{
 	{
 		title:  "Startseite",
@@ -45,51 +69,14 @@ durch deinen eigenen Text zu ersetzen.
 `,
 	},
 	{
-		title:  "Impressum",
-		slug:   "impressum",
-		status: "draft",
-		// The headings follow § 5 DDG. The placeholders are deliberately
-		// obvious: half-filled legal text that looks finished is the dangerous
-		// state, so every line says what belongs there.
-		markdown: `## Angaben gemäß § 5 DDG
-
-**Diese Seite ist eine Vorlage und noch nicht ausgefüllt.** Trage deine
-eigenen Angaben ein und veröffentliche die Seite erst danach.
-
-Name des Unternehmens
-Straße und Hausnummer
-Postleitzahl und Ort
-
-**Vertreten durch:** Vor- und Nachname der vertretungsberechtigten Person
-
-## Kontakt
-
-Telefon: (eintragen)
-E-Mail: (eintragen)
-
-## Registereintrag
-
-Registergericht und Registernummer, falls vorhanden.
-
-## Umsatzsteuer-Identifikationsnummer
-
-USt-IdNr. gemäß § 27 a Umsatzsteuergesetz, falls vorhanden.
-
-## Verantwortlich für den Inhalt
-
-Name und Anschrift der verantwortlichen Person.
-
----
-
-Diese Vorlage ersetzt keine Rechtsberatung. Welche Angaben für dein Gewerbe
-verpflichtend sind, hängt von Rechtsform und Tätigkeit ab.
-`,
+		kind:    privacy.KindImprint,
+		status:  "draft",
+		compose: privacy.ComposeImprint,
 	},
 	{
-		title:   "Datenschutzerklärung",
-		slug:    "datenschutz",
+		kind:    privacy.KindPrivacy,
 		status:  "draft",
-		compose: privacy.Compose,
+		compose: privacy.ComposePrivacy,
 	},
 }
 
@@ -100,32 +87,36 @@ verpflichtend sind, hängt von Rechtsform und Tätigkeit ab.
 // created, and failing the request would leave the operator staring at an error
 // for a site that does exist.
 func (h *Handler) createStarterContent(ctx context.Context, websiteID int64, userID *int64) {
-	created := make(map[string]int64, len(starterPages))
+	// created holds the menu entry of each page by its place in starterPages.
+	created := make(map[int]starterMenuEntry, len(starterPages))
 
-	// A brand-new website uses none of the functions, so the zero value is the
-	// true answer when it cannot be read; the log says it could not.
-	var features privacy.Features
+	// A brand-new website uses none of the functions, so the zero Features are
+	// the true answer when they cannot be read; the log says they could not.
+	// The language and the frameworks are the website's own; a website that
+	// cannot be read at all gets the German text and the default set, which is
+	// what every new website starts with.
+	req := privacy.Request{Lang: "de", Set: legal.Default()}
 	if ws, err := h.domains.GetWebsite(ctx, websiteID); err != nil || ws == nil {
-		slog.Error("read website for starter privacy page", "err", err, "website", websiteID)
-	} else if features, err = h.privacyFeatures(ctx, ws); err != nil {
-		slog.Error("detect website functions for starter privacy page", "err", err, "website", websiteID)
-		features = privacy.Features{}
+		slog.Error("read website for starter legal pages", "err", err, "website", websiteID)
+	} else if req, err = h.legalRequest(ctx, ws, ws.Locale); err != nil {
+		slog.Error("detect website functions for starter legal pages", "err", err, "website", websiteID)
 	}
 
-	for _, sp := range starterPages {
+	for i, sp := range starterPages {
+		title, slug := sp.titleSlug(req.Lang)
 		markdown := sp.markdown
 		if sp.compose != nil {
-			markdown = sp.compose(features)
+			markdown = sp.compose(req)
 		}
 		html, err := page.RenderMarkdown(markdown)
 		if err != nil {
-			slog.Error("render starter page", "err", err, "slug", sp.slug)
+			slog.Error("render starter page", "err", err, "slug", slug)
 			continue
 		}
 		p, err := h.pages.CreatePage(ctx, page.PageCreate{
 			WebsiteID: websiteID,
-			Title:     sp.title,
-			Slug:      sp.slug,
+			Title:     title,
+			Slug:      slug,
 			Markdown:  markdown,
 			HTML:      html,
 			Status:    sp.status,
@@ -133,19 +124,39 @@ func (h *Handler) createStarterContent(ctx context.Context, websiteID int64, use
 			UserID:    userID,
 		})
 		if err != nil {
-			slog.Error("create starter page", "err", err, "slug", sp.slug)
+			slog.Error("create starter page", "err", err, "slug", slug)
 			continue
 		}
-		created[sp.slug] = p.ID
+		created[i] = starterMenuEntry{id: p.ID, title: title}
 	}
 
-	h.createStarterMenu(ctx, websiteID, "Hauptmenü", "main", created, []string{"home"})
+	// The start page goes into the main menu, the legal pages (the ones with
+	// a kind) into the footer, in the order of starterPages.
+	var main, footer []starterMenuEntry
+	for i, sp := range starterPages {
+		e, ok := created[i]
+		if !ok {
+			continue
+		}
+		if sp.kind == "" {
+			main = append(main, e)
+		} else {
+			footer = append(footer, e)
+		}
+	}
+	h.createStarterMenu(ctx, websiteID, "Hauptmenü", "main", main)
 	// § 5 DDG wants the imprint reachable from every page; a footer menu is how
 	// a theme does that.
-	h.createStarterMenu(ctx, websiteID, "Fußzeile", "footer", created, []string{"impressum", "datenschutz"})
+	h.createStarterMenu(ctx, websiteID, "Fußzeile", "footer", footer)
 }
 
-func (h *Handler) createStarterMenu(ctx context.Context, websiteID int64, name, location string, pages map[string]int64, slugs []string) {
+// starterMenuEntry is a page a starter menu links, under the page's title.
+type starterMenuEntry struct {
+	id    int64
+	title string
+}
+
+func (h *Handler) createStarterMenu(ctx context.Context, websiteID int64, name, location string, entries []starterMenuEntry) {
 	if h.menuStore == nil {
 		return
 	}
@@ -156,19 +167,10 @@ func (h *Handler) createStarterMenu(ctx context.Context, websiteID int64, name, 
 		slog.Error("create starter menu", "err", err, "location", location)
 		return
 	}
-	for i, slug := range slugs {
-		id, ok := pages[slug]
-		if !ok {
-			continue
-		}
-		title := slug
-		for _, sp := range starterPages {
-			if sp.slug == slug {
-				title = sp.title
-			}
-		}
-		if _, err := h.menuStore.CreateItem(ctx, m.ID, nil, title, "page", "", &id, i); err != nil {
-			slog.Error("create starter menu item", "err", err, "slug", slug)
+	for i, e := range entries {
+		id := e.id
+		if _, err := h.menuStore.CreateItem(ctx, m.ID, nil, e.title, "page", "", &id, i); err != nil {
+			slog.Error("create starter menu item", "err", err, "page", id)
 		}
 	}
 }

@@ -1,0 +1,63 @@
+{{/*
+  Die Widersprüche einer Website: was das Formular auf ihrer Seite „Do Not Sell
+  or Share“ entgegengenommen hat. Es gibt hier nichts zu löschen — das Gesetz
+  der US-Staaten verlangt, den Vorgang 24 Monate aufzubewahren, und wann eine
+  Zeile gehen darf, entscheidet die Aufbewahrung aus Phase 33.2 (D-14).
+*/}}
+{{define "content"}}
+{{template "optout_list-content" .}}
+{{end}}
+
+{{define "optout_list-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <p class="text-muted">{{t "Requests sent through the “Do Not Sell or Share” page of this website. The website sells and shares no personal information; record that you answered by marking a request handled."}}</p>
+    <p class="text-muted">{{t "Requests are not deleted here: US law asks you to keep this record for at least 24 months."}}</p>
+    {{if not .HasUS}}
+    <p class="text-muted">{{t "US law is not chosen for this website, so it offers no opt-out form. Requests it received earlier stay listed here."}}</p>
+    {{end}}
+</div>
+
+<div class="card">
+    {{if .Requests}}
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Received"}}</th>
+                <th scope="col">{{t "Name"}}</th>
+                <th scope="col">{{t "E-mail address"}}</th>
+                <th scope="col">{{t "Note"}}</th>
+                <th scope="col"><abbr title="{{t "Global Privacy Control"}}">GPC</abbr></th>
+                <th scope="col">{{t "Language"}}</th>
+                <th scope="col">{{t "Handled"}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Requests}}
+            <tr>
+                <td class="text-muted" style="white-space:nowrap">{{.CreatedAt.Format "02.01.2006 15:04 MST"}}</td>
+                <td>{{if .Name}}{{.Name}}{{else}}<span class="text-muted">–</span>{{end}}</td>
+                <td>{{if .MailTo}}<a href="{{.MailTo}}">{{.Email}}</a>{{else if .Email}}{{.Email}}{{else}}<span class="text-muted">–</span>{{end}}</td>
+                <td style="white-space:pre-line">{{if .Note}}{{.Note}}{{else}}<span class="text-muted">–</span>{{end}}</td>
+                <td style="white-space:nowrap">{{if .GPC}}<span class="badge badge--primary">{{t "Signal sent"}}</span>{{else}}<span class="text-muted">–</span>{{end}}</td>
+                <td class="text-muted">{{if .Language}}{{t .Language}}{{else}}–{{end}}</td>
+                <td style="white-space:nowrap">
+                    {{- with .HandledAt}}{{.Format "02.01.2006"}}
+                    {{- else}}
+                    {{/* No confirmation step: marking removes nothing, and the
+                         count of confirmations stays where nojs_test.go holds it. */}}
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/widersprueche/{{.ID}}/erledigt"
+                          hx-post="/admin/websites/{{$.WebsiteID}}/widersprueche/{{.ID}}/erledigt">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Mark as handled"}}</button>
+                    </form>
+                    {{- end -}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="text-muted">{{t "No opt-out requests yet."}}</p>
+    {{end}}
+</div>
+{{end}}

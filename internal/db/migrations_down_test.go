@@ -848,3 +848,190 @@ func TestMigration00062DownAndUp(t *testing.T) {
 		t.Errorf("a second row for the same website and key = %v; want a unique violation", err)
 	}
 }
+
+// TestMigration00063DownAndUp drives the legal frameworks column down and up.
+func TestMigration00063DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO websites (name, description, city, legal_frameworks)
+		 VALUES ('Hofladen', '', 'Chur', 'us')`); err != nil {
+		t.Fatalf("creating a website: %v", err)
+	}
+
+	rollBackTo(t, ctx, provider, 62)
+
+	var columns int
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pragma_table_info('websites') WHERE name = 'legal_frameworks'`).
+		Scan(&columns); err != nil {
+		t.Fatalf("looking for the column: %v", err)
+	}
+	if columns != 0 {
+		t.Error("legal_frameworks survived its own rollback")
+	}
+	var city string
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT city FROM websites WHERE name = 'Hofladen'`).Scan(&city); err != nil {
+		t.Fatalf("the website did not survive the rollback: %v", err)
+	}
+	if city != "Chur" {
+		t.Errorf("city = %q after the rollback", city)
+	}
+
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+	// The column carried the only record of the choice, so the website comes
+	// back with the default every existing website got the first time (D-05).
+	var set string
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT legal_frameworks FROM websites WHERE name = 'Hofladen'`).Scan(&set); err != nil {
+		t.Fatalf("the column did not come back: %v", err)
+	}
+	if set != "eu,ch" {
+		t.Errorf("legal_frameworks = %q after the trip, want eu,ch", set)
+	}
+	if _, err := database.Write.ExecContext(ctx,
+		`UPDATE websites SET legal_frameworks = 'EU' WHERE name = 'Hofladen'`); err == nil {
+		t.Error("the CHECK did not come back: 'EU' was stored")
+	}
+}
+
+// TestMigration00064DownAndUp drives privacy_requests down and up again, and
+// checks the two rules the table carries beside its lengths: a request must
+// say something, and a website's requests go with the website.
+func TestMigration00064DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+	tableExists := func() bool {
+		var n int
+		if err := database.Read.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'privacy_requests'`).
+			Scan(&n); err != nil {
+			t.Fatalf("looking for the table: %v", err)
+		}
+		return n == 1
+	}
+	if !tableExists() {
+		t.Fatal("privacy_requests is not there after the migrations")
+	}
+
+	rollBackTo(t, ctx, provider, 63)
+	if tableExists() {
+		t.Error("privacy_requests survived its own rollback")
+	}
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+	if !tableExists() {
+		t.Fatal("privacy_requests did not come back")
+	}
+
+	res, err := database.Write.ExecContext(ctx,
+		`INSERT INTO websites (name, description) VALUES ('Hofladen', '')`)
+	if err != nil {
+		t.Fatalf("creating a website: %v", err)
+	}
+	site, _ := res.LastInsertId()
+
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO privacy_requests (website_id, kind, name, email, note, gpc)
+		 VALUES (?, 'optout', '', '', '', 0)`, site); err == nil {
+		t.Error("a request with no name, no address and no signal was stored")
+	}
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO privacy_requests (website_id, kind, gpc) VALUES (?, 'optout', 1)`, site); err != nil {
+		t.Errorf("a request carried by the signal alone was refused: %v", err)
+	}
+
+	// Past the 24 months that 00065 keeps a website for, so the delete below
+	// is about this table's cascade and not about that trigger.
+	if _, err := database.Write.ExecContext(ctx,
+		`UPDATE privacy_requests SET created_at = '2020-01-01T00:00:00Z' WHERE website_id = ?`, site); err != nil {
+		t.Fatalf("backdating: %v", err)
+	}
+	if _, err := database.Write.ExecContext(ctx, `DELETE FROM websites WHERE id = ?`, site); err != nil {
+		t.Fatalf("deleting the website: %v", err)
+	}
+	var left int
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM privacy_requests WHERE website_id = ?`, site).Scan(&left); err != nil {
+		t.Fatalf("counting: %v", err)
+	}
+	if left != 0 {
+		t.Errorf("%d requests outlived their website (ON DELETE CASCADE)", left)
+	}
+}
+
+// TestMigration00065DownAndUp drives the trigger that keeps a website with
+// recent privacy requests: it refuses the delete, its rollback lets the
+// delete through, and it comes back.
+func TestMigration00065DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+	site := func() int64 {
+		res, err := database.Write.ExecContext(ctx, `INSERT INTO websites (name, description) VALUES ('Hofladen', '')`)
+		if err != nil {
+			t.Fatalf("creating a website: %v", err)
+		}
+		id, _ := res.LastInsertId()
+		if _, err := database.Write.ExecContext(ctx,
+			`INSERT INTO privacy_requests (website_id, kind, name) VALUES (?, 'optout', 'Ada')`, id); err != nil {
+			t.Fatalf("a request: %v", err)
+		}
+		return id
+	}
+
+	kept := site()
+	if _, err := database.Write.ExecContext(ctx, `DELETE FROM websites WHERE id = ?`, kept); err == nil {
+		t.Error("a website with a request of today was deleted")
+	}
+
+	rollBackTo(t, ctx, provider, 64)
+	gone := site()
+	if _, err := database.Write.ExecContext(ctx, `DELETE FROM websites WHERE id = ?`, gone); err != nil {
+		t.Errorf("without the trigger the delete was refused: %v", err)
+	}
+
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+	if _, err := database.Write.ExecContext(ctx, `DELETE FROM websites WHERE id = ?`, kept); err == nil {
+		t.Error("the trigger did not come back")
+	}
+}

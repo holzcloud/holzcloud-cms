@@ -12,6 +12,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/kind"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
@@ -75,7 +76,21 @@ type Handler struct {
 	// token can never stand in for the other.
 	share  *sharelink.Signer
 	unlock *sharelink.Signer
-	loader *tmpl.Loader
+	// requests stores what a visitor asks about their data — the opt-out of
+	// the [[widerspruch]] widget. Nil means the widget renders as nothing and
+	// POST /widerspruch answers 404: an opt-out form that cannot store what it
+	// takes must not be offered.
+	requests *dsr.Store
+	// optoutSigner signs the time stamp the opt-out form carries. Its own
+	// label, so a stamp minted for this form never validates as a preview link
+	// or an unlock cookie. Nil has the same effect as a nil request store.
+	optoutSigner *sharelink.Signer
+	// optoutNets is the opt-out form's per-network budget (optout_limit.go),
+	// and clientIP names the network a request comes from. A nil clientIP
+	// means the peer address, which is right without a reverse proxy.
+	optoutNets *netBudget
+	clientIP   *web.ClientIPResolver
+	loader     *tmpl.Loader
 	// resolver supplies the canonical host. It may be nil, in which case the
 	// requested host is used.
 	resolver *domain.Resolver
@@ -107,8 +122,13 @@ func NewHandler(pageStore *page.Store, menuStore *menu.Store, mediaStore *media.
 		dataDir:      dataDir,
 		defaultFS:    defaultFS,
 		secure:       secure,
+		optoutNets:   newNetBudget(optoutNetsMax, time.Hour),
 	}
 }
+
+// SetClientIP attaches the resolver that reads a visitor's address behind
+// the trusted reverse proxies — the one the admin's login throttle uses.
+func (h *Handler) SetClientIP(r *web.ClientIPResolver) { h.clientIP = r }
 
 // SetNotify attaches what a plugin needs to notify the operator: the website
 // settings, for the address, and the outbox, for the sending.
@@ -139,6 +159,12 @@ func (h *Handler) SetKindStore(s *kind.Store) { h.kindStore = s }
 func (h *Handler) SetShareSigners(share, unlock *sharelink.Signer) {
 	h.share, h.unlock = share, unlock
 }
+
+// SetRequestStore attaches the store the opt-out form writes to.
+func (h *Handler) SetRequestStore(s *dsr.Store) { h.requests = s }
+
+// SetOptOutSigner attaches the signer of the opt-out form's time stamp.
+func (h *Handler) SetOptOutSigner(s *sharelink.Signer) { h.optoutSigner = s }
 
 // ErrHandler wraps a handler function that returns an error.
 func (h *Handler) ErrHandler(fn func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
@@ -237,7 +263,7 @@ func (h *Handler) HandleHome(w http.ResponseWriter, r *http.Request) error {
 		h.servePrivate(w, content)
 		return nil
 	}
-	h.serveCached(w, r, content, contentModTime(pg, snippets, albumsAt))
+	h.serveCached(w, r, content, h.optoutModTime(content, contentModTime(pg, snippets, albumsAt)), h.optoutVary(content)...)
 	return nil
 }
 
@@ -328,7 +354,7 @@ func (h *Handler) HandlePage(w http.ResponseWriter, r *http.Request) error {
 		h.servePrivate(w, content)
 		return nil
 	}
-	h.serveCached(w, r, content, contentModTime(pg, snippets, albumsAt))
+	h.serveCached(w, r, content, h.optoutModTime(content, contentModTime(pg, snippets, albumsAt)), h.optoutVary(content)...)
 	return nil
 }
 
@@ -541,13 +567,23 @@ const hxRequest = "HX-Request"
 
 // serveCached writes content with HTTP caching headers (ETag, Last-Modified, Cache-Control).
 // Handles conditional requests (If-None-Match, If-Modified-Since) with 304 responses.
-func (h *Handler) serveCached(w http.ResponseWriter, r *http.Request, content []byte, modTime time.Time) {
+//
+// vary names request headers the content depends on beyond HX-Request — the
+// opt-out widget's Sec-GPC (optoutVary). Most callers name none.
+//
+// A zero modTime means the answer has no date that describes it: no
+// Last-Modified is sent and If-Modified-Since is never answered with 304, so
+// only the ETag can revalidate it. The page carrying the opt-out widget is
+// one (optoutModTime): its form carries a stamp drawn at this render.
+func (h *Handler) serveCached(w http.ResponseWriter, r *http.Request, content []byte, modTime time.Time, vary ...string) {
 	// Compute ETag from content hash
 	hash := sha256.Sum256(content)
 	etag := `"` + hex.EncodeToString(hash[:16]) + `"`
 
 	w.Header().Set("ETag", etag)
-	w.Header().Set("Last-Modified", modTime.UTC().Format(http.TimeFormat))
+	if !modTime.IsZero() {
+		w.Header().Set("Last-Modified", modTime.UTC().Format(http.TimeFormat))
+	}
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	// Set and not Add, and that is a CLAIM about the content rather than a
 	// convenience: the session middleware names Cookie on every request, and
@@ -563,7 +599,15 @@ func (h *Handler) serveCached(w http.ResponseWriter, r *http.Request, content []
 	// that a protected page could be handed to anybody, and the comment above
 	// serveGate had already named exactly that danger about the form in front
 	// of it.
+	//
+	// So the Set stays a claim that the answer is the same for everybody —
+	// except for the request headers named in vary, which are added after it
+	// and not erased by it. The one today is Sec-GPC, on the page that carries
+	// the opt-out widget: its first line says whether this browser sent the
+	// signal, and a shared cache keyed on the address alone would hand the
+	// "honoured" line to a visitor who sent nothing.
 	w.Header().Set("Vary", hxRequest)
+	web.AddVary(w, vary...)
 
 	// RFC 7232 §3.3: when If-None-Match is present it decides the conditional
 	// request BY ITSELF, and If-Modified-Since must be ignored. This code used
@@ -587,7 +631,7 @@ func (h *Handler) serveCached(w http.ResponseWriter, r *http.Request, content []
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
-	} else if since := r.Header.Get("If-Modified-Since"); since != "" {
+	} else if since := r.Header.Get("If-Modified-Since"); since != "" && !modTime.IsZero() {
 		t, err := http.ParseTime(since)
 		if err == nil && !modTime.Truncate(time.Second).After(t) {
 			w.WriteHeader(http.StatusNotModified)

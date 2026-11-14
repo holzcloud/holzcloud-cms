@@ -28,9 +28,11 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/design"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/kind"
+	"github.com/holzcloud/holzcloud-cms/internal/legal"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
@@ -54,6 +56,8 @@ type Report struct {
 	Albums    int
 	// Values counts the website's named texts the import created.
 	Values int
+	// Requests counts the privacy requests the import took over.
+	Requests int
 	// Warnings are the things that did not come through. Each one names what
 	// was lost and why; none of them stops the import.
 	//
@@ -174,8 +178,78 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 	// page of this same bundle, and only now does every address have an id.
 	importSnippets(ctx, s, websiteID, manifest, mediaByName, pages, report)
 	importMenus(ctx, s, websiteID, manifest, report)
+	// Nothing on the website depends on its privacy requests, and nothing in
+	// them on the website's content.
+	importRequests(ctx, s, websiteID, manifest, report)
 
 	return report, nil
+}
+
+// importRequests takes over the website's privacy requests with the dates
+// they arrived and were answered (dsr.Store.Restore), so a moved website
+// keeps the record CCPA regs § 7101 ask for. What the store refuses — an
+// unknown kind, a request that names nobody, a date that is not one, or one
+// that cannot have happened yet — is named in the report, and the import
+// goes on.
+//
+// A request the manifest lists twice is restored once (IN-04 of the second
+// 33.1 review). A manifest is a file anybody can edit, and two put together
+// repeat what both held; the § 7101 record would then show one person's
+// request as two. The same request is the same kind, arriving at the same
+// second, from a page in the same language, with the same name, address,
+// note and signal — every value the person gave. When it was answered is
+// not part of it: that is the operator's, and the first entry's stands.
+func importRequests(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) {
+	if len(m.PrivacyRequests) == 0 {
+		return
+	}
+	if s.Requests == nil {
+		report.warnf(i18n.N("%d privacy requests were not taken over: this installation has no place for them."), len(m.PrivacyRequests))
+		return
+	}
+	type sameRequest struct {
+		kind, created, locale, name, email, note string
+		gpc                                      bool
+	}
+	restored := map[sameRequest]int{}
+	for i, pr := range m.PrivacyRequests {
+		created, err := time.Parse(time.RFC3339, pr.CreatedAt)
+		if err != nil {
+			report.warnf(i18n.N("privacy request %d: the date it arrived, %q, is not a date."), i+1, pr.CreatedAt)
+			continue
+		}
+		req := dsr.Request{
+			WebsiteID: websiteID, Kind: pr.Kind, Locale: pr.Locale,
+			Name: pr.Name, Email: pr.Email, Note: pr.Note, GPC: pr.GPC, CreatedAt: created,
+		}
+		if pr.HandledAt != "" {
+			handled, err := time.Parse(time.RFC3339, pr.HandledAt)
+			if err != nil {
+				report.warnf(i18n.N("privacy request %d: the date it was answered, %q, is not a date."), i+1, pr.HandledAt)
+				continue
+			}
+			req.HandledAt = &handled
+		}
+		key := sameRequest{pr.Kind, created.UTC().Format(time.RFC3339), pr.Locale, pr.Name, pr.Email, pr.Note, pr.GPC}
+		if first, ok := restored[key]; ok {
+			report.warnf(i18n.N("privacy request %d repeats privacy request %d and was taken over once."), i+1, first)
+			continue
+		}
+		_, err = s.Requests.Restore(ctx, req)
+		switch {
+		case errors.Is(err, dsr.ErrFutureTime):
+			report.warnf(i18n.N("privacy request %d was not taken over: the date it arrived, %q, lies in the future."), i+1, pr.CreatedAt)
+			continue
+		case errors.Is(err, dsr.ErrAnswerTime):
+			report.warnf(i18n.N("privacy request %d was not taken over: the date it was answered, %q, lies in the future or before the date it arrived, %q."), i+1, pr.HandledAt, pr.CreatedAt)
+			continue
+		case err != nil:
+			report.warnf(i18n.N("privacy request %d could not be taken over: %v"), i+1, err)
+			continue
+		}
+		restored[key] = i + 1
+		report.Requests++
+	}
 }
 
 func readManifest(zr *zip.Reader) (*Manifest, error) {
@@ -198,6 +272,14 @@ func readManifest(zr *zip.Reader) (*Manifest, error) {
 }
 
 func applySettings(ctx context.Context, s Stores, websiteID int64, site Site) error {
+	// The settings are written as a whole, so a field this literal leaves out
+	// is written as empty (Pitfall 3). A bundle without the key is older than
+	// the frameworks and gets the default; one with the key goes through the
+	// same parser as the form, because a bundle is a file anyone can edit.
+	frameworks := legal.Default().String()
+	if site.LegalFrameworks != nil {
+		frameworks = legal.ParseSet(*site.LegalFrameworks).String()
+	}
 	set := domain.Settings{
 		Locale: site.Locale, ExtraLocales: site.ExtraLocales, TimeZone: site.TimeZone,
 		MetaDescription: site.MetaDescription,
@@ -206,7 +288,8 @@ func applySettings(ctx context.Context, s Stores, websiteID int64, site Site) er
 		ContactEmail: site.ContactEmail,
 		OrgType:      site.OrgType, Street: site.Street, PostalCode: site.PostalCode,
 		City: site.City, Country: site.Country, Phone: site.Phone,
-		OpeningHours: site.OpeningHours,
+		OpeningHours:    site.OpeningHours,
+		LegalFrameworks: frameworks,
 	}
 	if err := s.Domains.UpdateSettings(ctx, websiteID, set); err != nil {
 		return err

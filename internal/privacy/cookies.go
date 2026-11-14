@@ -8,7 +8,9 @@
 // fails when any file other than the known ones writes a cookie, so a new
 // cookie cannot go out without being listed.
 //
-// This file is language-neutral. The German text is in text.go.
+// This file is language-neutral. The words of the privacy page are in texts/,
+// one directory per language; compose.go and privacy_page.go put them
+// together.
 package privacy
 
 import (
@@ -22,8 +24,8 @@ import (
 // cookies its privacy text needs. The admin computes it from the website's
 // settings.
 //
-// PriceChoice and Payment only mean something when Shop is true; Compose and
-// Cookies treat them as false otherwise.
+// PriceChoice and Payment only mean something when Shop is true; the composed
+// pages and Cookies treat them as false otherwise.
 type Features struct {
 	Shop           bool
 	PriceChoice    bool

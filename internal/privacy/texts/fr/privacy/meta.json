@@ -1,0 +1,50 @@
+{
+  "title": "Déclaration de protection des données",
+  "slug": "protection-des-donnees",
+  "also_slugs": ["confidentialite", "politique-de-confidentialite", "declaration-de-confidentialite"],
+  "draft_title": "Déclaration de protection des données (nouveau modèle)",
+  "draft_slug": "protection-des-donnees-modele",
+
+  "cookie_header": "| Nom | Finalité | Durée | Pourquoi sans consentement |",
+  "processor_header": "| Destinataire | Tâche | Données transmises | Contrat |",
+  "purpose_basket": "Déposé lorsque vous mettez un article dans le panier. Mémorise votre panier jusqu’à ce que vous commandiez ou qu’il expire.",
+  "purpose_price_view": "Déposé lorsque vous changez l’affichage des prix. Mémorise si les prix vous sont présentés pour les particuliers ou pour les entreprises.",
+  "purpose_unlock": "Déposé lorsque vous saisissez le mot de passe d’une page protégée. N correspond au numéro de la page protégée. Mémorise que vous avez déverrouillé la page.",
+  "why_no_consent": "Strictement nécessaire à ce que vous avez demandé",
+  "no_cookies": "Ce site ne dépose aucun cookie.",
+  "cookies_some": "Votre navigateur n’enregistre quelque chose que si vous effectuez l’une des actions ci-dessous. Un tel cookie est strictement nécessaire à ce que vous avez demandé ; il ne requiert donc ni consentement ni bandeau cookies.",
+  "processor_hosting": "| Hébergeur {fillin}, pays du serveur {fillin} | Exploitation du serveur | Données de connexion comme dans la section Journal du serveur | Contrat de sous-traitance, lorsque le serveur est exploité par un tiers |",
+  "processor_payment": "| Payrexx, prestataire de paiement, Suisse, nom et adresse {fillin} | Traitement du paiement en ligne | Montant, devise, numéro de commande avec le nom du site, nom, adresse e-mail, rue, code postal, localité et pays | Contrat de sous-traitance, date du contrat {fillin} |",
+
+  "lifetime_day_one": "{n} jour",
+  "lifetime_day_many": "{n} jours",
+  "lifetime_hour_one": "{n} heure",
+  "lifetime_hour_many": "{n} heures",
+  "lifetime_minute_one": "{n} minute",
+  "lifetime_minute_many": "{n} minutes",
+
+  "basis_eu_log": "Journal du serveur : art. 6, par. 1, point f), RGPD. L’intérêt légitime est l’exploitation et la sécurité du site.",
+  "basis_eu_cookies": "Cookies du tableau ci-dessus : art. 6, par. 1, point f), RGPD et, pour le panier d’une commande, art. 6, par. 1, point b), RGPD. L’enregistrement dans votre navigateur lui-même relève de la règle sur les cookies à la fin de cette section.",
+  "basis_eu_orders": "Commandes : art. 6, par. 1, point b), RGPD (contrat). Sans ces indications, une commande ne peut pas être exécutée. Pour les pièces comptables s’applique en outre l’art. 6, par. 1, point c), RGPD (obligation légale de conservation).",
+  "basis_eu_payment": "Paiement en ligne : art. 6, par. 1, point b), RGPD (contrat).",
+  "basis_eu_forms": "Formulaires : art. 6, par. 1, point b), RGPD si votre demande concerne un contrat, sinon art. 6, par. 1, point f), RGPD. L’intérêt légitime est de répondre à votre demande.",
+  "basis_eu_staff": "Comptes de l’espace d’administration : art. 6, par. 1, point b), RGPD (relation de travail ou de mandat) et art. 6, par. 1, point f), RGPD. L’intérêt légitime est la sécurité de l’espace d’administration.",
+
+  "basis_ch_log": "Journal du serveur : exploitation et sécurité du site. Le motif justificatif est l’intérêt privé prépondérant du responsable du traitement (art. 31, al. 1, LPD).",
+  "basis_ch_cookies": "Cookies du tableau ci-dessus : ce que vous avez demandé. La manière de les refuser figure à la fin de cette section.",
+  "basis_ch_orders": "Commandes : conclusion et exécution du contrat avec vous (art. 31, al. 2, let. a, LPD). Sans ces indications, une commande ne peut pas être exécutée.",
+  "basis_ch_payment": "Paiement en ligne : exécution du contrat avec vous (art. 31, al. 2, let. a, LPD).",
+  "basis_ch_forms": "Formulaires : réponse à votre demande.",
+  "basis_ch_staff": "Comptes de l’espace d’administration : travail sur le site et protection de l’espace d’administration.",
+
+  "basis_uk_log": "Journal du serveur : art. 6, par. 1, point f), UK GDPR. L’intérêt légitime est l’exploitation et la sécurité du site.",
+  "basis_uk_cookies": "Cookies du tableau ci-dessus : art. 6, par. 1, point f), UK GDPR et, pour le panier d’une commande, art. 6, par. 1, point b), UK GDPR. L’enregistrement dans votre navigateur lui-même relève de la règle sur les cookies à la fin de cette section.",
+  "basis_uk_orders": "Commandes : art. 6, par. 1, point b), UK GDPR (contrat). Sans ces indications, une commande ne peut pas être exécutée.",
+  "basis_uk_payment": "Paiement en ligne : art. 6, par. 1, point b), UK GDPR (contrat).",
+  "basis_uk_forms": "Formulaires : art. 6, par. 1, point b), UK GDPR si votre demande concerne un contrat, sinon art. 6, par. 1, point f), UK GDPR. L’intérêt légitime est de répondre à votre demande.",
+  "basis_uk_staff": "Comptes de l’espace d’administration : art. 6, par. 1, points b) et f), UK GDPR. L’intérêt légitime est la sécurité de l’espace d’administration.",
+
+  "category_us_identifiers": "Identifiants (identifiers) : le nom et l’adresse e-mail que vous saisissez dans un formulaire ou dans le formulaire d’opposition, et les comptes des personnes qui travaillent sur le site.",
+  "category_us_commercial": "Informations commerciales (commercial information) : vos commandes avec votre adresse, les articles et votre choix de livraison et de paiement.",
+  "category_us_internet": "Activité sur Internet ou sur un autre réseau électronique (internet or other electronic network activity information) : les lignes du journal du serveur, avec une adresse IP tronquée."
+}

@@ -105,6 +105,7 @@ var settingArgs = []struct {
 	{"active", "active", "boolean", "false takes the website offline (see offline_mode)"},
 	{"language", "locale", "string", "main language, one of: " + supportedLanguages()},
 	{"extra_languages", "extra_locales", "string", "further languages, comma separated, e.g. \"fr, it\"; empty for one language"},
+	{"legal_frameworks", "legal_frameworks", "string", "legal frameworks that apply to this website, comma separated, any of: eu (GDPR and ePrivacy), ch (Swiss FADP), uk (UK GDPR and PECR), us (US state privacy laws such as CCPA/CPRA); empty for none. New websites start with eu, ch"},
 	{"time_zone", "timezone", "string", "IANA zone such as Europe/Berlin; published dates are shown in it"},
 	{"meta_description", "meta_description", "string", "site-wide description for search engines"},
 	{"favicon_media_id", "favicon_media_id", "integer", "id of an image of this website (list_media); 0 removes it"},
@@ -155,6 +156,7 @@ func websiteView(ws *domain.Website) map[string]any {
 	return map[string]any{
 		"id": ws.ID, "name": ws.Name, "description": ws.Description, "active": ws.Active,
 		"language": ws.Locale, "extra_languages": ws.ExtraLocales, "time_zone": ws.TimeZone,
+		"legal_frameworks": ws.LegalFrameworks,
 		"meta_description": ws.MetaDescription,
 		"favicon_media_id": id(ws.FaviconMediaID), "logo_media_id": id(ws.LogoMediaID),
 		"canonical_redirect": ws.CanonicalRedirect, "confirm_senders": ws.ConfirmSenders,
@@ -179,8 +181,8 @@ func getWebsite(d Deps) Tool {
 	return Tool{
 		Name: "get_website",
 		Description: "Fetches every setting of a website — name, languages, time zone, favicon and logo, " +
-			"contact addresses, business details, archive, offline mode — and its domains. " +
-			"update_website takes the same names.",
+			"contact addresses, business details, archive, offline mode, the legal frameworks it follows " +
+			"(eu, ch, uk, us) — and its domains. update_website takes the same names.",
 		InputSchema: Schema{
 			Type:       "object",
 			Properties: map[string]Property{"website": websiteArg},
@@ -223,7 +225,8 @@ func updateWebsite(d Deps) Tool {
 		Description: "Changes settings of a website. Only the settings given change; every other stays. " +
 			"The values go through the settings form's own checks: an unknown language, time zone or " +
 			"business type falls back to the default, and the answer lists under \"adjusted\" what was " +
-			"not stored as given. Setting active to false takes the website offline — only when asked.",
+			"not stored as given. legal_frameworks, when given, replaces the whole set: pass every framework " +
+			"that applies, not only the one to add. Setting active to false takes the website offline — only when asked.",
 		InputSchema: Schema{Type: "object", Properties: props, Required: []string{"website"}},
 		Run: func(c Call) (any, error) {
 			var raw map[string]json.RawMessage
@@ -338,7 +341,7 @@ func formValue(kind string, raw json.RawMessage) (string, error) {
 // know, rather than report success.
 func adjusted(stored map[string]any, given map[string]string) map[string]any {
 	out := map[string]any{}
-	for _, wire := range []string{"language", "time_zone", "org_type", "blog_base", "posts_per_page", "offline_mode"} {
+	for _, wire := range []string{"language", "time_zone", "org_type", "blog_base", "posts_per_page", "offline_mode", "legal_frameworks"} {
 		g, ok := given[wire]
 		if !ok {
 			continue
@@ -618,8 +621,11 @@ func launchChecklist(d Deps) Tool {
 	return Tool{
 		Name: "launch_checklist",
 		Description: "The \"ready to launch?\" list of the settings screen: domain, primary domain, a " +
-			"published start page, an activated template, the imprint in the footer menu, a description " +
-			"for search engines, a favicon. Each item says whether it is done and what to do if not.",
+			"published start page, an activated template, whether legal frameworks are chosen, the " +
+			"imprint, the privacy page and — with the United States chosen — the Do Not Sell or Share " +
+			"page, each linked in the footer menu, a description for search engines, a favicon. Each " +
+			"item says whether it is done and what to do if not; the legal hints name the law of the " +
+			"website's own frameworks.",
 		InputSchema: Schema{
 			Type:       "object",
 			Properties: map[string]Property{"website": websiteArg},

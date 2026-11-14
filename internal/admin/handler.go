@@ -18,6 +18,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/csvimport"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/kind"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
@@ -88,6 +89,10 @@ type Handler struct {
 	// Nil means the values screen and tools have nothing to show — see
 	// SetValueStore.
 	valueStore *value.Store
+	// requests are the website's privacy requests — the opt-outs its "Do Not
+	// Sell or Share" page takes. Nil means the opt-out screen answers 404 —
+	// see SetRequestStore.
+	requests *dsr.Store
 	// products, orders and payments back the shop. Each may be nil, in which
 	// case the shop screens do not exist and no shop route answers.
 	products *shop.Store
@@ -289,6 +294,14 @@ func (h *Handler) SetAlbumStore(s *album.Store) { h.albumStore = s }
 // tools have nothing to show; a page still saves, and its markers render as
 // nothing on the public side.
 func (h *Handler) SetValueStore(s *value.Store) { h.valueStore = s }
+
+// SetRequestStore attaches the store of privacy requests.
+//
+// A setter rather than another argument to NewHandler, for the reason
+// SetAlbumStore gives. Nil means the opt-out screen does not exist and both
+// its routes answer 404; the public form writes through its own handler and
+// is not affected.
+func (h *Handler) SetRequestStore(s *dsr.Store) { h.requests = s }
 
 // SetWording gives the handler the store behind the wording screen.
 func (h *Handler) SetWording(s *wording.Store) { h.wording = s }

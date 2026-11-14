@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/legal"
 )
 
 func newTestStore(t *testing.T) *Store {
@@ -152,5 +153,51 @@ func TestSetPrimaryDomainMovesTheFlag(t *testing.T) {
 	host, _ = s.PrimaryDomain(ctx, ws.ID)
 	if host != "zweite.test" {
 		t.Errorf("primary changed to %q through another website", host)
+	}
+}
+
+// D-05: a website starts under EU and Swiss law, because that is what the
+// privacy template of Phase 30 was written for.
+func TestNewWebsiteStartsWithEUAndCH(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	ws, err := s.CreateWebsite(ctx, "Test", "")
+	if err != nil {
+		t.Fatalf("CreateWebsite: %v", err)
+	}
+	got, err := s.GetWebsite(ctx, ws.ID)
+	if err != nil || got == nil {
+		t.Fatalf("GetWebsite: %v", err)
+	}
+	if got.LegalFrameworks != "eu,ch" {
+		t.Errorf("legal frameworks = %q, want eu,ch", got.LegalFrameworks)
+	}
+	if got.Frameworks() != legal.Default() {
+		t.Errorf("Frameworks() = %q, want the default", got.Frameworks().String())
+	}
+}
+
+func TestUpdateSettingsStoresTheCanonicalSet(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	ws, _ := s.CreateWebsite(ctx, "Test", "")
+
+	for _, c := range []struct{ given, want string }{
+		{"us,EU", "eu,us"},
+		// The empty set is allowed (D-16); the launch checklist reports it.
+		{"", ""},
+	} {
+		if err := s.UpdateSettings(ctx, ws.ID, Settings{LegalFrameworks: c.given}); err != nil {
+			t.Fatalf("UpdateSettings(%q): %v", c.given, err)
+		}
+		after, _ := s.GetWebsite(ctx, ws.ID)
+		if after.LegalFrameworks != c.want {
+			t.Errorf("given %q, stored %q, want %q", c.given, after.LegalFrameworks, c.want)
+		}
+	}
+
+	if _, err := s.DB.Write.ExecContext(ctx,
+		`UPDATE websites SET legal_frameworks = 'EU' WHERE id = $1`, ws.ID); err == nil {
+		t.Error("the database stored a spelling that is not canonical")
 	}
 }

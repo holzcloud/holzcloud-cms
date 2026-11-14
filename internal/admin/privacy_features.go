@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/privacy"
 	"github.com/holzcloud/holzcloud-cms/internal/shop"
@@ -52,6 +53,30 @@ func (h *Handler) privacyFeatures(ctx context.Context, ws *domain.Website) (priv
 	f.Forms = forms
 
 	return f, nil
+}
+
+// legalRequest is everything a legal page of this website depends on: the
+// functions it uses, the frameworks it follows and the language of the page.
+//
+// It reads the website it is given and nothing else, so one website's choices
+// can never shape another's text. When the functions cannot be read, the
+// request still carries the language and the stored set, with the zero
+// Features beside the error; a caller that cannot stop, like the starter
+// content, uses it as it is.
+func (h *Handler) legalRequest(ctx context.Context, ws *domain.Website, tag string) (privacy.Request, error) {
+	if ws == nil {
+		return privacy.Request{Lang: tag, Swiss: i18n.Region(tag) == "CH"}, errors.New("no website")
+	}
+	// Swiss spelling (D-15) for a website in Switzerland, and for a page whose
+	// tag says Swiss German even when the website is elsewhere.
+	swiss := ws.Country == "CH" || i18n.Region(tag) == "CH"
+	r := privacy.Request{Lang: tag, Swiss: swiss, Set: ws.Frameworks()}
+	f, err := h.privacyFeatures(ctx, ws)
+	if err != nil {
+		return r, err
+	}
+	r.Features = f
+	return r, nil
 }
 
 // formsEnabled reports whether one of the form plugins is installed, switched

@@ -20,6 +20,9 @@
         <a href="/admin/websites/{{$id}}/werte" class="settings-nav__item{{if eq .ActiveNav "values"}} is-active{{end}}"{{if eq .ActiveNav "values"}} aria-current="page"{{end}}>{{template "icon-fields"}}<span>{{t "Values"}}</span></a>
         <a href="/admin/websites/{{$id}}/redirects" class="settings-nav__item{{if eq .ActiveNav "redirects"}} is-active{{end}}"{{if eq .ActiveNav "redirects"}} aria-current="page"{{end}}>{{template "icon-redirect"}}<span>{{t "Redirects"}}</span></a>
         <a href="/admin/websites/{{$id}}/seo" class="settings-nav__item{{if eq .ActiveNav "seo"}} is-active{{end}}"{{if eq .ActiveNav "seo"}} aria-current="page"{{end}}>{{template "icon-seo"}}<span>{{t "SEO"}}</span></a>
+    {{if .NavWebsite.HasUSFramework}}
+        <a href="/admin/websites/{{$id}}/widersprueche" class="settings-nav__item{{if eq .ActiveNav "optouts"}} is-active{{end}}"{{if eq .ActiveNav "optouts"}} aria-current="page"{{end}}>{{template "icon-mail"}}<span>{{t "Opt-outs"}}</span></a>
+    {{end}}
     {{if $.IsAdmin}}
         <a href="/admin/websites/{{$id}}/inhaltsarten" class="settings-nav__item{{if eq .ActiveNav "kinds"}} is-active{{end}}"{{if eq .ActiveNav "kinds"}} aria-current="page"{{end}}>{{template "icon-pages"}}<span>{{t "Content kinds"}}</span></a>
     {{end}}

@@ -81,6 +81,35 @@
             </p>
         </div>
 
+        <fieldset class="form-fieldset" id="legal-frameworks">
+            <legend>{{t "Legal frameworks"}}</legend>
+            <input type="hidden" name="legal_frameworks_shown" value="1">
+            <p class="form-hint text-muted">
+                {{t "The privacy page, the imprint and the legal checks of this website follow from this choice. Templates only — they replace no legal advice."}}
+            </p>
+            <div class="form-group form-knopfreihe" role="group" aria-label="{{t "Legal frameworks"}}">
+                <label class="form-check">
+                    <input type="checkbox" name="legal_frameworks" value="eu"{{if .Website.HasFramework "eu"}} checked{{end}}>
+                    <span class="form-check-label">{{t "European Union (GDPR, ePrivacy)"}}</span>
+                </label>
+                <label class="form-check">
+                    <input type="checkbox" name="legal_frameworks" value="ch"{{if .Website.HasFramework "ch"}} checked{{end}}>
+                    <span class="form-check-label">{{t "Switzerland (revised FADP)"}}</span>
+                </label>
+                <label class="form-check">
+                    <input type="checkbox" name="legal_frameworks" value="uk"{{if .Website.HasFramework "uk"}} checked{{end}}>
+                    <span class="form-check-label">{{t "United Kingdom (UK GDPR, PECR)"}}</span>
+                </label>
+                <label class="form-check">
+                    <input type="checkbox" name="legal_frameworks" value="us"{{if .Website.HasFramework "us"}} checked{{end}}>
+                    <span class="form-check-label">{{t "United States (CCPA/CPRA and other state laws)"}}</span>
+                </label>
+            </div>
+            <p class="form-hint text-muted">
+                {{t "With the United States ticked, the website honours the Global Privacy Control signal and offers a “Do Not Sell or Share” page."}}
+            </p>
+        </fieldset>
+
         <div class="form-row">
             <div class="form-group">
                 <label class="form-label" for="favicon_media_id">{{t "Favicon"}}</label>
@@ -267,24 +296,73 @@
 </div>
 {{end}}
 
-{{if and .IsEdit .PrivacyHint.State}}
-<div class="card" style="margin-top: var(--space-3);">
-    <h2>{{t "Privacy statement"}}</h2>
-    {{if eq .PrivacyHint.State "none"}}
-    <p class="text-muted">{{t "This website has no privacy page yet. The template lists the cookies and recipients that the functions of this website call for."}}</p>
+{{if and .IsEdit .Legal.Rows}}
+<div class="card" id="legal-pages" style="margin-top: var(--space-3);">
+    <h2>{{t "Legal pages"}}</h2>
+    {{if .Legal.NoFrameworks}}
+    <p class="text-muted">{{t "No legal framework is chosen for this website."}} <a href="#legal-frameworks">{{t "Choose the frameworks"}}</a></p>
     {{else}}
-    <p class="text-muted">{{if .PrivacyHint.Published}}{{t "Your privacy page is published and is left exactly as it is."}}{{else}}{{t "Your privacy page is a draft and is left exactly as it is."}}{{end}}</p>
-    {{if eq .PrivacyHint.State "template"}}
-    <p class="text-muted"><strong>{{t "That page still carries the notice that it is an unfilled template. Do not publish it before it is filled in."}}</strong></p>
+    <p class="text-muted">
+        {{t "The pages below follow from the legal frameworks chosen for this website:"}}
+        {{range $i, $f := .Legal.Frameworks}}{{if $i}}, {{end}}
+        {{- if eq $f "eu"}}{{t "European Union (GDPR, ePrivacy)"}}
+        {{- else if eq $f "ch"}}{{t "Switzerland (revised FADP)"}}
+        {{- else if eq $f "uk"}}{{t "United Kingdom (UK GDPR, PECR)"}}
+        {{- else if eq $f "us"}}{{t "United States (CCPA/CPRA and other state laws)"}}{{end}}
+        {{- end}}.
+        <a href="#legal-frameworks">{{t "Change the choice"}}</a>
+    </p>
     {{end}}
-    <p class="text-muted">{{t "The current template lists the cookies and recipients that the functions of this website call for. Create it as a new draft to compare it with your page."}}</p>
-    <p><a href="/admin/websites/{{.Website.ID}}/pages/{{.PrivacyHint.PageID}}/edit">{{t "Open the page"}}</a></p>
-    {{end}}
-    <p class="text-muted">{{t "The template is a draft to complete and replaces no legal advice."}}</p>
-    <form method="POST" action="/admin/websites/{{.Website.ID}}/datenschutz-vorlage">
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Language"}}</th>
+                {{range .Legal.Kinds}}
+                <th scope="col" data-legal-column="{{.}}">
+                    {{- if eq . "privacy"}}{{t "Privacy page"}}
+                    {{- else if eq . "imprint"}}{{t "Imprint"}}
+                    {{- else if eq . "dns"}}{{t "Do Not Sell or Share"}}{{end -}}
+                </th>
+                {{end}}
+            </tr>
+        </thead>
+        <tbody>
+            {{range $row := .Legal.Rows}}
+            <tr data-legal-row="{{$row.Tag}}"{{if $row.Main}} data-legal-main{{end}}>
+                <td><strong>{{t $row.Name}}</strong>{{if $row.Main}} <span class="text-muted">{{t "(main language)"}}</span>{{end}}</td>
+                {{range $row.Cells}}
+                <td data-legal-lang="{{$row.Tag}}" data-legal-kind="{{.Kind}}" data-legal-state="{{.State}}">
+                    {{- if eq .State "missing"}}<span class="badge badge--warning">{{t "Missing"}}</span>
+                    {{- else if eq .State "template"}}<span class="badge badge--warning">{{t "Unfilled template"}}</span>
+                    {{- else if eq .State "published"}}<span class="badge badge--published">{{t "Published"}}</span>
+                    {{- else}}<span class="badge badge--draft">{{t "Draft"}}</span>{{end}}
+                    {{if .PageID}}
+                    <a href="/admin/websites/{{$.Website.ID}}/pages/{{.PageID}}/edit">{{t "Open"}}</a>
+                    <form method="POST" action="/admin/websites/{{$.Website.ID}}/rechtstexte" style="margin-top: var(--space-1);">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <input type="hidden" name="art" value="{{.Kind}}">
+                        <input type="hidden" name="sprache" value="{{$row.Tag}}">
+                        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "New draft to compare"}}</button>
+                    </form>
+                    {{end -}}
+                </td>
+                {{end}}
+            </tr>
+            {{if $row.Hint}}
+            <tr>
+                <td colspan="{{$.Legal.Columns}}" class="text-muted">{{t $row.Hint}}</td>
+            </tr>
+            {{end}}
+            {{end}}
+        </tbody>
+    </table>
+    <p class="text-muted">{{t "Templates only — they replace no legal advice. Existing pages are never changed; every template arrives as a new draft."}}</p>
+    {{if .Legal.Missing}}
+    <form method="POST" action="/admin/websites/{{.Website.ID}}/rechtstexte">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Create the template as a draft"}}</button>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Create the missing pages as drafts"}}</button>
     </form>
+    {{end}}
 </div>
 {{end}}
 
