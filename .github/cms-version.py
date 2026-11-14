@@ -147,8 +147,12 @@ class CMS:
         # three are OSError (URLError is one too), the last two are
         # http.client's own. Not retried: an answer that arrived whole and is
         # wrong, below - asking again gets the same proxy page.
+        #
+        # The wait is for the next attempt, so there is none after the last:
+        # the refusal follows at once instead of six seconds later.
+        attempts = 3
         last = None
-        for attempt in range(3):
+        for attempt in range(attempts):
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as res:
                     raw = res.read()
@@ -162,7 +166,8 @@ class CMS:
                     raise Refused(f"the CMS answered HTTP {e.code} to {tool}")
             except (OSError, http.client.HTTPException) as e:
                 last = e
-            time.sleep(2 * (attempt + 1))
+            if attempt < attempts - 1:
+                time.sleep(2 * (attempt + 1))
         else:
             raise Refused(f"the CMS could not be reached for {tool}: "
                           f"{type(last).__name__}: {last}")
