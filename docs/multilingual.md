@@ -75,9 +75,11 @@ translated — but not twice in one.
 The privacy page, the imprint and, on a website that follows US law, the Do Not
 Sell or Share page are composed from templates in German, French, Italian,
 Romansh and English ([security](security.md#legal-frameworks-the-privacy-page-and-the-imprint)).
-A new website gets the first two as drafts in its main language, under that
-language's title and address — *Impressum* at `/impressum` on a German website,
-*Mentions légales* at `/mentions-legales` on a French one.
+A new website is German until its settings say otherwise, and it starts with
+the first two as German drafts, *Impressum* at `/impressum` and
+*Datenschutzerklärung* at `/datenschutz`. Each page takes the title and the
+address of its language — the French imprint is *Mentions légales* at
+`/mentions-legales`.
 
 The **Legal pages** card in Settings → General has one row per language of the
 website, the main language first, and one column per page. *Create the missing
