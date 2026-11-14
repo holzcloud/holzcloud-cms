@@ -186,3 +186,68 @@ func TestAUSOnlyWebsiteGetsTheLeanStarterImprint(t *testing.T) {
 		t.Errorf("status = %q, want draft", imp.Status)
 	}
 }
+
+// The two legal starter pages carry the title and the slug of the website's
+// main language, the same ones the Legal pages card uses (privacy.Title,
+// privacy.Slug), so a French website does not start with a page called
+// "Impressum" at /impressum that the card then fails to recognise as its
+// French imprint. A German website keeps its German titles and the slugs
+// impressum and datenschutz (TestStarterLegalPagesAreUnchanged).
+func TestStarterLegalPagesFollowTheMainLanguage(t *testing.T) {
+	for _, lang := range []string{"en", "fr", "it", "de-CH"} {
+		t.Run(lang, func(t *testing.T) {
+			h, _, database, ws := newTestAdmin(t)
+			ctx := context.Background()
+			if _, err := database.Write.Exec(`UPDATE websites SET locale = ? WHERE id = ?`, lang, ws.ID); err != nil {
+				t.Fatal(err)
+			}
+
+			h.createStarterContent(ctx, ws.ID, nil)
+
+			var footer []string
+			for _, k := range []privacy.Kind{privacy.KindImprint, privacy.KindPrivacy} {
+				slug, title := privacy.Slug(k, lang), privacy.Title(k, lang)
+				p, err := h.pages.GetPageBySlug(ctx, ws.ID, slug)
+				if err != nil || p == nil {
+					t.Fatalf("no %s page at /%s: %v", k, slug, err)
+				}
+				if p.Title != title {
+					t.Errorf("%s title = %q, want %q", k, p.Title, title)
+				}
+				if p.Status != "draft" {
+					t.Errorf("%s status = %q, want draft", k, p.Status)
+				}
+				footer = append(footer, title)
+			}
+			if !strings.HasPrefix(lang, "de") {
+				for _, german := range []string{"impressum", "datenschutz"} {
+					if p, _ := h.pages.GetPageBySlug(ctx, ws.ID, german); p != nil {
+						t.Errorf("a %s website still gets a page at /%s", lang, german)
+					}
+				}
+			}
+
+			menus, err := h.menuStore.ListMenus(ctx, ws.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checked := false
+			for _, m := range menus {
+				if m.LocationKey != "footer" {
+					continue
+				}
+				items, err := h.menuStore.ListItems(ctx, m.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(items) != 2 || items[0].Title != footer[0] || items[1].Title != footer[1] {
+					t.Errorf("footer menu = %+v, want %q then %q", items, footer[0], footer[1])
+				}
+				checked = true
+			}
+			if !checked {
+				t.Error("the website has no footer menu")
+			}
+		})
+	}
+}
