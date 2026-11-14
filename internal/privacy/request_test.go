@@ -1,6 +1,7 @@
 package privacy
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -102,10 +103,30 @@ var requestDeadline = []struct {
 	block   string
 	anchors map[string][]string
 }{
-	{legal.EU, "deadline-eu", map[string][]string{"de": {"Art. 12 Abs. 3 DSGVO", "eines Monats", "zwei weitere Monate"}, "en": {"Art. 12(3) GDPR", "one month", "two further months"}}},
-	{legal.CH, "deadline-ch", map[string][]string{"de": {"Art. 25 Abs. 7 DSG", "Art. 18 DSV", "30 Tagen", "kostenlos"}, "en": {"Art. 25(7) FADP", "Art. 18 of the Data Protection Ordinance", "Art. 16(5) DPO", "30 days", "free of charge"}}},
-	{legal.UK, "deadline-uk", map[string][]string{"de": {"Art. 12 Abs. 3", "UK GDPR", "eines Monats"}, "en": {"Art. 12(3)", "UK GDPR", "one month"}}},
-	{legal.US, "deadline-us", map[string][]string{"de": {"§ 7021", "10 Geschäftstagen", "45 Kalendertagen"}, "en": {"§ 7021", "10 business days", "45 calendar days"}}},
+	{legal.EU, "deadline-eu", map[string][]string{
+		"de": {"Art. 12 Abs. 3 DSGVO", "eines Monats", "zwei weitere Monate"},
+		"en": {"Art. 12(3) GDPR", "one month", "two further months"},
+		"fr": {"art. 12, par. 3, RGPD", "d’un mois", "deux mois supplémentaires"},
+		"it": {"art. 12 par. 3 RGPD", "entro un mese", "altri due mesi"},
+	}},
+	{legal.CH, "deadline-ch", map[string][]string{
+		"de": {"Art. 25 Abs. 7 DSG", "Art. 18 DSV", "30 Tagen", "kostenlos"},
+		"en": {"Art. 25(7) FADP", "Art. 18 of the Data Protection Ordinance", "Art. 16(5) DPO", "30 days", "free of charge"},
+		"fr": {"art. 25, al. 7, LPD", "art. 18 de l’ordonnance sur la protection des données, OPDo", "30 jours", "gratuitement"},
+		"it": {"art. 25 cpv. 7 LPD", "art. 18 dell’ordinanza sulla protezione dei dati, OPDa", "30 giorni", "gratuita"},
+	}},
+	{legal.UK, "deadline-uk", map[string][]string{
+		"de": {"Art. 12 Abs. 3", "UK GDPR", "eines Monats"},
+		"en": {"Art. 12(3)", "UK GDPR", "one month"},
+		"fr": {"art. 12, par. 3", "UK GDPR", "d’un mois"},
+		"it": {"art. 12 par. 3", "UK GDPR", "entro un mese"},
+	}},
+	{legal.US, "deadline-us", map[string][]string{
+		"de": {"§ 7021", "10 Geschäftstagen", "45 Kalendertagen"},
+		"en": {"§ 7021", "10 business days", "45 calendar days"},
+		"fr": {"§ 7021", "10 jours ouvrables", "45 jours civils"},
+		"it": {"§ 7021", "10 giorni lavorativi", "45 giorni di calendario"},
+	}},
 }
 
 // The page names the deadline of each chosen framework and of no other: a
@@ -265,26 +286,155 @@ func requestDigits(s string) string {
 	return strings.TrimSpace(b.String())
 }
 
-// French, Italian and Romansh get the English page until plan 06 writes
-// theirs; Spanish gets it for good (33.1 D-16). Plan 06 replaces this test.
-func TestFrenchFallsBackToEnglishUntilPlan06(t *testing.T) {
-	for _, tag := range []string{"fr", "fr-CH", "it", "rm", "es", "es-MX", "en-GB"} {
+// requestBlocks are the blocks of the request page, in their order, all of
+// them shown when every framework is chosen and the website has a shop.
+var requestBlocks = []string{"glance", "rights", "deadline-eu", "deadline-ch", "deadline-uk", "deadline-us", "form", "identity", "kept", "closing"}
+
+// ownRequestPage holds a language's request page to what plan 06 promised
+// it: its own text for the language and its Swiss form, its own title and
+// address, every block, the marker once on a line of its own, and its own
+// template notice first, not the English or the German one.
+func ownRequestPage(t *testing.T, lang, slug, also, title, draftSlug string) string {
+	t.Helper()
+	for _, tag := range []string{lang, lang + "-CH"} {
+		if got := TextLang(KindRequest, tag); got != lang {
+			t.Errorf("TextLang(request, %q) = %q, want %s", tag, got, lang)
+		}
+	}
+	if got := Slug(KindRequest, lang); got != slug {
+		t.Errorf("Slug(request, %s) = %q, want %s", lang, got, slug)
+	}
+	if got := Title(KindRequest, lang+"-CH"); got != title {
+		t.Errorf("Title(request, %s-CH) = %q, want %q", lang, got, title)
+	}
+	if got := DraftSlug(KindRequest, lang); got != draftSlug {
+		t.Errorf("DraftSlug(request, %s) = %q, want %s", lang, got, draftSlug)
+	}
+	for _, s := range []string{slug, also} {
+		if !IsRoleSlug(KindRequest, s) {
+			t.Errorf("%q is not a role slug of the request page", s)
+		}
+	}
+	if TextLang(KindRequest, lang) != lang {
+		return ""
+	}
+
+	text := ComposeRequest(Request{Lang: lang, Set: allSet(), Features: Features{Shop: true}})
+	for _, name := range requestBlocks {
+		if !requestHas(t, text, lang, name) {
+			t.Errorf("%s: the page lacks the %s block", lang, name)
+		}
+	}
+	if n := strings.Count(text, "\n"+requestMarker+"\n"); n != 1 || strings.Count(text, requestMarker) != 1 {
+		t.Errorf("%s: the marker stands on a line of its own %d times, want once and nowhere else", lang, n)
+	}
+	if i := strings.Index(text, "**"+TemplateNotice(lang)+"**"); i < 0 || i > 200 {
+		t.Errorf("%s: the page does not open with its own template notice (at %d)", lang, i)
+	}
+	for _, other := range []string{"de", "en"} {
+		if strings.Contains(text, TemplateNotice(other)) {
+			t.Errorf("%s: the page carries the %s notice", lang, other)
+		}
+	}
+	if got := lastNonEmptyLine(text); got != NoLegalAdvice(lang) {
+		t.Errorf("%s: last line %q, want its own no-legal-advice sentence", lang, got)
+	}
+	// The Swiss switch changes German spelling and nothing else.
+	if swiss := ComposeRequest(Request{Lang: lang + "-CH", Swiss: true, Set: allSet(), Features: Features{Shop: true}}); swiss != text {
+		t.Errorf("%s: the Swiss text is not the plain one", lang)
+	}
+	for _, w := range enfrGerman {
+		if strings.Contains(text, w) {
+			t.Errorf("%s: the page contains the German %q", lang, w)
+		}
+	}
+	return text
+}
+
+// French and Italian pages get the request page in their own language (plan
+// 06), and in the terms the Swiss federal texts of that language use for the
+// Swiss deadline. Spanish keeps reading English (33.1 D-16).
+func TestFrenchAndItalianHaveTheirOwnRequestPage(t *testing.T) {
+	fr := ownRequestPage(t, "fr", "mes-donnees", "demande-mes-donnees", "Demande concernant mes données", "mes-donnees-modele")
+	it := ownRequestPage(t, "it", "i-miei-dati", "richiesta-miei-dati", "Richiesta sui miei dati", "i-miei-dati-modello")
+
+	for _, w := range []string{"art. 12, par. 3, RGPD", "art. 25, al. 7, LPD", "art. 18 de l’ordonnance sur la protection des données, OPDo", "art. 16, al. 5, OPDo", "art. 12, par. 3, et art. 12A UK GDPR", "§ 7021 des règlements CCPA"} {
+		if fr != "" && !strings.Contains(fr, w) {
+			t.Errorf("the French page does not cite %q", w)
+		}
+	}
+	for _, w := range []string{"art. 12 par. 3 RGPD", "art. 25 cpv. 7 LPD", "art. 18 dell’ordinanza sulla protezione dei dati, OPDa", "art. 16 cpv. 5 OPDa", "art. 12 par. 3 e art. 12A UK GDPR", "§ 7021 del regolamento CCPA"} {
+		if it != "" && !strings.Contains(it, w) {
+			t.Errorf("the Italian page does not cite %q", w)
+		}
+	}
+	// Italian addresses the visitor with Lei, as its privacy page does.
+	if it != "" && (!strings.Contains(it, " Sua ") || strings.Contains(it, " tuoi ") || strings.Contains(it, " tua ")) {
+		t.Errorf("the Italian page does not address the visitor with Lei")
+	}
+
+	// French typography, as TestFrenchTypography holds the privacy page to.
+	for _, bad := range []string{"'", " :", " ;", " ?", " !", " %", "&nbsp;", "&#", "« ", " »"} {
+		if i := strings.Index(fr, bad); i >= 0 {
+			t.Errorf("the French page contains %q near %q", bad, fr[max(0, i-30):min(len(fr), i+30)])
+		}
+	}
+
+	for _, tag := range []string{"es", "es-MX"} {
 		if got := TextLang(KindRequest, tag); got != "en" {
 			t.Errorf("TextLang(request, %q) = %q, want en", tag, got)
 		}
 	}
-	if got := Slug(KindRequest, "fr"); got != "my-data" {
-		t.Errorf("Slug(request, fr) = %q, want my-data", got)
-	}
 	if got := Title(KindRequest, "es"); got != "Request about my data" {
 		t.Errorf("Title(request, es) = %q, want Request about my data", got)
 	}
-	if got := DraftSlug(KindRequest, "en"); got != "my-data-template" {
-		t.Errorf("DraftSlug(request, en) = %q, want my-data-template", got)
+}
+
+// requestLanguagesRead are the languages TestEveryLanguageStatesTheSameDeadlines
+// compares; a language with request texts that is not among them fails it, so
+// that no translation escapes the comparison.
+var requestLanguagesRead = []string{"de", "en", "fr", "it"}
+
+// Every language states the deadlines the German and the English page state,
+// with the same citations (T-33.2-28): the numbers of each framework's
+// deadline are there, and every composition carries the same numbers in the
+// same order as the English one, block by block. A digit is the same in every
+// language, so this reads across translations without understanding them.
+func TestEveryLanguageStatesTheSameDeadlines(t *testing.T) {
+	for _, l := range languagesOf(t, KindRequest) {
+		if !slices.Contains(requestLanguagesRead, l) {
+			t.Errorf("%s has request texts this test does not compare", l)
+		}
 	}
-	for _, s := range []string{"meine-daten", "anfrage-zu-meinen-daten", "my-data", "request-about-my-data"} {
-		if !IsRoleSlug(KindRequest, s) {
-			t.Errorf("%q is not a role slug of the request page", s)
+	want := []struct {
+		set   string
+		words []string
+	}{
+		{"eu", []string{"12"}},
+		{"ch", []string{"30", "25"}},
+		{"uk", []string{"12A"}},
+		{"us", []string{"45", "7021"}},
+	}
+	for _, lang := range requestLanguagesRead {
+		if got := TextLang(KindRequest, lang); got != lang {
+			t.Errorf("%s: the request page reads %q, not its own text", lang, got)
+			continue
+		}
+		for _, w := range want {
+			text := ComposeRequest(Request{Lang: lang, Set: legal.ParseSet(w.set)})
+			for _, n := range w.words {
+				if !strings.Contains(text, n) {
+					t.Errorf("%s with %s chosen: the page does not say %q", lang, w.set, n)
+				}
+			}
+		}
+		for _, set := range sets() {
+			for _, f := range []Features{{}, {Shop: true}} {
+				e := requestDigits(ComposeRequest(Request{Lang: "en", Set: set, Features: f}))
+				if got := requestDigits(ComposeRequest(Request{Lang: lang, Set: set, Features: f})); got != e {
+					t.Errorf("%s %s %s: the numbers differ from the English page:\n %s %s\n en %s", lang, set, featureString(f), lang, got, e)
+				}
+			}
 		}
 	}
 }

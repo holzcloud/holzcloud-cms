@@ -1,0 +1,3 @@
+### Termine secondo il CCPA (California e altri Stati federati)
+
+Il ricevimento di una richiesta di accesso (right to know), di rettifica (right to correct) o di cancellazione (right to delete) viene confermato entro 10 giorni lavorativi. La risposta segue entro 45 giorni di calendario dal ricevimento. Se necessario, questo termine può essere prorogato al massimo di altri 45 giorni di calendario; ciò Le viene comunicato, indicandone il motivo (§ 7021 del regolamento CCPA, Cal. Code Regs. tit. 11). Una richiesta viene verificata confrontando i dati indicati nella richiesta con quelli memorizzati, per esempio con l’indirizzo e-mail di un ordine (§ 7060 segg. del regolamento CCPA).

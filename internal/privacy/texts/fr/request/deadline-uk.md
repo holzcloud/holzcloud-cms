@@ -1,0 +1,3 @@
+### Délai selon le UK GDPR (Royaume-Uni)
+
+Le responsable du traitement répond à votre demande dans les meilleurs délais et en tout état de cause dans un délai d’un mois (art. 12, par. 3, et art. 12A UK GDPR). Si la complexité ou le nombre des demandes le rend nécessaire, il peut prolonger ce délai de deux mois supplémentaires. Il vous en informe dans le premier mois et en indique les motifs. La réponse est gratuite, sauf si une demande est manifestement infondée ou excessive (art. 12, par. 5, UK GDPR). Si le responsable du traitement a des doutes raisonnables quant au fait que la demande émane de vous, il peut demander des informations supplémentaires pour le confirmer (art. 12, par. 6, UK GDPR).

@@ -1,0 +1,3 @@
+### Termine secondo il RGPD (Unione europea)
+
+Il titolare del trattamento risponde alla Sua richiesta senza ingiustificato ritardo e comunque entro un mese dal ricevimento (art. 12 par. 3 RGPD). Se la complessità o il numero delle richieste lo rende necessario, può prorogare questo termine di altri due mesi. In tal caso glielo comunica entro il primo mese, indicandone i motivi. La risposta è gratuita, salvo che una richiesta sia manifestamente infondata o eccessiva (art. 12 par. 5 RGPD). Se il titolare del trattamento ha ragionevoli dubbi che la richiesta provenga da Lei, può chiedere ulteriori informazioni per confermarlo (art. 12 par. 6 RGPD).

@@ -1,0 +1,3 @@
+### Délai selon le CCPA (Californie et autres États américains)
+
+La réception d’une demande d’accès (right to know), de rectification (right to correct) ou de suppression (right to delete) est confirmée dans un délai de 10 jours ouvrables. La demande reçoit une réponse dans un délai de 45 jours civils à compter de sa réception. Si nécessaire, ce délai peut être prolongé de 45 jours civils au plus ; on vous en informe et vous en indique la raison (§ 7021 des règlements CCPA, Cal. Code Regs. tit. 11). Une demande est vérifiée en comparant les indications qu’elle contient avec les données enregistrées, par exemple avec l’adresse e-mail d’une commande (§ 7060 ff. des règlements CCPA).

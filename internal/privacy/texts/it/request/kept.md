@@ -1,0 +1,3 @@
+## Che cosa resta di un ordine
+
+Se chiede la cancellazione e ha effettuato un ordine qui, l’indirizzo e-mail e il numero di telefono vengono cancellati dal Suo ordine, così come le e-mail che lo riguardano. Ciò che figura sulla fattura deve essere conservato dal venditore: nome, ditta, indirizzo, articoli ordinati, importi, stato del pagamento, condizioni di reso e la Sua osservazione sull’ordine. Questi dati restano conservati finché non scade il termine legale di conservazione nel Paese del venditore, calcolato dalla fine dell’anno civile dell’ordine, e vengono poi cancellati. Fino ad allora non vengono utilizzati per nessun altro scopo. La risposta alla Sua richiesta ne indica la data.

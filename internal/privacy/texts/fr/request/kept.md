@@ -1,0 +1,3 @@
+## Ce qui reste d’une commande
+
+Si vous demandez l’effacement et avez passé une commande ici, l’adresse e-mail et le numéro de téléphone sont effacés de votre commande, de même que les e-mails qui s’y rapportent. Ce qui figure sur la facture, le vendeur doit le conserver : nom, entreprise, adresse, articles commandés, montants, état du paiement, conditions de retour et votre remarque sur la commande. Ces indications restent conservées jusqu’à la fin du délai légal de conservation dans le pays du vendeur, compté à partir de la fin de l’année civile de la commande, puis elles sont effacées. D’ici là, elles ne sont utilisées à aucune autre fin. La réponse à votre demande en indique la date.

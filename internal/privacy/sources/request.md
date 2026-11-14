@@ -42,10 +42,49 @@ citations, so the two pages of one website cannot disagree (T-33.2-54).
 
 ## Languages
 
-German and English (plan 33.2-05). French, Italian and Romansh fall back to
-English until plan 33.2-06 adds their texts; Spanish reads English for good
-(33.1 D-16). German addresses the visitor with du, as the Do-Not-Sell page
-does; the Swiss spelling is applied by compose (33.1 D-15).
+German and English (plan 33.2-05); French and Italian (plan 33.2-06).
+Spanish reads English for good (33.1 D-16). German addresses the visitor with
+du, as the Do-Not-Sell page does; the Swiss spelling is applied by compose
+(33.1 D-15).
+
+### French and Italian
+
+Both say what the German block says, sentence for sentence, and carry the same
+numbers in the same order (`TestEveryLanguageStatesTheSameDeadlines` compares
+the digits of every composition with the English one). They address the
+visitor as the privacy page of their language does: French with vous, Italian
+with Lei.
+
+- **Swiss terms** are the ones the French and Italian versions of the Swiss
+  acts on fedlex use: *loi fédérale sur la protection des données* (LPD) and
+  *ordonnance sur la protection des données* (OPDo), *legge federale sulla
+  protezione dei dati* (LPD) and *ordinanza sulla protezione dei dati* (OPDa),
+  SR/RS 235.1 and 235.11; *responsable du traitement* / *titolare del
+  trattamento*; *renseignements* / *informazioni* for the information given
+  on access (LPD art. 25, al. 6 and 7 / cpv. 6 e 7), *mesures adéquates* /
+  *misure adeguate* for the identification (OPDo/OPDa art. 16, al./cpv. 5).
+  Provisions are cited as the French and Italian privacy sections cite them:
+  "art. 25, al. 7, LPD" and "art. 25 cpv. 7 LPD". The ordinance is named in
+  full at its first citation, as the English block does, because the privacy
+  page never names it.
+- **GDPR and UK GDPR terms** follow the French and Italian versions of
+  Regulation (EU) 2016/679, as the published EU and UK sections do: *dans les
+  meilleurs délais et en tout état de cause dans un délai d'un mois* / *senza
+  ingiustificato ritardo e comunque entro un mese*; *manifestement infondée ou
+  excessive* / *manifestamente infondata o eccessiva*; *doutes raisonnables* /
+  *ragionevoli dubbi*. Citation form "art. 12, par. 3, RGPD" / "art. 12 par.
+  3 RGPD", as in the privacy sections.
+- **CCPA**: the regulations are *règlements CCPA* / *regolamento CCPA*, as
+  the US privacy sections call them; the English right names stay in brackets,
+  as in German. "Business days" and "calendar days" are *jours ouvrables* /
+  *giorni lavorativi* and *jours civils* / *giorni di calendario*; there is no
+  official French or Italian text of the regulations to take them from.
+- **French typography** as in the French privacy page: typographic
+  apostrophe, U+00A0 before a colon and inside the angle quotes, U+202F before
+  a semicolon.
+- **Slugs**: `mes-donnees` and `i-miei-dati`, with the titles as also_slugs
+  (`demande-mes-donnees`, `richiesta-miei-dati`), built as the German and
+  English ones are.
 
 ## Open assumptions a block relies on
 
