@@ -147,6 +147,9 @@ type Service struct {
 	// fails its kind instead of leaving the file behind unreported.
 	media   *media.Store
 	dataDir string
+	// failKind lets a test break one kind of one website in the retention
+	// job; nil everywhere else.
+	failKind func(websiteID int64, kind string) error
 }
 
 // NewService builds the search over the database.

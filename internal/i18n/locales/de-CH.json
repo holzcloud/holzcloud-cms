@@ -5,6 +5,7 @@
 "%s: “%s” is not one of the choices.": "%s: «%s» steht nicht zur Auswahl.",
 "(for “External address”)": "(bei «Externe Adresse»)",
 "(for “Link to a page”)": "(bei «Link auf eine Seite»)",
+"A file could not be removed from the disk.": "Eine Datei liess sich nicht vom Datenträger entfernen.",
 "A kind changes nothing about addresses: every entry keeps living under its own. What it changes is the language of the administration (“New product” instead of “New post”), the list, the filters — and which fields appear in the editor.": "Eine Art ändert nichts an den Adressen: jeder Eintrag wohnt weiter unter seiner eigenen. Was sie ändert, ist die Sprache der Verwaltung («Neues Produkt» statt «Neuer Beitrag»), die Liste, die Filter — und welche Felder im Editor erscheinen.",
 "A link address starts with the placeholder for “%s”, so the link has lost its address. Start the address with / or a folder, for example /releases/v…": "Eine Linkadresse beginnt mit dem Platzhalter für «%s», deshalb hat der Link seine Adresse verloren. Beginn die Adresse mit / oder einem Ordner, zum Beispiel /releases/v…",
 "A new website “%s” comes into being — only when you import, not now.": "Es entsteht eine neue Website «%s» – erst beim Einlesen, nicht jetzt.",

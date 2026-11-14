@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/legal"
@@ -44,13 +45,27 @@ var (
 )
 
 // The causes of a failed kind, the first word of its stored error. The
-// screen turns a cause into a sentence; the rest of the error is for the
-// journal and whoever reads the database.
+// screen turns a cause into a sentence of the catalogue and never shows the
+// error itself; the rest of the error is for the journal and whoever reads
+// the database.
 const (
-	causeBound    = "bound"
-	causeFile     = "file"
-	causePlugin   = "plugin"
-	causeDatabase = "database"
+	// FailureBound is a plugin with more to expire than one run may delete.
+	FailureBound = "bound"
+	// FailureFile is a file that stayed on the disk.
+	FailureFile = "file"
+	// FailurePlugin is a plugin that failed, gave no answer, or named a
+	// file that is not the website's.
+	FailurePlugin = "plugin"
+	// FailureDatabase is a statement the database refused, and anything
+	// else.
+	FailureDatabase = "database"
+)
+
+const (
+	causeBound    = FailureBound
+	causeFile     = FailureFile
+	causePlugin   = FailurePlugin
+	causeDatabase = FailureDatabase
 )
 
 // expireError is a failure of one kind, with the cause the screen names.
@@ -59,6 +74,23 @@ type expireError struct {
 }
 
 func (e *expireError) Error() string { return e.cause + ": " + e.detail }
+
+// FailureOf is the cause of a kind's stored error: the first word of its
+// first line, one of the Failure constants. An error that names no known
+// cause is a database failure, the most general one; an empty error has no
+// cause.
+func FailureOf(text string) string {
+	if text == "" {
+		return ""
+	}
+	first, _, _ := strings.Cut(text, "\n")
+	cause, _, _ := strings.Cut(first, ":")
+	switch cause {
+	case FailureBound, FailureFile, FailurePlugin, FailureDatabase:
+		return cause
+	}
+	return FailureDatabase
+}
 
 // expireKind deletes what of one kind of one website has expired, and says
 // how many records went. covered are the plugins that answer the privacy

@@ -336,6 +336,15 @@ type retentionWebsite struct {
 func (s *Service) RunRetention(ctx context.Context, now time.Time) (*RunReport, error) {
 	now = now.UTC()
 	clock := time.Now()
+	// A run still 'running' was left by a process that stopped in the middle
+	// of it: one job runs at a time, so none of this process's is. It is
+	// closed as failed, so the screen does not show it running for ever and
+	// the gate does not count it as a success.
+	if _, err := s.db.Write.ExecContext(ctx, `UPDATE retention_runs
+		SET status = 'failed', finished_at = $1, error = $2 WHERE status = 'running'`,
+		now.Format(timeLayout), interruptedError); err != nil {
+		return nil, fmt.Errorf("close interrupted retention runs: %w", err)
+	}
 	res, err := s.db.Write.ExecContext(ctx,
 		`INSERT INTO retention_runs (started_at, status) VALUES ($1, 'running')`, now.Format(timeLayout))
 	if err != nil {
@@ -381,8 +390,39 @@ func (s *Service) RunRetention(ctx context.Context, now time.Time) (*RunReport, 
 		rep.Finished.Format(timeLayout), rep.Status, rep.Deleted, text, id); err != nil {
 		joined = errors.Join(joined, fmt.Errorf("finish retention run: %w", err))
 	}
+	if err := s.pruneRuns(ctx, now); err != nil {
+		joined = errors.Join(joined, err)
+	}
 	slog.Info("retention run", "run", id, "status", rep.Status, "deleted", rep.Deleted, "kinds", len(rep.Kinds))
 	return rep, joined
+}
+
+// interruptedError is the error of a run a process left unfinished.
+const interruptedError = "interrupted: the process stopped before the run finished"
+
+// runsKept is how long the record of a run is kept.
+const runsKept = 90 * 24 * time.Hour
+
+// pruneRuns deletes the runs that started more than 90 days before now,
+// with their rows, except the latest successful one: the gate and the
+// warning of a job that stopped count from it, however old it is.
+func (s *Service) pruneRuns(ctx context.Context, now time.Time) error {
+	if _, err := s.db.Write.ExecContext(ctx, `DELETE FROM retention_runs
+		WHERE started_at < $1
+		  AND id <> COALESCE((SELECT id FROM retention_runs WHERE status = 'ok'
+		                      ORDER BY started_at DESC, id DESC LIMIT 1), 0)`,
+		now.Add(-runsKept).UTC().Format(timeLayout)); err != nil {
+		return fmt.Errorf("prune retention runs: %w", err)
+	}
+	return nil
+}
+
+// Holders are the plugins that keep data for the website, each saying
+// whether it answers the privacy hook. One that does not is not deleted by
+// the retention job, and the Retention screen names it.
+func (s *Service) Holders(ctx context.Context, websiteID int64) ([]Holder, error) {
+	_, holders, err := s.pluginSources(ctx, websiteID)
+	return holders, err
 }
 
 // retentionWebsites are every website with the country its order period
@@ -428,7 +468,14 @@ func (s *Service) expireWebsite(ctx context.Context, ws retentionWebsite, now ti
 	var errs []error
 	for _, p := range periods {
 		kr := KindResult{WebsiteID: ws.id, Kind: p.Kind}
-		n, err := s.expireKind(ctx, ws, p, now, covered, holdersErr)
+		var n int
+		var err error
+		if s.failKind != nil {
+			err = s.failKind(ws.id, p.Kind)
+		}
+		if err == nil {
+			n, err = s.expireKind(ctx, ws, p, now, covered, holdersErr)
+		}
 		kr.Deleted = n
 		if err != nil {
 			kr.Err = bounded(err.Error(), 2000)

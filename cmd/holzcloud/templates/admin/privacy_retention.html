@@ -48,6 +48,13 @@
                 <p class="form-hint">{{t "Default"}}: {{.Default}} {{t .Unit}}</p>
                 {{if .MinimumNote}}<p class="form-hint">{{tf .MinimumNote .Min}}</p>{{end}}
                 {{range .Notes}}<p class="form-hint">{{t .}}</p>{{end}}
+                {{if .HasLast}}
+                {{if .LastFailure}}
+                <p class="form-error"><strong>{{t "Failed in the last run"}}</strong> {{t .LastFailure}}</p>
+                {{else}}
+                <p class="form-hint">{{t "Last run"}}: {{tf "%d deleted" .LastDeleted}}</p>
+                {{end}}
+                {{end}}
                 {{if .Error}}<p class="form-error" id="period-{{.Kind}}-error">{{if .ErrorArg}}{{tf .Error .ErrorArg}}{{else}}{{t .Error}}{{end}}</p>{{end}}
             </div>
             {{end}}
@@ -59,4 +66,19 @@
         </fieldset>
     </form>
 </div>
+
+{{/* Was der Job nicht erreicht: Plugins mit Daten dieser Website, die den
+     Datenschutz-Hook nicht beantworten. Sie stehen hier, damit die Fristen
+     oben nicht vollständiger aussehen, als sie sind. */}}
+{{if .NotCovered}}
+<div class="card" id="retention-not-covered" style="margin-top: var(--space-3);">
+    <h2>{{t "Not deleted by the retention job"}}</h2>
+    <p class="text-muted">{{t "These plugins keep data for this website and do not answer the privacy hook, so the retention job cannot delete what they keep."}}</p>
+    <ul>
+        {{range .NotCovered}}
+        <li><strong>{{.Name}}</strong> · {{if eq .Entries 1}}{{t "One entry"}}{{else}}{{tf "%d entries" .Entries}}{{end}}{{with .Reason}} · <span class="text-muted">{{t .}}</span>{{end}}</li>
+        {{end}}
+    </ul>
+</div>
+{{end}}
 {{end}}

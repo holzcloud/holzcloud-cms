@@ -55,6 +55,15 @@ var (
 		dsr.RunOK:      i18n.N("Successful"),
 		dsr.RunFailed:  i18n.N("Failed"),
 	}
+	// The sentence of each cause a kind can fail by. The stored error is
+	// for the journal; the screen says what happened in the operator's
+	// language.
+	retentionFailures = map[string]string{
+		dsr.FailureBound:    i18n.N("More had expired than one run may delete; the next run continues."),
+		dsr.FailureFile:     i18n.N("A file could not be removed from the disk."),
+		dsr.FailurePlugin:   i18n.N("A plugin did not answer."),
+		dsr.FailureDatabase: i18n.N("The database refused the deletion."),
+	}
 )
 
 // privacyRetentionData backs the screen.
@@ -71,6 +80,9 @@ type privacyRetentionData struct {
 	// form is shown disabled with ReadOnlyNotice above it.
 	ReadOnly       bool
 	ReadOnlyNotice string
+	// NotCovered are the plugins that keep data for the website and do not
+	// answer the privacy hook: the job cannot delete what they keep.
+	NotCovered []dsr.Holder
 }
 
 // retentionPeriodView is one kind as the form shows it.
@@ -91,6 +103,12 @@ type retentionPeriodView struct {
 	// Notes are the sentences under the field, catalogue keys: the law the
 	// period follows, and what the operator should know about it.
 	Notes []string
+	// HasLast is true when the last run reached this kind; LastDeleted is
+	// what it deleted, LastFailure the sentence of its failure, a catalogue
+	// key, "" when it succeeded.
+	HasLast     bool
+	LastDeleted int
+	LastFailure string
 	// Error is the refusal, a catalogue key, with ErrorArg its number when
 	// the sentence carries one.
 	Error    string
@@ -243,7 +261,17 @@ func (h *Handler) privacyRetentionData(r *http.Request, ws *domain.Website, type
 	if err != nil {
 		return nil, err
 	}
+	holders, err := h.dataRights.Holders(ctx, ws.ID)
+	if err != nil {
+		return nil, err
+	}
 	loc := tmpl.LoadLocation(ws.TimeZone)
+	lastOf := map[string]dsr.KindResult{}
+	if last != nil {
+		for _, k := range last.Kinds {
+			lastOf[k.Kind] = k
+		}
+	}
 
 	data := &privacyRetentionData{
 		LayoutData:     web.NewLayoutData(r, h.sm, web.Titlef(r, "Retention – %s", ws.Name)),
@@ -277,6 +305,10 @@ func (h *Handler) privacyRetentionData(r *http.Request, ws *domain.Website, type
 		if s, ok := typed[p.Kind]; ok {
 			v.Value = s
 		}
+		if k, ok := lastOf[p.Kind]; ok {
+			v.HasLast, v.LastDeleted = true, k.Deleted
+			v.LastFailure = retentionFailures[dsr.FailureOf(k.Err)]
+		}
 		data.Periods = append(data.Periods, v)
 	}
 	if last != nil {
@@ -285,6 +317,11 @@ func (h *Handler) privacyRetentionData(r *http.Request, ws *domain.Website, type
 			Status:     last.Status,
 			StatusName: retentionStatusName[last.Status],
 			Deleted:    last.Deleted,
+		}
+	}
+	for _, hd := range holders {
+		if !hd.Covered {
+			data.NotCovered = append(data.NotCovered, hd)
 		}
 	}
 	data.ActiveNav = "privacy-retention"

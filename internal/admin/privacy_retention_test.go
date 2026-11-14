@@ -271,3 +271,97 @@ func TestTheOrderPeriodNamesItsLaw(t *testing.T) {
 		t.Errorf("a refused period stored %v", got)
 	}
 }
+
+func TestTheRetentionScreenShowsAFailedKind(t *testing.T) {
+	h, sm, database, ws, _ := retentionAdmin(t)
+	res, err := database.Write.Exec(`INSERT INTO retention_runs (started_at, finished_at, status, deleted, error)
+		VALUES ('2026-11-14T02:00:00Z', '2026-11-14T02:00:05Z', 'failed', 3, 'file: media 7 of plugin bestellung stayed on the disk')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, _ := res.LastInsertId()
+	for _, row := range []struct {
+		kind    string
+		deleted int
+		err     string
+	}{
+		{dsr.RetentionFormSubmission, 3, ""},
+		{dsr.RetentionRequest, 0, ""},
+		{dsr.RetentionOrder, 0, "file: media 7 of plugin bestellung stayed on the disk"},
+	} {
+		if _, err := database.Write.Exec(`INSERT INTO retention_deletions (run_id, website_id, kind, deleted, error)
+			VALUES ($1, $2, $3, $4, $5)`, run, ws.ID, row.kind, row.deleted, row.err); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	body := retentionGet(t, h, sm, ws.ID)
+	order := retentionSection(body, "retention-"+dsr.RetentionOrder)
+	if !strings.Contains(order, retentionSays("Failed in the last run")) {
+		t.Errorf("the order row does not say it failed in the last run:\n%s", order)
+	}
+	if !strings.Contains(order, retentionSays("A file could not be removed from the disk.")) {
+		t.Errorf("the order row does not say why:\n%s", order)
+	}
+	if strings.Contains(body, "media 7 of plugin") {
+		t.Error("the screen shows the raw error instead of its sentence")
+	}
+	form := retentionSection(body, "retention-"+dsr.RetentionFormSubmission)
+	if !strings.Contains(form, retentionSays("%d deleted", 3)) || strings.Contains(form, retentionSays("Failed in the last run")) {
+		t.Errorf("the form submissions row does not show its count of the last run:\n%s", form)
+	}
+	if box := retentionSection(body, "retention-run"); !strings.Contains(box, retentionSays("Failed")) {
+		t.Errorf("the run box does not say the run failed:\n%s", box)
+	}
+
+	for cause, sentence := range map[string]string{
+		dsr.FailureBound:    "More had expired than one run may delete; the next run continues.",
+		dsr.FailurePlugin:   "A plugin did not answer.",
+		dsr.FailureDatabase: "The database refused the deletion.",
+	} {
+		if _, err := database.Write.Exec(`UPDATE retention_deletions SET error = $1 WHERE kind = 'order'`, cause+": detail"); err != nil {
+			t.Fatal(err)
+		}
+		order := retentionSection(retentionGet(t, h, sm, ws.ID), "retention-"+dsr.RetentionOrder)
+		if !strings.Contains(order, retentionSays(sentence)) {
+			t.Errorf("a %s failure is not said as %q:\n%s", cause, sentence, order)
+		}
+	}
+}
+
+func TestTheRetentionScreenNamesPluginsTheJobCannotReach(t *testing.T) {
+	h, sm, database, ws, _ := retentionAdmin(t)
+	if _, err := database.Write.Exec(`INSERT INTO plugins (id, name, version, manifest, sha256, installed_at, updated_at)
+		VALUES ('gaestebuch', 'Gästebuch', '1.0.0', '{}', '', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		if _, err := database.Write.Exec(`INSERT INTO plugin_store (plugin_id, website_id, key, value, updated_at)
+			VALUES ('gaestebuch', $1, $2, '{}', '2026-01-01T00:00:00Z')`, ws.ID, "eintrag:"+strconv.Itoa(i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	body := retentionGet(t, h, sm, ws.ID)
+	heading := retentionSays("Not deleted by the retention job")
+	at := strings.Index(body, heading)
+	if at < 0 {
+		t.Fatalf("the screen does not name what the job cannot delete:\n%s", body)
+	}
+	section := body[at:]
+	if !strings.Contains(section, retentionSays("These plugins keep data for this website and do not answer the privacy hook, so the retention job cannot delete what they keep.")) {
+		t.Error("the screen does not say why the plugin is listed")
+	}
+	if !strings.Contains(section, "Gästebuch") || !strings.Contains(section, retentionSays("%d entries", 3)) {
+		t.Errorf("the plugin is not listed with its entries:\n%s", section)
+	}
+
+	// A website whose plugins all answer, or that has none, shows nothing.
+	other, err := h.domains.CreateWebsite(context.Background(), "Andere", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(retentionGet(t, h, sm, other.ID), heading) {
+		t.Error("a website without such plugins names some")
+	}
+}

@@ -3,6 +3,9 @@ package dsr
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -256,5 +259,211 @@ func TestPeriodsHaveDefaults(t *testing.T) {
 	}
 	if err := s.SetPeriods(ctx, ws, "DE", map[string]int{"logs": 6}); !errors.Is(err, ErrBadPeriod) {
 		t.Errorf("SetPeriods of kind logs = %v, want ErrBadPeriod", err)
+	}
+}
+
+// retentionBreak makes one kind of one website fail in every run.
+func retentionBreak(s *Service, websiteID int64, kind string) {
+	s.failKind = func(id int64, k string) error {
+		if id == websiteID && k == kind {
+			return &expireError{cause: causeDatabase, detail: "delete privacy requests: the test broke this kind"}
+		}
+		return nil
+	}
+}
+
+func TestAFailedKindDoesNotStopTheOthers(t *testing.T) {
+	s, database := retentionService(t)
+	ctx := context.Background()
+	now := time.Date(2026, 11, 14, 2, 0, 0, 0, time.UTC)
+	a := website(t, database, "A")
+	b := website(t, database, "B")
+	msgA := retentionFormMessage(t, database, a, now.AddDate(-2, 0, 0))
+	reqA := expiretestRequest(t, database, a, KindAccess, now.AddDate(-3, 0, 0), time.Time{})
+	// Orders run after requests: the kind behind the broken one.
+	orderA := expiretestOrder(t, database, a, "2010-0001", "2010-03-01T10:00:00Z", "")
+	msgB := retentionFormMessage(t, database, b, now.AddDate(-2, 0, 0))
+	reqB := expiretestRequest(t, database, b, KindAccess, now.AddDate(-3, 0, 0), time.Time{})
+	retentionBreak(s, a, RetentionRequest)
+
+	rep, err := s.RunRetention(ctx, now)
+	if err == nil {
+		t.Fatal("RunRetention returned no error while a kind failed")
+	}
+	if rep.Status != RunFailed {
+		t.Errorf("report status %q, want failed", rep.Status)
+	}
+	var status, text string
+	if err := database.Read.QueryRow(`SELECT status, error FROM retention_runs WHERE id = $1`, rep.ID).Scan(&status, &text); err != nil {
+		t.Fatal(err)
+	}
+	if status != RunFailed || !strings.Contains(text, "the test broke this kind") {
+		t.Errorf("run row = %s, %q; want failed with the kind's error", status, text)
+	}
+	if d, ok := retentionDeletionOf(t, database, rep.ID, a, RetentionRequest); !ok || d.err == "" {
+		t.Errorf("A's request row = %+v (%v), want its error", d, ok)
+	}
+	if !retentionExists(t, database, "privacy_requests", reqA) {
+		t.Error("the broken kind deleted anyway")
+	}
+	if retentionExists(t, database, "form_messages", msgA) {
+		t.Error("A's form messages were not deleted after A's requests failed")
+	}
+	if o, _, _ := expiretestLeft(t, database, orderA); o != 0 {
+		t.Error("A's orders were not run after A's requests failed")
+	}
+	if retentionExists(t, database, "form_messages", msgB) || retentionExists(t, database, "privacy_requests", reqB) {
+		t.Error("website B was not run after A failed")
+	}
+
+	before := retentionRuns(t, database)
+	if err := s.RetentionTick(ctx, now.Add(time.Hour)); err == nil {
+		t.Error("the next tick ran and did not report the kind that still fails")
+	}
+	if retentionRuns(t, database) != before+1 {
+		t.Error("the next tick did not try again after the failure")
+	}
+}
+
+func TestAnInterruptedRunIsClosed(t *testing.T) {
+	s, database := retentionService(t)
+	now := time.Date(2026, 11, 14, 2, 0, 0, 0, time.UTC)
+	retentionRun(t, database, now.Add(-3*time.Hour), RunRunning)
+
+	rep, err := s.RunRetention(context.Background(), now)
+	if err != nil {
+		t.Fatalf("RunRetention: %v", err)
+	}
+	var status, text string
+	var finished *string
+	if err := database.Read.QueryRow(`SELECT status, error, finished_at FROM retention_runs WHERE id <> $1`, rep.ID).
+		Scan(&status, &text, &finished); err != nil {
+		t.Fatal(err)
+	}
+	if status != RunFailed || !strings.Contains(text, "interrupted") || finished == nil {
+		t.Errorf("the earlier run = %s, %q, finished %v; want failed, interrupted, a finish time", status, text, finished)
+	}
+}
+
+func TestOldRunsArePruned(t *testing.T) {
+	s, database := retentionService(t)
+	ctx := context.Background()
+	now := time.Date(2026, 11, 14, 2, 0, 0, 0, time.UTC)
+	ws := website(t, database, "A")
+	days := func(n int) time.Time { return now.AddDate(0, 0, -n) }
+	retentionRun(t, database, days(120), RunOK)
+	retentionRun(t, database, days(100), RunOK)
+	retentionRun(t, database, days(95), RunFailed)
+	retentionRun(t, database, days(10), RunFailed)
+	if _, err := database.Write.Exec(`INSERT INTO retention_deletions (run_id, website_id, kind, deleted)
+		SELECT id, $1, 'form_submission', 1 FROM retention_runs`, ws); err != nil {
+		t.Fatal(err)
+	}
+	// This run fails, so the latest success stays the one of 100 days ago.
+	retentionBreak(s, ws, RetentionRequest)
+	if _, err := s.RunRetention(ctx, now); err == nil {
+		t.Fatal("the broken run reported no error")
+	}
+
+	left := map[string]string{}
+	rows, err := database.Read.Query(`SELECT started_at, status FROM retention_runs`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var started, status string
+		if err := rows.Scan(&started, &status); err != nil {
+			t.Fatal(err)
+		}
+		left[started] = status
+	}
+	at := func(d time.Time) string { return d.Format(timeLayout) }
+	if _, ok := left[at(days(120))]; ok {
+		t.Error("a run of 120 days is still there")
+	}
+	if _, ok := left[at(days(95))]; ok {
+		t.Error("a failed run of 95 days is still there")
+	}
+	if left[at(days(100))] != RunOK {
+		t.Error("the latest successful run was pruned; it is what the gate and the warning count from")
+	}
+	if left[at(days(10))] != RunFailed {
+		t.Error("a run of 10 days was pruned")
+	}
+	var orphans int
+	if err := database.Read.QueryRow(`SELECT COUNT(*) FROM retention_deletions
+		WHERE run_id NOT IN (SELECT id FROM retention_runs)`).Scan(&orphans); err != nil || orphans != 0 {
+		t.Errorf("%d rows of pruned runs left (%v)", orphans, err)
+	}
+}
+
+func TestTheJobLogsNoPersonalData(t *testing.T) {
+	s, database := retentionService(t)
+	ctx := context.Background()
+	now := time.Date(2026, 11, 14, 2, 0, 0, 0, time.UTC)
+	ws := website(t, database, "A")
+	const address, name = "zebra.quokka@example.org", "Quentin Zebrafish"
+	for _, at := range []time.Time{now.AddDate(-2, 0, 0), now.AddDate(0, -1, 0)} {
+		if _, err := database.Write.Exec(`INSERT INTO form_messages (website_id, name, email, subject, body, created_at)
+			VALUES ($1, $2, $3, 'Hallo', 'Text', $4)`, ws, name, address, at.Format(timeLayout)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := database.Write.Exec(`INSERT INTO privacy_requests (website_id, kind, name, email, created_at)
+			VALUES ($1, 'access', $2, $3, $4)`, ws, name, address, at.AddDate(-1, 0, 0).Format(timeLayout)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	expiretestOrder(t, database, ws, "2010-0001", "2010-03-01T10:00:00Z", "")
+	if _, err := database.Write.Exec(`UPDATE orders SET email = $1, name = $2`, address, name); err != nil {
+		t.Fatal(err)
+	}
+	retentionBreak(s, ws, RetentionOrder)
+
+	var buf strings.Builder
+	was := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(was) })
+
+	rep, err := s.RunRetention(ctx, now)
+	if rep == nil || rep.Deleted == 0 {
+		t.Fatalf("the run deleted nothing (%+v, %v); the test proves nothing", rep, err)
+	}
+	var stored strings.Builder
+	rows, qerr := database.Read.Query(`SELECT error FROM retention_runs UNION ALL SELECT error FROM retention_deletions`)
+	if qerr != nil {
+		t.Fatal(qerr)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var e string
+		rows.Scan(&e)
+		stored.WriteString(e)
+	}
+	if !strings.Contains(buf.String(), "retention run") {
+		t.Fatalf("no log line of the run was captured:\n%s", buf.String())
+	}
+	for where, text := range map[string]string{"log": buf.String(), "returned error": fmt.Sprint(err), "stored errors": stored.String()} {
+		for _, secret := range []string{address, "zebra", name, "Zebrafish"} {
+			if strings.Contains(strings.ToLower(text), strings.ToLower(secret)) {
+				t.Errorf("the %s carries %q:\n%s", where, secret, text)
+			}
+		}
+	}
+}
+
+func TestFailuresAreNamedByTheirCause(t *testing.T) {
+	for text, want := range map[string]string{
+		"bound: plugin kontaktformular: more to expire than one run may delete": FailureBound,
+		"file: media 3 of plugin kontaktformular stayed on the disk":            FailureFile,
+		"plugin: plugin bestellung: the plugin gave no answer":                  FailurePlugin,
+		"database: delete orders: database is locked":                           FailureDatabase,
+		"plugin: plugin a: the call failed\nfile: media 4 of plugin a stayed":   FailurePlugin,
+		"something nobody classified":                                           FailureDatabase,
+		"":                                                                      "",
+	} {
+		if got := FailureOf(text); got != want {
+			t.Errorf("FailureOf(%q) = %q, want %q", text, got, want)
+		}
 	}
 }
