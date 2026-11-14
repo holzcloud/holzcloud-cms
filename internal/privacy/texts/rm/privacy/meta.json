@@ -1,0 +1,50 @@
+{
+  "title": "Decleraziun davart la protecziun da datas",
+  "slug": "protecziun-da-datas",
+  "also_slugs": [],
+  "draft_title": "Decleraziun davart la protecziun da datas (nov model)",
+  "draft_slug": "protecziun-da-datas-model",
+
+  "cookie_header": "| Num | Intent | Durada | Pertge senza consentiment |",
+  "processor_header": "| Retschavider | Incumbensa | Datas transmessas | Contract |",
+  "purpose_basket": "Vegn mess, sche Vus mettais insatge en il chanaster da products. El memorisescha Voss chanaster, enfin che Vus empustais u enfin ch’el scada.",
+  "purpose_price_view": "Vegn mess, sche Vus midais la vista dals pretschs. El memorisescha, sche Vus vesais ils pretschs per clients privats u per clients commerzials.",
+  "purpose_unlock": "Vegn mess, sche Vus endatais il pled-clav d’ina pagina protegida. N stat per il numer da la pagina protegida. El memorisescha che Vus avais debloccà la pagina.",
+  "why_no_consent": "Tecnicamain necessari per quai che Vus avais dumandà",
+  "no_cookies": "Questa website na metta nagins cookies.",
+  "cookies_some": "Voss navigatur memorisescha mo insatge, sche Vus faschais ina da las suandantas acziuns. In tal cookie è tecnicamain necessari per quai che Vus avais dumandà. Perquai na basegna el nagin consentiment e nagin banner da cookies.",
+  "processor_hosting": "| Purschider da hosting {fillin}, pajais dal server {fillin} | Manaschi dal server | Datas da connexiun sco en il chapitel Protocol dal server | Contract d’elavuraziun d’incumbensa, sch’il server stat tar in terz |",
+  "processor_payment": "| Purschider da pajament Payrexx, Svizra, num ed adressa {fillin} | Elavuraziun dal pajament online | Import, valuta, numer d’empustaziun cun il num da la website, num, adressa dad e-mail, via, numer postal d’aviament, lieu e pajais | Contract d’elavuraziun d’incumbensa, data dal contract {fillin} |",
+
+  "lifetime_day_one": "{n} di",
+  "lifetime_day_many": "{n} dis",
+  "lifetime_hour_one": "{n} ura",
+  "lifetime_hour_many": "{n} uras",
+  "lifetime_minute_one": "{n} minuta",
+  "lifetime_minute_many": "{n} minutas",
+
+  "basis_eu_log": "Protocol dal server: art. 6 al. 1 lit. f RGPD. L’interess legitim è il manaschi e la segirezza da la website.",
+  "basis_eu_cookies": "Cookies da la tabella survart: art. 6 al. 1 lit. f RGPD. Per il chanaster da products d’ina empustaziun: art. 6 al. 1 lit. b RGPD. Per memorisar en il navigatur vala la regla davart ils cookies a la fin da quest chapitel.",
+  "basis_eu_orders": "Empustaziuns: art. 6 al. 1 lit. b RGPD (contract). Senza questas indicaziuns na po ina empustaziun betg vegnir exequida. Per mussaments da contabilitad vala ultra da quai art. 6 al. 1 lit. c RGPD (obligaziun legala da conservar).",
+  "basis_eu_payment": "Pajament online: art. 6 al. 1 lit. b RGPD (contract).",
+  "basis_eu_forms": "Formulars: art. 6 al. 1 lit. b RGPD, sche Vossa dumonda pertutga in contract. Uschiglio art. 6 al. 1 lit. f RGPD. L’interess legitim è da respunder a Vossa dumonda.",
+  "basis_eu_staff": "Contos en il sectur da l’administraziun: art. 6 al. 1 lit. b RGPD (relaziun da lavur u d’incumbensa) ed art. 6 al. 1 lit. f RGPD. L’interess legitim è la segirezza dal sectur da l’administraziun.",
+
+  "basis_ch_log": "Protocol dal server: manaschi e segirezza da la website. Il motiv da giustificaziun è l’interess privat predominant dal responsabel (art. 31 al. 1 LPD).",
+  "basis_ch_cookies": "Cookies da la tabella survart: quai che Vus avais dumandà. Co Vus als pudais refusar, stat a la fin da quest chapitel.",
+  "basis_ch_orders": "Empustaziuns: conclusiun ed execuziun dal contract cun Vus (art. 31 al. 2 lit. a LPD). Senza questas indicaziuns na po ina empustaziun betg vegnir exequida.",
+  "basis_ch_payment": "Pajament online: execuziun dal contract cun Vus (art. 31 al. 2 lit. a LPD).",
+  "basis_ch_forms": "Formulars: resposta a Vossa dumonda.",
+  "basis_ch_staff": "Contos en il sectur da l’administraziun: lavur vi da la website e protecziun dal sectur da l’administraziun.",
+
+  "basis_uk_log": "Protocol dal server: art. 6 al. 1 lit. f UK GDPR. L’interess legitim è il manaschi e la segirezza da la website.",
+  "basis_uk_cookies": "Cookies da la tabella survart: art. 6 al. 1 lit. f UK GDPR. Per il chanaster da products d’ina empustaziun: art. 6 al. 1 lit. b UK GDPR. Per memorisar en il navigatur vala la regla davart ils cookies a la fin da quest chapitel.",
+  "basis_uk_orders": "Empustaziuns: art. 6 al. 1 lit. b UK GDPR (contract). Senza questas indicaziuns na po ina empustaziun betg vegnir exequida.",
+  "basis_uk_payment": "Pajament online: art. 6 al. 1 lit. b UK GDPR (contract).",
+  "basis_uk_forms": "Formulars: art. 6 al. 1 lit. b UK GDPR, sche Vossa dumonda pertutga in contract. Uschiglio art. 6 al. 1 lit. f UK GDPR. L’interess legitim è da respunder a Vossa dumonda.",
+  "basis_uk_staff": "Contos en il sectur da l’administraziun: art. 6 al. 1 lit. b ed f UK GDPR. L’interess legitim è la segirezza dal sectur da l’administraziun.",
+
+  "category_us_identifiers": "Identificaturs (identifiers): num ed adressa dad e-mail che Vus scrivais en in formular u en il formular d’opposiziun, ed ils contos da las persunas che lavuran vi da la website.",
+  "category_us_commercial": "Infurmaziuns commerzialas (commercial information): Vossas empustaziuns cun adressa, artitgels e Vossa tscherna da furniziun e pajament.",
+  "category_us_internet": "Activitad en l’internet u en autras raits (internet or other electronic network activity): las lingias dal protocol dal server cun l’adressa IP scursanida."
+}
