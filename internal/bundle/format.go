@@ -131,6 +131,15 @@ type Site struct {
 	TimeZone        string `json:"timezone,omitempty"`
 	MetaDescription string `json:"meta_description,omitempty"`
 
+	// LegalFrameworks is the website's set of legal frameworks, as stored:
+	// "eu,ch", or "" for none. A pointer, because the two ways of being empty
+	// mean opposite things: nil is a bundle older than this field, which
+	// imports with the default every website starts with (D-05), while an
+	// exported "" is the operator's decision to follow none (D-16) and has to
+	// arrive as exactly that. A plain string with omitempty cannot tell them
+	// apart.
+	LegalFrameworks *string `json:"legal_frameworks,omitempty"`
+
 	BlogBase     string `json:"blog_base,omitempty"`
 	PostsPerPage int    `json:"posts_per_page,omitempty"`
 	ContactEmail string `json:"contact_email,omitempty"`

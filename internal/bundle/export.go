@@ -125,6 +125,7 @@ func copyMedia(zw *zip.Writer, dir, filename string) error {
 }
 
 func buildManifest(ctx context.Context, s Stores, ws *domain.Website, version string) (*Manifest, error) {
+	frameworks := ws.LegalFrameworks
 	m := &Manifest{
 		Version:     Version,
 		ExportedAt:  time.Now().UTC().Format(time.RFC3339),
@@ -133,6 +134,7 @@ func buildManifest(ctx context.Context, s Stores, ws *domain.Website, version st
 			Name: ws.Name, Description: ws.Description,
 			Locale: ws.Locale, ExtraLocales: ws.ExtraLocales, TimeZone: ws.TimeZone,
 			MetaDescription: ws.MetaDescription,
+			LegalFrameworks: &frameworks,
 			BlogBase:        ws.BlogBase, PostsPerPage: ws.PostsPerPage,
 			ContactEmail: ws.ContactEmail,
 			OrgType:      ws.OrgType, Street: ws.Street, PostalCode: ws.PostalCode,

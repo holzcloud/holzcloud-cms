@@ -848,3 +848,64 @@ func TestMigration00062DownAndUp(t *testing.T) {
 		t.Errorf("a second row for the same website and key = %v; want a unique violation", err)
 	}
 }
+
+// TestMigration00063DownAndUp drives the legal frameworks column down and up.
+func TestMigration00063DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO websites (name, description, city, legal_frameworks)
+		 VALUES ('Hofladen', '', 'Chur', 'us')`); err != nil {
+		t.Fatalf("creating a website: %v", err)
+	}
+
+	rollBackTo(t, ctx, provider, 62)
+
+	var columns int
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pragma_table_info('websites') WHERE name = 'legal_frameworks'`).
+		Scan(&columns); err != nil {
+		t.Fatalf("looking for the column: %v", err)
+	}
+	if columns != 0 {
+		t.Error("legal_frameworks survived its own rollback")
+	}
+	var city string
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT city FROM websites WHERE name = 'Hofladen'`).Scan(&city); err != nil {
+		t.Fatalf("the website did not survive the rollback: %v", err)
+	}
+	if city != "Chur" {
+		t.Errorf("city = %q after the rollback", city)
+	}
+
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+	// The column carried the only record of the choice, so the website comes
+	// back with the default every existing website got the first time (D-05).
+	var set string
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT legal_frameworks FROM websites WHERE name = 'Hofladen'`).Scan(&set); err != nil {
+		t.Fatalf("the column did not come back: %v", err)
+	}
+	if set != "eu,ch" {
+		t.Errorf("legal_frameworks = %q after the trip, want eu,ch", set)
+	}
+	if _, err := database.Write.ExecContext(ctx,
+		`UPDATE websites SET legal_frameworks = 'EU' WHERE name = 'Hofladen'`); err == nil {
+		t.Error("the CHECK did not come back: 'EU' was stored")
+	}
+}

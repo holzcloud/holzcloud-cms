@@ -31,6 +31,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/kind"
+	"github.com/holzcloud/holzcloud-cms/internal/legal"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
@@ -198,6 +199,14 @@ func readManifest(zr *zip.Reader) (*Manifest, error) {
 }
 
 func applySettings(ctx context.Context, s Stores, websiteID int64, site Site) error {
+	// The settings are written as a whole, so a field this literal leaves out
+	// is written as empty (Pitfall 3). A bundle without the key is older than
+	// the frameworks and gets the default; one with the key goes through the
+	// same parser as the form, because a bundle is a file anyone can edit.
+	frameworks := legal.Default().String()
+	if site.LegalFrameworks != nil {
+		frameworks = legal.ParseSet(*site.LegalFrameworks).String()
+	}
 	set := domain.Settings{
 		Locale: site.Locale, ExtraLocales: site.ExtraLocales, TimeZone: site.TimeZone,
 		MetaDescription: site.MetaDescription,
@@ -206,7 +215,8 @@ func applySettings(ctx context.Context, s Stores, websiteID int64, site Site) er
 		ContactEmail: site.ContactEmail,
 		OrgType:      site.OrgType, Street: site.Street, PostalCode: site.PostalCode,
 		City: site.City, Country: site.Country, Phone: site.Phone,
-		OpeningHours: site.OpeningHours,
+		OpeningHours:    site.OpeningHours,
+		LegalFrameworks: frameworks,
 	}
 	if err := s.Domains.UpdateSettings(ctx, websiteID, set); err != nil {
 		return err
