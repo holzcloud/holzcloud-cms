@@ -687,12 +687,49 @@ func TestACrossSitePostIsRefused(t *testing.T) {
 	if n := optoutRows(t, database, ws.ID); n != 0 {
 		t.Fatalf("a cross-site POST stored %d rows", n)
 	}
-	for _, hdr := range []http.Header{{"Sec-Fetch-Site": {"same-origin"}}, nil} {
+	for _, hdr := range []http.Header{
+		{"Sec-Fetch-Site": {"same-origin"}},
+		nil,
+		{"Origin": {"https://demo.test"}},
+		{"Origin": {"https://DEMO.test:443"}},
+		{"Referer": {"https://demo.test/do-not-sell"}},
+		{"Sec-Fetch-Site": {"same-site"}, "Origin": {"https://demo.test"}},
+	} {
 		before := optoutRows(t, database, ws.ID)
 		rec := optoutPost(h, ws, optoutForm(ws, "do-not-sell"), hdr)
 		if rec.Code != http.StatusSeeOther || optoutRows(t, database, ws.ID) != before+1 {
-			t.Errorf("Sec-Fetch-Site %v: %d; want accepted and stored", hdr, rec.Code)
+			t.Errorf("%v: %d; want accepted and stored", hdr, rec.Code)
 		}
+	}
+}
+
+// TestAForeignOriginIsRefusedWithoutFetchMetadata is WR-03 of the 33.1
+// review. A browser without Fetch Metadata sends no Sec-Fetch-Site, and such
+// a POST used to be accepted whatever its Origin: a page elsewhere could
+// fetch a valid stamp server-side and have its visitors' browsers post
+// opt-outs, GPC flag included. Origin, then Referer, now decide when
+// Sec-Fetch-Site is absent, and "same-site" — a sibling subdomain — is not
+// the same host.
+func TestAForeignOriginIsRefusedWithoutFetchMetadata(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, "do-not-sell", optoutMarkerPage, "")
+
+	for _, hdr := range []http.Header{
+		{"Origin": {"https://evil.example"}},
+		{"Origin": {"null"}},
+		{"Origin": {"https://demo.test.evil.example"}},
+		{"Referer": {"https://evil.example/forms"}},
+		{"Origin": {"https://evil.example"}, "Referer": {"https://demo.test/do-not-sell"}},
+		{"Sec-Fetch-Site": {"same-site"}, "Origin": {"https://shop.demo.test"}},
+		{"Sec-Fetch-Site": {"same-site"}},
+	} {
+		rec := optoutPost(h, ws, optoutForm(ws, "do-not-sell"), hdr)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("%v: %d; want 403", hdr, rec.Code)
+		}
+	}
+	if n := optoutRows(t, database, ws.ID); n != 0 {
+		t.Errorf("a foreign POST stored %d rows", n)
 	}
 }
 

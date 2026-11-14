@@ -322,7 +322,11 @@ stored and listed, not mailed. Behind a reverse proxy the per-network budget
 needs `HOLZCLOUD_TRUSTED_PROXIES`, as the login throttle does; a request whose
 address is loopback or private gets no network budget and meets only the
 website's limit. A cross-site POST is
-refused before anything is read (`HandleOptOut`). A request caught by the
+refused before anything is read (`optoutSameOrigin`): `Sec-Fetch-Site` must
+say `same-origin`, or `same-site` with an `Origin` of this very host; a
+browser that sends no `Sec-Fetch-Site` is judged by its `Origin`, and without
+one by its `Referer`, and either must name the host the form was posted to
+(`TestAForeignOriginIsRefusedWithoutFetchMetadata`). A request caught by the
 honeypot, or carrying a stamp this page did not sign, gets the same answer as
 an accepted one, so a robot does not learn which trap caught it. A stamp this
 page did sign but that is too old or too young belongs to a person — a tab

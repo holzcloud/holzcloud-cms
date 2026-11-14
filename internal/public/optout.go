@@ -8,7 +8,9 @@ import (
 	"html"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -281,7 +283,7 @@ func (h *Handler) HandleOptOut(w http.ResponseWriter, r *http.Request) error {
 	if !h.optoutOffered(ws) {
 		return h.serve404(w, r, ws)
 	}
-	if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+	if !optoutSameOrigin(r) {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return nil
 	}
@@ -368,6 +370,66 @@ func (h *Handler) optoutNotifyWithin(ctx context.Context, ws *domain.Website, re
 		return
 	}
 	h.optoutNotify(ctx, ws, req)
+}
+
+// optoutSameOrigin reports whether a POST may have come from this website's
+// own page (WR-03 of the 33.1 review).
+//
+// Sec-Fetch-Site first, because a browser sets it and a page cannot: only
+// "same-origin" passes on its word, and "same-site" — a sibling subdomain,
+// which can be somebody else's — passes only when the Origin is this very
+// host. A browser without Fetch Metadata sends no Sec-Fetch-Site; then the
+// Origin decides, and without an Origin the Referer. An Origin of "null", or
+// a host other than the one the request was sent to, is refused.
+//
+// A request that carries none of the three is let through. Every browser
+// that posts a form across sites says so in at least one of them, so what
+// arrives with none is a program, and a program can fetch a stamp and post
+// with any header it likes: for that the stamp, the honeypot and the limits
+// are there, not this check. This one stops the case that needs a browser —
+// a page elsewhere making its visitors' browsers post opt-outs, with their
+// Global Privacy Control signal attached.
+//
+// The stamp is not bound to anything more than its website and its age. A
+// stamp tied to the visitor's network would refuse the one taken on Wi-Fi
+// and sent on mobile, and it would add nothing here: the forged post this
+// check is about comes from the victim's own browser, on the victim's own
+// network, and its Origin gives it away.
+func optoutSameOrigin(r *http.Request) bool {
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "same-origin":
+		return true
+	case "":
+		// No Fetch Metadata: Origin and Referer below.
+	case "same-site":
+		origin := r.Header.Get("Origin")
+		return origin != "" && optoutSameHost(origin, r.Host)
+	default:
+		// cross-site, and "none", which a form post from a page never is.
+		return false
+	}
+	if origin := r.Header.Get("Origin"); origin != "" {
+		return optoutSameHost(origin, r.Host)
+	}
+	if referer := r.Header.Get("Referer"); referer != "" {
+		return optoutSameHost(referer, r.Host)
+	}
+	return true
+}
+
+// optoutSameHost reports whether the URL names the host the request was
+// sent to. Host names only, case-insensitively: the port is the proxy's
+// business, and an Origin leaves out the default one anyway.
+func optoutSameHost(raw, requestHost string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	host := requestHost
+	if h, _, err := net.SplitHostPort(requestHost); err == nil {
+		host = h
+	}
+	return strings.EqualFold(u.Hostname(), strings.Trim(host, "[]"))
 }
 
 // optoutBack is the address the form came from: the published page in the
