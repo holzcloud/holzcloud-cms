@@ -111,3 +111,19 @@
 </nav>
 {{end}}
 {{end}}
+
+{{/*
+  Die Warnung, dass der Aufbewahrungs-Job seit mehr als 48 Stunden nicht
+  erfolgreich gelaufen ist (Phase 33.2, D-05, D-09). Sie steht auf der
+  Übersicht (nur für Admins) und auf jedem Aufbewahrungs-Bildschirm, darum hier
+  bei den Reitern und nicht zweimal. Aufgerufen mit einem *retentionWarningView;
+  nil zeigt nichts. Die Sätze nennen das Journal, weil dort steht, warum.
+*/}}
+{{define "retention_warning"}}
+{{with .}}
+<div class="alert alert--warning" role="alert" id="retention-warning">
+    <p>{{if .LastOK}}{{tf "Expired personal data has not been deleted for more than 48 hours: the retention job has not finished successfully since %s. Look in the server's journal (journalctl -u holzcloud) and on a website's Retention screen." (.LastOK.Format "02.01.2006 15:04 MST")}}{{else}}{{t "Expired personal data has not been deleted for more than 48 hours: the retention job has not run since this version was installed. Look in the server's journal (journalctl -u holzcloud)."}}{{end}}</p>
+    {{if .Link}}<p><a href="{{.Link}}">{{t "Open the Retention screen"}}</a></p>{{end}}
+</div>
+{{end}}
+{{end}}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
@@ -363,5 +364,33 @@ func TestTheRetentionScreenNamesPluginsTheJobCannotReach(t *testing.T) {
 	}
 	if strings.Contains(retentionGet(t, h, sm, other.ID), heading) {
 		t.Error("a website without such plugins names some")
+	}
+}
+
+// TestTheRetentionScreenWarnsWhenOverdue: the 48-hour warning of the
+// dashboard stands on every Retention screen too, for everybody who may open
+// it — an editor is the one most likely to look here (plan 07, D-09).
+func TestTheRetentionScreenWarnsWhenOverdue(t *testing.T) {
+	h, sm, database, ws, _ := retentionAdmin(t)
+
+	stalledSince(t, database, time.Now().Add(-72*time.Hour))
+	body := retentionGet(t, h, sm, ws.ID)
+	if !strings.Contains(body, retentionSays(stalledSentence)) || !strings.Contains(body, "journalctl -u holzcloud") {
+		t.Error("the Retention screen does not warn about a job that never ran")
+	}
+	editor := editorWithoutPublishing(t, database, ws.ID)
+	req := httptest.NewRequest(http.MethodGet, retentionAddress(ws.ID), nil)
+	req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
+	rec, _ := serveAs(t, h, sm, editor, h.HandlePrivacyRetention, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), retentionSays(stalledSentence)) {
+		t.Errorf("an editor's Retention screen (status %d) does not warn", rec.Code)
+	}
+
+	if _, err := database.Write.Exec(`INSERT INTO retention_runs (started_at, finished_at, status) VALUES ($1, $1, 'ok')`,
+		time.Now().UTC().Add(-time.Hour).Format("2006-01-02T15:04:05Z")); err != nil {
+		t.Fatal(err)
+	}
+	if body := retentionGet(t, h, sm, ws.ID); strings.Contains(body, retentionSays(stalledSentence)) {
+		t.Error("the Retention screen warns although the job succeeded an hour ago")
 	}
 }

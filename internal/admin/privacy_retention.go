@@ -70,8 +70,11 @@ var (
 type privacyRetentionData struct {
 	web.LayoutData
 	web.FormState
-	WebsiteID int64
-	Periods   []retentionPeriodView
+	// RetentionWarning says the job has not succeeded for 48 hours, nil when
+	// it keeps up.
+	RetentionWarning *retentionWarningView
+	WebsiteID        int64
+	Periods          []retentionPeriodView
 	// LogDays is the period of the server log, which journald enforces.
 	LogDays int
 	// Run is the last run that reached the website, nil before the first.
@@ -280,6 +283,9 @@ func (h *Handler) privacyRetentionData(r *http.Request, ws *domain.Website, type
 		LogDays:        web.LogRetentionDays,
 		ReadOnly:       h.readOnly(r),
 		ReadOnlyNotice: readOnlySentence(),
+		// For everybody who may open the screen, not only administrators:
+		// an editor who looks here is told too, and can tell somebody.
+		RetentionWarning: h.retentionWarning(r, loc, ""),
 	}
 	for _, p := range periods {
 		unit := retentionUnitMonths(p.Kind)

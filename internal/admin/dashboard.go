@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -15,6 +16,47 @@ type dashboardData struct {
 	MediaCount   int
 	Websites     []dashboardWebsite
 	RecentPages  []recentPage
+	// RetentionWarning says the retention job has not succeeded for more
+	// than 48 hours (D-05, D-09). Only an administrator is shown it: the
+	// job is the installation's, and so is what has to be done about it.
+	RetentionWarning *retentionWarningView
+}
+
+// retentionWarningView is the warning that the retention job has not
+// succeeded for more than 48 hours (D-05, D-09), as the dashboard and every
+// Retention screen show it. Nil when the job keeps up.
+type retentionWarningView struct {
+	// LastOK is when the last successful run started, on the reader's
+	// clock; nil when the job never succeeded since it was installed.
+	LastOK *time.Time
+	// Link is a Retention screen to open, "" on the screen itself.
+	Link string
+}
+
+// retentionWarning asks the job's state and returns the warning, nil when
+// the job keeps up. loc is the clock the date is shown on.
+//
+// A failure to read the state is not an error page: the dashboard is where
+// an administrator lands after signing in, and a screen that does not open
+// warns nobody. It is logged, and the screen shows no warning.
+func (h *Handler) retentionWarning(r *http.Request, loc *time.Location, link string) *retentionWarningView {
+	if h.dataRights == nil {
+		return nil
+	}
+	st, err := h.dataRights.RetentionStatus(r.Context(), time.Now())
+	if err != nil {
+		slog.Error("retention status", "err", err)
+		return nil
+	}
+	if !st.Overdue {
+		return nil
+	}
+	v := &retentionWarningView{Link: link}
+	if st.LastOK != nil {
+		t := st.LastOK.In(loc)
+		v.LastOK = &t
+	}
+	return v
 }
 
 // dashboardWebsite holds per-website stats for the dashboard.
@@ -157,6 +199,17 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) error 
 		MediaCount:   mediaCount,
 		Websites:     websites,
 		RecentPages:  recentPages,
+	}
+	if h.isAdmin(r) {
+		// The first website on the screen, for its Retention screen: every
+		// one shows the same warning and the job's last run.
+		link := ""
+		if len(websites) > 0 {
+			link = privacyRetentionAddress(websites[0].ID)
+		}
+		// The dashboard belongs to no website and so to no website's clock;
+		// the date is given in UTC and says so.
+		data.RetentionWarning = h.retentionWarning(r, time.UTC, link)
 	}
 	data.ActiveNav = "dashboard"
 	return web.RenderAdmin(w, h.templates, r, "dashboard", data)

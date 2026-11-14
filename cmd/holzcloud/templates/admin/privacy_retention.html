@@ -17,6 +17,7 @@
 {{end}}
 
 {{define "privacy_retention-content"}}
+{{template "retention_warning" .RetentionWarning}}
 <div class="card" id="retention-run" style="margin-bottom: var(--space-3);">
     <h2>{{t "Last run"}}</h2>
     {{with .Run}}

@@ -3,6 +3,7 @@
 {{end}}
 
 {{define "dashboard-content"}}
+{{template "retention_warning" .RetentionWarning}}
 {{if eq .Stage "alpha"}}
 <div class="alpha-notice" role="note">
     <strong>{{t "holzcloud-CMS is alpha software."}}</strong>

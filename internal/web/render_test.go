@@ -184,6 +184,12 @@ type testDashboard struct {
 		Title, WebsiteName string
 		UpdatedAt          time.Time
 	}
+	// RetentionWarning is the 48-hour warning of the retention job; nil
+	// shows none.
+	RetentionWarning *struct {
+		LastOK *time.Time
+		Link   string
+	}
 }
 
 // The real templates, rendered in both languages.
