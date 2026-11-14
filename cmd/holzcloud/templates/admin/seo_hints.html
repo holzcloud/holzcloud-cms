@@ -32,7 +32,7 @@
 {{else if eq .Code "draft"}}{{t "The page is not published, so nobody can find it yet."}}
 {{else if eq .Code "no-featured-image"}}{{t "The page has no preview image. Links shared on social networks show a plain card without one."}}
 {{else if eq .Code "unknown-value"}}{{tf "The text uses the value “%s”, which this website does not have. Visitors see nothing in its place. Create it under Values, or correct the key." .Detail}}
-{{else if eq .Code "value-outside-text"}}{{tf "The title or the description for search engines contains the placeholder for “%s”. Values are only replaced in the text of a page, so it is shown there as written. Write the text there instead." .Detail}}
+{{else if eq .Code "value-outside-text"}}{{tf "The title or the description for search engines contains the placeholder for “%s”. Values are only replaced in the text of a page, a snippet or a product description, so it is shown there as written. Write the text there instead." .Detail}}
 {{else if eq .Code "value-followed-by-paren"}}{{tf "The placeholder for “%s” is followed directly by a bracket, which turns it into a link and loses the value. Put a space after it." .Detail}}
 {{else if eq .Code "value-starts-link"}}{{tf "A link address starts with the placeholder for “%s”, so the link has lost its address. Start the address with / or a folder, for example /releases/v…" .Detail}}
 {{else}}{{.Code}}{{end}}{{end}}

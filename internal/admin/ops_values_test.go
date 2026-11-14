@@ -193,6 +193,11 @@ func TestDeleteValueNeedsConfirmAndRefusesAValueInUse(t *testing.T) {
 	if !strings.Contains(reason, "Contact (fr)") {
 		t.Fatalf("the refusal does not name the page: %s", reason)
 	}
+	// A product or a snippet keeps a value too, so the refusal does not call
+	// its users pages (IN-01 of the second phase 33 review).
+	if !strings.Contains(reason, "these pages, products or snippets") {
+		t.Fatalf("the refusal calls every user a page: %s", reason)
+	}
 	if mcpValueTexts(r, r.site)["telefon"] == "" {
 		t.Fatal("a value in use was deleted")
 	}

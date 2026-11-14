@@ -243,8 +243,8 @@ func (h *Handler) screenValueListData(r *http.Request, websiteID int64, websiteN
 
 // HandleValueDelete removes a value nobody names any more.
 //
-// A value a page or a snippet still names is refused, and the refusal names
-// them (D-02): deleting it would empty every sentence that says it, and the
+// A value a page, a product or a snippet still names is refused, and the
+// refusal names them (D-02): deleting it would empty every sentence that says it, and the
 // editor would hear of it from a visitor. There is no "delete anyway" — the
 // placeholders go first. The store makes the check and the delete one
 // statement, so a page saved in between cannot slip through.
@@ -283,11 +283,11 @@ func (h *Handler) HandleValueDelete(w http.ResponseWriter, r *http.Request) erro
 	switch {
 	case errors.As(err, &inUse):
 		web.SetFlashError(h.sm, r.Context(), web.Titlef(r,
-			"The value is still used on: %s. Remove the placeholders from those pages first.",
+			"The value is still used on: %s. Remove the placeholders there first.",
 			strings.Join(inUse.Users, ", ")))
 		return h.redirect(w, r, back)
 	case errors.Is(err, value.ErrChangedMeanwhile):
-		web.SetFlashError(h.sm, r.Context(), "The pages changed while the value was being deleted. Please try again.")
+		web.SetFlashError(h.sm, r.Context(), "The pages, products or snippets changed while the value was being deleted. Please try again.")
 		return h.redirect(w, r, back)
 	case errors.Is(err, value.ErrNotFound):
 		http.NotFound(w, r)

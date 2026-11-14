@@ -8,7 +8,7 @@
 {{if .ReadOnly}}{{template "read_only_notice" .}}{{end}}
 <div class="card" style="margin-bottom: var(--space-3);">
     <p class="text-muted">
-        {{th "A value is a short text this website keeps once, such as a version number or a phone number. Write <code>[[wert:key]]</code> into the text of a page – in a sentence, a heading, a list or a link address – and the page shows the value there. A change reaches every page at once, and the value is the same in every language. Page titles, descriptions for search engines and menu entries show the placeholder as it is written."}}
+        {{th "A value is a short text this website keeps once, such as a version number or a phone number. Write <code>[[wert:key]]</code> into the text of a page, a snippet or a product description – in a sentence, a heading, a list or a link address – and the value is shown there. A change reaches every page and product at once, and the value is the same in every language. Anywhere else, such as a title, a description for search engines or a menu entry, the placeholder is shown as it is written; the card “Not replaced here” lists each such place."}}
     </p>
 </div>
 
@@ -114,7 +114,7 @@
 {{if .Undefined}}
 <div class="card" style="margin-top: var(--space-3);">
     <h2>{{t "Used but not defined"}}</h2>
-    <p class="text-muted">{{t "These pages name a value this website does not have. Visitors see nothing in its place."}}</p>
+    <p class="text-muted">{{t "These pages, products and snippets name a value this website does not have. Visitors see nothing in its place."}}</p>
     <table class="table">
         <thead>
             <tr>
@@ -143,7 +143,7 @@
 {{if .Outside}}
 <div class="card" style="margin-top: var(--space-3);">
     <h2>{{t "Not replaced here"}}</h2>
-    <p class="text-muted">{{t "Values are replaced in the text of a page only. Here the placeholder is shown as it is written:"}}</p>
+    <p class="text-muted">{{t "Values are replaced in the text of a page, a snippet and a product description only. Here the placeholder is shown as it is written:"}}</p>
     <table class="table">
         <thead>
             <tr>

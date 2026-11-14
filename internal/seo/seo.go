@@ -68,8 +68,9 @@ const (
 	// value with that key. Detail is the key.
 	CodeUnknownValue = "unknown-value"
 	// CodeValueOutsideText: a [[wert:key]] in the title or the description for
-	// search engines. Values are replaced in the text of a page only, so it is
-	// shown there as written. Detail is the key.
+	// search engines. Values are replaced in the text of a page, a snippet and
+	// a product description only, so it is shown there as written. Detail is
+	// the key.
 	CodeValueOutsideText = "value-outside-text"
 	// CodeValueBeforeParen: a [[wert:key]] directly followed by "(". Markdown
 	// reads that as a link whose text is [wert:key], so the value is lost.
@@ -412,7 +413,7 @@ func Analyze(in Input) []Finding {
 			}
 		}
 	}
-	// Values are replaced in the text of a page only, not in its title or its
+	// Values are replaced in the text of a page, not in its title or its
 	// description, so a placeholder there reaches search results as written.
 	for _, k := range in.ValuesOutsideText {
 		add(CodeValueOutsideText, SeverityWarn, 0, k)

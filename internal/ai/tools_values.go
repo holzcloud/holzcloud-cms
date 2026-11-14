@@ -280,11 +280,11 @@ func deleteValue(d Deps) Tool {
 			var inUse *value.InUseError
 			switch {
 			case errors.As(err, &inUse):
-				return nil, fmt.Errorf("the value is still used on these pages: %s. Remove the "+
-					"placeholders from them first", strings.Join(inUse.Users, ", "))
+				return nil, fmt.Errorf("the value is still used by these pages, products or snippets: "+
+					"%s. Remove the placeholders from them first", strings.Join(inUse.Users, ", "))
 			case errors.Is(err, value.ErrChangedMeanwhile):
-				return nil, errors.New("the pages changed while the value was being deleted: " +
-					"call delete_value again")
+				return nil, errors.New("the pages, products or snippets naming the value changed " +
+					"while it was being deleted: call delete_value again")
 			case errors.Is(err, value.ErrNotFound):
 				return nil, noValue(a.Key)
 			case err != nil:

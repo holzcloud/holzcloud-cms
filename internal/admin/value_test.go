@@ -194,7 +194,7 @@ func TestDeletingAValueInUseIsRefusedAndNamesThePages(t *testing.T) {
 	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != list {
 		t.Errorf("in use: status %d to %q, want 303 to the list", rec.Code, rec.Header().Get("Location"))
 	}
-	want := "The value is still used on: Page B (fr), Fuss [[snippet:fuss]]. Remove the placeholders from those pages first."
+	want := "The value is still used on: Page B (fr), Fuss [[snippet:fuss]]. Remove the placeholders there first."
 	if bad != want {
 		t.Errorf("in use: flash %q, want %q", bad, want)
 	}
@@ -332,8 +332,10 @@ func TestTheScreenShowsUseUndefinedAndNotReplaced(t *testing.T) {
 	route := websiteRoute(ws.ID)
 
 	body := getAs(t, sm, putUser(sm, publisher), h.HandleValueList, list, route)
+	// The heading, not the words: the intro names the card "Not replaced
+	// here" whether it is shown or not.
 	for _, card := range []string{"Used but not defined", "Not replaced here"} {
-		if strings.Contains(body, card) {
+		if strings.Contains(body, "<h2>"+card+"</h2>") {
 			t.Errorf("an empty website shows the card %q", card)
 		}
 	}
@@ -396,6 +398,14 @@ func TestTheScreenShowsUseUndefinedAndNotReplaced(t *testing.T) {
 	undefined = screenValueCard(t, body, "Used but not defined")
 	if !strings.Contains(undefined, fmt.Sprintf(`href="/admin/websites/%d/produkte/%d">Tisch</a>`, ws.ID, productID)) {
 		t.Errorf("the product naming the undefined key is not linked to its editor:\n%s", undefined)
+	}
+	// The card lists products and snippets beside pages, and says so (IN-01
+	// of the second phase 33 review).
+	if !strings.Contains(undefined, "These pages, products and snippets name a value this website does not have.") {
+		t.Errorf("the card speaks of pages only:\n%s", undefined)
+	}
+	if !strings.Contains(outside, "Values are replaced in the text of a page, a snippet and a product description only.") {
+		t.Errorf("the card \"Not replaced here\" speaks of pages only:\n%s", outside)
 	}
 
 	// A product's title and subtitle print as written, like a page title, and
