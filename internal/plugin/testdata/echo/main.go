@@ -96,6 +96,11 @@ func handle(ptr, hookLen, totalLen int32) uint64 {
 	case "request":
 		res = map[string]any{"handled": false}
 
+	case "privacy":
+		// A find that writes, which the host must refuse and report.
+		ruf("store.set", map[string]any{"key": "privacy", "value": "written"})
+		res = map[string]any{"records": []any{}}
+
 	case "admin":
 		// A screen that writes on a GET, the way a simple screen's "delete"
 		// link does, and one whose HTML closes a fieldset it never opened.

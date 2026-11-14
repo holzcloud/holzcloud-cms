@@ -208,6 +208,18 @@ const (
 	// HookEvent is told that something happened. It cannot change the outcome,
 	// which is what makes it safe to run after the fact.
 	HookEvent = "event"
+	// HookPrivacy answers the operator's questions about one person's data
+	// (Phase 33.2): which records belong to an address, erase them, correct
+	// one field, delete what is older than the retention period. The four
+	// operations are the Privacy* constants in abi.go.
+	//
+	// A hook rather than the host reading plugin_store, because the plugin is
+	// the only one who knows the shape of what it stored. A plugin that keeps
+	// data for a website and does not declare this hook is named on the
+	// Privacy screen as not searched, with how many entries it holds — never
+	// silently left out. find runs read-only: the host refuses its writes and
+	// treats an attempted one as a failed answer.
+	HookPrivacy = "privacy"
 )
 
 // Permissions a plugin can ask for.
@@ -280,6 +292,7 @@ var (
 	knownHooks = map[string]bool{
 		HookContent: true, HookRequest: true, HookRoute: true,
 		HookAdmin: true, HookEvent: true, HookNotFound: true,
+		HookPrivacy: true,
 	}
 	knownPermissions = map[string]bool{
 		PermStore: true, PermPagesRead: true, PermPagesWrite: true,

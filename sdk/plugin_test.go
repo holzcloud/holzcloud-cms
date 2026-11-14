@@ -13,6 +13,7 @@ import (
 
 func reset() {
 	onContent, onRequest, onRoute, onAdmin, onEvent = nil, nil, nil, nil, nil
+	onPrivacy = nil
 	warned = false
 	SetTestHost(nil)
 }
@@ -188,5 +189,59 @@ func TestTheEventHookGetsTheData(t *testing.T) {
 	}
 	if seen.Name != EventNotFound || seen.Data["path"] != "/alte-seite" {
 		t.Errorf("event: %+v", seen)
+	}
+}
+
+// The privacy hook (Phase 33.2) carries the host's question in and the
+// plugin's records out, under the JSON names the host reads. A plugin that
+// registered nothing for it answers nothing, the same as any other hook.
+func TestPrivacyIsDispatched(t *testing.T) {
+	reset()
+	var seen PrivacyIn
+	OnPrivacy(func(in PrivacyIn) (PrivacyOut, error) {
+		seen = in
+		return PrivacyOut{
+			Records: []PrivacyRecord{{
+				Key: "nachricht:1", Kind: PrivacyKindFormSubmission, Label: "Message",
+				Time:        "2026-11-14T10:00:00Z",
+				Fields:      []PrivacyField{{Name: "email", Label: "E-mail", Value: "ada@example.com"}},
+				Correctable: []string{"name", "email"}, MediaIDs: []int64{7}, Erased: true,
+			}},
+			Deleted:  2,
+			Kept:     []PrivacyKept{{Key: "bestellung:1", Fields: []string{"name"}, Until: "2035-01-01T00:00:00Z"}},
+			MediaIDs: []int64{7, 8},
+			More:     true,
+		}, nil
+	})
+
+	in := []byte(`{"op":"find","email":"ada@example.com","keys":["a"],"key":"k","field":"email",` +
+		`"value":"v","kind":"order","before":"2025-01-01T00:00:00Z","retain_until":"2035-01-01T00:00:00Z","limit":5}`)
+	raw, err := Dispatch("privacy", in)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	want := PrivacyIn{Op: PrivacyFind, Email: "ada@example.com", Keys: []string{"a"}, Key: "k",
+		Field: "email", Value: "v", Kind: PrivacyKindOrder, Before: "2025-01-01T00:00:00Z",
+		RetainUntil: "2035-01-01T00:00:00Z", Limit: 5}
+	if seen.Op != want.Op || seen.Email != want.Email || len(seen.Keys) != 1 || seen.Key != want.Key ||
+		seen.Field != want.Field || seen.Value != want.Value || seen.Kind != want.Kind ||
+		seen.Before != want.Before || seen.RetainUntil != want.RetainUntil || seen.Limit != want.Limit {
+		t.Errorf("the handler saw %+v, want %+v", seen, want)
+	}
+	for _, tag := range []string{`"records":[`, `"key":"nachricht:1"`, `"kind":"form_submission"`,
+		`"label":"Message"`, `"time":"2026-11-14T10:00:00Z"`, `"fields":[{"name":"email","label":"E-mail","value":"ada@example.com"}]`,
+		`"correctable":["name","email"]`, `"media_ids":[7]`, `"erased":true`, `"deleted":2`,
+		`"kept":[{"key":"bestellung:1","fields":["name"],"until":"2035-01-01T00:00:00Z"}]`,
+		`"media_ids":[7,8]`, `"more":true`} {
+		if !strings.Contains(string(raw), tag) {
+			t.Errorf("the answer lacks %s: %s", tag, raw)
+		}
+	}
+
+	reset()
+	OnContent(func(ContentIn) (ContentOut, error) { return ContentOut{}, nil })
+	raw, err = Dispatch("privacy", []byte(`{"op":"find","email":"ada@example.com"}`))
+	if err != nil || raw != nil {
+		t.Errorf("with no privacy handler: raw=%q err=%v", raw, err)
 	}
 }

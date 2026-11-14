@@ -544,3 +544,112 @@ const (
 	EventMediaAdded   = "media.added"
 	EventFormReceived = "form.received"
 )
+
+// The privacy hook's operations (Phase 33.2, D-09). The host asks; only the
+// plugin knows the shape of what it stored, so only the plugin can answer.
+const (
+	// PrivacyFind returns the records that belong to an address, in any
+	// letter case. The host runs it read-only (see Manager.Privacy).
+	PrivacyFind = "find"
+	// PrivacyErase removes the records under Keys — keys the plugin's own
+	// find returned — or reduces them to what the law asks to keep, and says
+	// what it kept and until when.
+	PrivacyErase = "erase"
+	// PrivacyCorrect sets one field of one record.
+	PrivacyCorrect = "correct"
+	// PrivacyExpire deletes the records of one kind that came in before
+	// Before, at most Limit of them per call.
+	PrivacyExpire = "expire"
+)
+
+// The kinds a privacy record belongs to. They are the retention kinds of
+// internal/dsr: the operator's period for the kind decides when expire runs.
+const (
+	PrivacyKindFormSubmission = "form_submission"
+	PrivacyKindOrder          = "order"
+)
+
+// PrivacyIn is the host's question to the privacy hook. Op says which
+// operation; the other fields are the ones that operation reads.
+//
+// Times are RFC 3339 in UTC.
+type PrivacyIn struct {
+	Op string `json:"op"`
+	// Email is what find looks for, trimmed by the host.
+	Email string `json:"email,omitempty"`
+	// Keys are the records erase removes. The host only passes keys the
+	// plugin's own find returned; the plugin still refuses one that is not
+	// among its records, before it deletes anything.
+	Keys []string `json:"keys,omitempty"`
+	// Key, Field and Value are correct's: one record, one field, the new
+	// value.
+	Key   string `json:"key,omitempty"`
+	Field string `json:"field,omitempty"`
+	Value string `json:"value,omitempty"`
+	// Kind and Before are expire's: the records of this kind that came in
+	// before this point in time.
+	Kind   string `json:"kind,omitempty"`
+	Before string `json:"before,omitempty"`
+	// RetainUntil is the date until which a record that erase reduces rather
+	// than deletes has to be kept, computed by the host from the website's
+	// own retention period. The plugin stores it with the record, so the
+	// answer given to the person stays true when the period changes later.
+	RetainUntil string `json:"retain_until,omitempty"`
+	// Limit bounds expire. A plugin caps it itself as well, so that one call
+	// stays inside CallTimeout; More in the answer says there is more to do.
+	Limit int `json:"limit,omitempty"`
+}
+
+// PrivacyField is one value of a record.
+type PrivacyField struct {
+	// Name is the stable key the export uses ("name", "email").
+	Name string `json:"name"`
+	// Label is what the screen shows, already in the operator's language.
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+// PrivacyRecord is one thing a plugin keeps about the person.
+type PrivacyRecord struct {
+	// Key is the plugin's storage key, unique within the plugin and website.
+	Key string `json:"key"`
+	// Kind is one of the PrivacyKind constants.
+	Kind  string `json:"kind"`
+	Label string `json:"label"`
+	// Time is when the record came in.
+	Time   string         `json:"time"`
+	Fields []PrivacyField `json:"fields,omitempty"`
+	// Correctable names the fields correct accepts for this record.
+	Correctable []string `json:"correctable,omitempty"`
+	// MediaIDs are files that belong to the record. They are a claim, not a
+	// fact: the host checks each against the website before it deletes
+	// anything (media.Store.DeleteOwned), so a plugin cannot reach another
+	// website's file by naming its id.
+	MediaIDs []int64 `json:"media_ids,omitempty"`
+	// Erased marks a record already reduced to what the law asks to keep.
+	Erased bool `json:"erased,omitempty"`
+}
+
+// PrivacyKept is a record erase reduced instead of deleting.
+type PrivacyKept struct {
+	Key string `json:"key"`
+	// Fields are the stable names of what stayed.
+	Fields []string `json:"fields"`
+	// Until is the date the plugin stored with the record.
+	Until string `json:"until"`
+}
+
+// PrivacyOut is the plugin's answer. Each operation fills its own part.
+type PrivacyOut struct {
+	// Records are find's answer, and correct's record as it now stands.
+	Records []PrivacyRecord `json:"records,omitempty"`
+	// Deleted counts the records erase or expire removed.
+	Deleted int `json:"deleted,omitempty"`
+	// Kept lists the records erase reduced.
+	Kept []PrivacyKept `json:"kept,omitempty"`
+	// MediaIDs are the files of the removed records, for the host to delete —
+	// a claim like PrivacyRecord.MediaIDs, checked the same way.
+	MediaIDs []int64 `json:"media_ids,omitempty"`
+	// More is expire saying it stopped at the limit and there is more.
+	More bool `json:"more,omitempty"`
+}

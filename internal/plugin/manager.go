@@ -391,6 +391,54 @@ func (m *Manager) Emit(name string, websiteID int64, data map[string]string) {
 	}()
 }
 
+// ErrNotServed is Privacy asked of a plugin that does not answer the privacy
+// hook on the website: not installed, switched off, not on the website, or
+// without the hook in its manifest.
+var ErrNotServed = errors.New("the plugin does not answer the privacy hook on this website")
+
+// ErrWroteDuringFind is a plugin that tried to change its store while it was
+// only asked to find. The write was refused; the answer is not trusted.
+var ErrWroteDuringFind = errors.New("the plugin tried to write while it was asked to find")
+
+// privacyOps are the operations Privacy passes on.
+var privacyOps = map[string]bool{
+	PrivacyFind: true, PrivacyErase: true, PrivacyCorrect: true, PrivacyExpire: true,
+}
+
+// Privacy asks one plugin one privacy question (Phase 33.2, D-09).
+//
+// Synchronous, unlike Emit, because the answer is the point: the operator is
+// waiting for a person's records, an erasure or a retention run. And every
+// error is returned rather than swallowed as the other hooks do, because a
+// privacy answer that silently lost a plugin would look complete — the
+// operator would hand a person an answer with their contact-form messages
+// missing and never know.
+//
+// find runs inside ReadOnly: a plugin that tries to write while it is only
+// asked to look is refused the write, and its answer is ErrWroteDuringFind
+// rather than records. Each call is bounded by CallTimeout like every hook;
+// expire answers in batches for that reason (PrivacyIn.Limit).
+func (m *Manager) Privacy(ctx context.Context, websiteID int64, id string, in PrivacyIn) (*PrivacyOut, error) {
+	if !m.Serves(id, HookPrivacy, websiteID) {
+		return nil, fmt.Errorf("%w: %s", ErrNotServed, id)
+	}
+	if !privacyOps[in.Op] {
+		return nil, fmt.Errorf("unknown privacy operation %q", in.Op)
+	}
+	var tried func() bool
+	if in.Op == PrivacyFind {
+		ctx, tried = ReadOnly(ctx)
+	}
+	var out PrivacyOut
+	if err := m.rt.Dispatch(ctx, id, HookPrivacy, websiteID, in, &out); err != nil {
+		return nil, err
+	}
+	if tried != nil && tried() {
+		return nil, fmt.Errorf("%w: %s", ErrWroteDuringFind, id)
+	}
+	return &out, nil
+}
+
 // --- lifecycle --------------------------------------------------------------
 
 // Install reads an uploaded archive, writes it to disk and records it.
