@@ -50,6 +50,7 @@
 "Remove the block kind “%s”? Blocks of this kind disappear from the pages the next time each one is saved.": "Bausteinart «%s» entfernen? Bausteine dieser Art verschwinden von den Seiten, sobald diese das nächste Mal gespeichert werden.",
 "Remove the field “%s”? What was filled in stays on the pages.": "Feld «%s» entfernen? Das Ausgefüllte bleibt an den Seiten stehen.",
 "Remove the view “%s”": "Ansicht «%s» entfernen",
+"Requests sent through the “Do Not Sell or Share” page of this website. The website sells and shares no personal information; record that you answered by marking a request handled.": "Widersprüche, die über die Seite «Do Not Sell or Share» dieser Website eingegangen sind. Die Website verkauft und teilt keine personenbezogenen Daten; halte fest, dass du geantwortet hast, indem du einen Widerspruch als erledigt markierst.",
 "Shows the page to somebody without an account — even as a draft. So nothing has to be published “briefly” for a client to take a look.": "Zeigt die Seite jemandem ohne Zugang – auch als Entwurf. So muss nichts «kurz» veröffentlicht werden, damit ein Kunde draufschaut.",
 "Snippet “%s” – %s": "Textbaustein «%s» – %s",
 "Start with “read only”. A key that cannot change anything never even sees the tools for changing things.": "Fang mit «nur lesen» an. Ein Schlüssel, der nichts ändern kann, bekommt die Werkzeuge zum Ändern gar nicht erst zu sehen.",

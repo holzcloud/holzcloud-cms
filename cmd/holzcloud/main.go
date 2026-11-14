@@ -298,6 +298,8 @@ func main() {
 	// including cmd/holzcloud/main_test.go.
 	adminHandler.SetAlbumStore(albumStore)
 	adminHandler.SetValueStore(valueStore)
+	// The Opt-outs screen reads what the public form writes.
+	adminHandler.SetRequestStore(requestStore)
 	adminHandler.SetWording(wordingStore)
 	adminHandler.SetProductStore(productStore)
 	adminHandler.SetOrderStore(orderStore)
@@ -1167,6 +1169,10 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// Invoice and delivery note for printing. A page of its own without the
 	// admin's navigation, which has no business on paper.
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/bestellungen/{number}/{kind}", adminHandler.ErrHandler(adminHandler.HandleOrderDocument))
+	// The opt-outs a US website's "Do Not Sell or Share" page took. Open to
+	// everybody with access to the website, like the order book: nothing here
+	// publishes, and nothing here deletes (phase 33.1 D-14).
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/widersprueche", adminHandler.ErrHandler(adminHandler.HandleOptOutList))
 	adminProtectedMux.Handle("GET /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	// A website's own mail account. Admins only: it holds a password, and

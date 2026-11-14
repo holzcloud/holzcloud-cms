@@ -17,6 +17,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/config"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
@@ -90,6 +91,8 @@ func newTestAdmin(t *testing.T) (*Handler, *scs.SessionManager, *db.DB, *domain.
 	// The real wiring, as main.go has it, so a test of the values screen or a
 	// preview that resolves values does not meet a nil store.
 	h.SetValueStore(value.NewStore(database))
+	// The opt-out screen reads the store the public form writes.
+	h.SetRequestStore(dsr.NewStore(database))
 
 	return h, sm, database, ws
 }
