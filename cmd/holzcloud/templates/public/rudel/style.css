@@ -2287,7 +2287,7 @@ main:focus { outline: none; }
   font-size: var(--hc-text-sm); font-weight: var(--hc-weight-medium);
   color: var(--hc-ink);
 }
-.contact-form input, .contact-form textarea {
+.contact-form input, .contact-form select, .contact-form textarea {
   width: 100%;
   padding: 11px var(--hc-space-4);
   font: inherit; font-size: var(--hc-text-sm);
@@ -2297,7 +2297,7 @@ main:focus { outline: none; }
   border-radius: var(--hc-r-sm);
   transition: border-color var(--hc-dur-fast) var(--hc-ease);
 }
-.contact-form input:hover, .contact-form textarea:hover { border-color: var(--hc-wald-soft); }
+.contact-form input:hover, .contact-form select:hover, .contact-form textarea:hover { border-color: var(--hc-wald-soft); }
 .contact-form textarea { min-height: 7lh; resize: vertical; }
 /* Getrieben von genau der Eigenschaft, die die Vorlesesoftware liest. */
 .contact-form [aria-invalid="true"] { border-color: var(--hc-danger); }

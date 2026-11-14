@@ -98,7 +98,8 @@
             {{range .Requests}}
             <tr>
                 <td style="white-space:nowrap">
-                    <span class="text-muted">{{.CreatedAt.Format "02.01.2006 15:04 MST"}}</span><br>
+                    {{/* Von Hand erfasst ist nur der Tag bekannt, nicht die Uhrzeit. */}}
+                    <span class="text-muted">{{if eq .Manner "form"}}{{.CreatedAt.Format "02.01.2006 15:04 MST"}}{{else}}{{.CreatedAt.Format "02.01.2006"}}{{end}}</span><br>
                     <small class="text-muted">{{t .MannerName}}{{if .Language}} · {{t .Language}}{{end}}</small>
                 </td>
                 <td style="white-space:nowrap">{{t .KindName}}</td>
@@ -126,9 +127,12 @@
                     {{/* Keine Bestätigung: eine Antwort festhalten entfernt nichts. */}}
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/datenschutz/anfragen/{{.ID}}/antwort" class="privacy-answer">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
-                        <label class="form-label" for="outcome-{{.ID}}">{{t "Answer"}}</label>
-                        <select id="outcome-{{.ID}}" name="outcome" class="form-input"
+                        <label class="sr-only" for="outcome-{{.ID}}">{{t "Answer"}}</label>
+                        {{/* Nichts vorgewählt: die Antwort lässt sich nur einmal festhalten,
+                             und ein Klick ohne Wahl soll nicht „Erfüllt“ eintragen. */}}
+                        <select id="outcome-{{.ID}}" name="outcome" class="form-input" required
                                 {{if and $mine $.Errors.outcome}}aria-invalid="true" aria-describedby="outcome-{{.ID}}-error"{{end}}>
+                            <option value="">–</option>
                             {{range $.Outcomes}}<option value="{{.Value}}"{{if and $mine (eq .Value $.Answer.Outcome)}} selected{{end}}>{{t .Name}}</option>{{end}}
                         </select>
                         {{if and $mine $.Errors.outcome}}<p class="form-error" id="outcome-{{.ID}}-error">{{t $.Errors.outcome}}</p>{{end}}

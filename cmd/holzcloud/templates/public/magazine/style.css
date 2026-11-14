@@ -710,6 +710,7 @@ main:focus-visible {
 }
 
 .contact-form input,
+.contact-form select,
 .contact-form textarea {
   font: inherit;
   color: inherit;

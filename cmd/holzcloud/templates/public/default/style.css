@@ -1200,6 +1200,7 @@
   }
 
   .contact-form input,
+  .contact-form select,
   .contact-form textarea {
     width: 100%;
     padding: 0.7em 1em;
@@ -1210,6 +1211,7 @@
   }
 
   .contact-form input:focus,
+  .contact-form select:focus,
   .contact-form textarea:focus {
     border-color: var(--brand);
   }

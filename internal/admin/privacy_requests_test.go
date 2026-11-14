@@ -237,10 +237,18 @@ func TestTheAnswerIsRecordedOnce(t *testing.T) {
 			t.Errorf("%s without a basis: the screen does not say what is missing", outcome)
 		}
 	}
-	rec, _, _ := privacyRequestsPost(t, h, sm, editor, h.HandlePrivacyRequestAnswer, target(id),
-		url.Values{"outcome": {"maybe"}}, path(idStr), false)
-	if rec.Code != http.StatusUnprocessableEntity {
-		t.Errorf("outcome maybe: status %d; want 422", rec.Code)
+	for _, outcome := range []string{"maybe", ""} {
+		rec, _, _ := privacyRequestsPost(t, h, sm, editor, h.HandlePrivacyRequestAnswer, target(id),
+			url.Values{"outcome": {outcome}}, path(idStr), false)
+		if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), optoutSays("Please choose how the request was answered.")) {
+			t.Errorf("outcome %q: status %d; want 422 asking to choose", outcome, rec.Code)
+		}
+	}
+	// Nothing is chosen in advance: an answer is recorded once, and a click
+	// without a choice must not record "granted".
+	open := optoutRow(privacyRequestsGet(t, h, sm, ws.ID).Body.String(), "Ada Lovelace")
+	if !strings.Contains(open, `<option value="">`) || strings.Contains(open, " selected") {
+		t.Errorf("the answer form chooses an outcome in advance:\n%s", open)
 	}
 	if got := optoutStored(t, database, ws.ID, id); got.Outcome != "" || got.HandledAt != nil {
 		t.Fatalf("a refused answer was stored: %+v", got)
@@ -373,6 +381,11 @@ func TestARequestByMailIsEnteredByHand(t *testing.T) {
 	row := optoutRow(privacyRequestsGet(t, h, sm, ws.ID).Body.String(), "Per Brief")
 	if !strings.Contains(row, optoutSays("E-mail")) {
 		t.Errorf("the row does not name the manner:\n%s", row)
+	}
+	// Only the day is known of a request entered by hand: no made-up time.
+	shown, _ := time.ParseInLocation("2006-01-02", day, zurich)
+	if !strings.Contains(row, shown.Format("02.01.2006")) || strings.Contains(row, "00:00") {
+		t.Errorf("the row does not show the day alone:\n%s", row)
 	}
 	log := privacyRequestsLog(t, database)
 	if len(log) != 1 || log[0][0] != "privacy.request_add" || log[0][1] != strconv.FormatInt(stored[0].ID, 10) {
