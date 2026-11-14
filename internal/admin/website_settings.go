@@ -11,6 +11,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
+	"github.com/holzcloud/holzcloud-cms/internal/legal"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/structured"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
@@ -91,6 +92,11 @@ func settingsFrom(get func(string) string) domain.Settings {
 	// a repeat and the main language itself all drop out there, so the same
 	// rules hold for a bundle import as for this form.
 	set.ExtraLocales = get("extra_locales")
+	// The legal frameworks arrive as the comma-separated ids the edit handler
+	// joins from the ticked boxes, or as an assistant wrote them. Parsed here so
+	// an unknown id never reaches the store, which normalises again for the
+	// writers that do not come through this reader (the bundle import).
+	set.LegalFrameworks = legal.ParseSet(get("legal_frameworks")).String()
 	return set
 }
 

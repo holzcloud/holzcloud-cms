@@ -81,6 +81,35 @@
             </p>
         </div>
 
+        <fieldset class="form-fieldset">
+            <legend>{{t "Legal frameworks"}}</legend>
+            <input type="hidden" name="legal_frameworks_shown" value="1">
+            <p class="form-hint text-muted">
+                {{t "The privacy page, the imprint and the legal checks of this website follow from this choice. Templates only — they replace no legal advice."}}
+            </p>
+            <div class="form-group">
+                <label class="form-check">
+                    <input type="checkbox" name="legal_frameworks" value="eu"{{if .Website.HasFramework "eu"}} checked{{end}}>
+                    <span class="form-check-label">{{t "European Union (GDPR, ePrivacy)"}}</span>
+                </label>
+                <label class="form-check">
+                    <input type="checkbox" name="legal_frameworks" value="ch"{{if .Website.HasFramework "ch"}} checked{{end}}>
+                    <span class="form-check-label">{{t "Switzerland (revised FADP)"}}</span>
+                </label>
+                <label class="form-check">
+                    <input type="checkbox" name="legal_frameworks" value="uk"{{if .Website.HasFramework "uk"}} checked{{end}}>
+                    <span class="form-check-label">{{t "United Kingdom (UK GDPR, PECR)"}}</span>
+                </label>
+                <label class="form-check">
+                    <input type="checkbox" name="legal_frameworks" value="us"{{if .Website.HasFramework "us"}} checked{{end}}>
+                    <span class="form-check-label">{{t "United States (CCPA/CPRA and other state laws)"}}</span>
+                </label>
+            </div>
+            <p class="form-hint text-muted">
+                {{t "With the United States ticked, the website honours the Global Privacy Control signal and offers a “Do Not Sell or Share” page."}}
+            </p>
+        </fieldset>
+
         <div class="form-row">
             <div class="form-group">
                 <label class="form-label" for="favicon_media_id">{{t "Favicon"}}</label>

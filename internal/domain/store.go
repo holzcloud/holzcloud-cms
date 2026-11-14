@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/legal"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
 )
 
@@ -36,6 +37,7 @@ var websiteFields = []string{
 	"shop_base", "currency", "shipping_gross", "shipping_free_from", "shipping_tax_bp",
 	"price_display", "vat_exempt", "vat_number", "return_policy",
 	"order_email", "payment_details", "confirm_senders",
+	"legal_frameworks",
 }
 
 // websiteColumns renders the projection, optionally qualified with a table
@@ -66,7 +68,8 @@ func scanWebsite(row interface{ Scan(...any) error }) (*Website, error) {
 		&w.TokenInk, &w.TokenPaper, &w.TokenBrand, &w.TokenFont, &w.TokenMeasure, &w.TokenRadius,
 		&w.ShopBase, &w.Currency, &w.ShippingGross, &shippingFreeFrom, &w.ShippingTaxBP,
 		&w.PriceDisplay, &vatExempt, &w.VATNumber, &w.ReturnPolicy,
-		&w.OrderEmail, &w.PaymentDetails, &confirmSenders)
+		&w.OrderEmail, &w.PaymentDetails, &confirmSenders,
+		&w.LegalFrameworks)
 	if err != nil {
 		return nil, err
 	}
@@ -177,6 +180,11 @@ type Settings struct {
 	Country        string
 	Phone          string
 	OpeningHours   string
+	// LegalFrameworks is the set of legal frameworks, as anybody wrote it. The
+	// store writes its canonical form; "" is the empty set and is stored as
+	// such (D-16), so a caller that does not mean to change the set must pass
+	// the stored value back.
+	LegalFrameworks string
 }
 
 // UpdateSettings stores the website options.
@@ -199,6 +207,9 @@ func (s *Store) UpdateSettings(ctx context.Context, id int64, set Settings) erro
 	// language switcher, the check on a page's address — reads this list, and
 	// none of them should have to wonder whether it is trustworthy.
 	set.ExtraLocales = locale.JoinList(locale.ParseList(set.ExtraLocales, set.Locale))
+	// The same parser as the form, the assistant and the bundle; the CHECK of
+	// the column would turn any other spelling into an opaque SQL error.
+	set.LegalFrameworks = legal.ParseSet(set.LegalFrameworks).String()
 
 	_, err := s.DB.Write.ExecContext(ctx,
 		`UPDATE websites SET locale = $1, timezone = $2, meta_description = $3,
@@ -208,16 +219,16 @@ func (s *Store) UpdateSettings(ctx context.Context, id int64, set Settings) erro
 		 notify_email = $12,
 		 org_type = $13, street = $14, postal_code = $15, city = $16,
 		 country = $17, phone = $18, opening_hours = $19, extra_locales = $20,
-		 confirm_senders = $21,
+		 confirm_senders = $21, legal_frameworks = $22,
 		 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-		 WHERE id = $22`,
+		 WHERE id = $23`,
 		set.Locale, set.TimeZone, set.MetaDescription,
 		nullableID(set.FaviconMediaID), nullableID(set.LogoMediaID),
 		boolToInt(set.CanonicalRedirect), set.OfflineMode, set.OfflineMessage,
 		set.BlogBase, set.PostsPerPage, set.ContactEmail, set.NotifyEmail,
 		set.OrgType, set.Street, set.PostalCode, set.City, set.Country,
 		set.Phone, set.OpeningHours, set.ExtraLocales,
-		boolToInt(set.ConfirmSenders), id)
+		boolToInt(set.ConfirmSenders), set.LegalFrameworks, id)
 	if err != nil {
 		return fmt.Errorf("update website settings: %w", err)
 	}

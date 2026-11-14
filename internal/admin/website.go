@@ -319,7 +319,29 @@ func (h *Handler) handleWebsiteEditPost(w http.ResponseWriter, r *http.Request, 
 		return nil
 	}
 
-	if err := h.saveWebsite(r.Context(), id, r.FormValue); err != nil {
+	// The legal frameworks are a group of checkboxes, and r.FormValue hands
+	// back the first ticked box only, so the getter joins all of them. A post
+	// that did not draw the group must not empty the set either: four unticked
+	// boxes and no boxes at all look the same on the wire, which is what the
+	// hidden marker beside them is for. Without it, the stored set stands.
+	stored, err := h.domains.GetWebsite(r.Context(), id)
+	if err != nil {
+		return err
+	}
+	if stored == nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	get := func(k string) string {
+		if k != "legal_frameworks" {
+			return r.FormValue(k)
+		}
+		if r.PostForm.Has("legal_frameworks_shown") {
+			return strings.Join(r.PostForm["legal_frameworks"], ",")
+		}
+		return stored.LegalFrameworks
+	}
+	if err := h.saveWebsite(r.Context(), id, get); err != nil {
 		return err
 	}
 

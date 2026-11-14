@@ -3,6 +3,7 @@ package domain
 import (
 	"time"
 
+	"github.com/holzcloud/holzcloud-cms/internal/legal"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
 )
 
@@ -43,6 +44,12 @@ type Website struct {
 	// addresses that visitors type into it, which is a decision and not a
 	// default.
 	ConfirmSenders bool
+
+	// LegalFrameworks is the set of legal frameworks this website follows, in
+	// the canonical form the store writes: "eu,ch", "us", or "" for none. It is
+	// set per website and seen by no other (D-04); every website starts with
+	// EU + CH (D-05). Read it through Frameworks rather than parsing it again.
+	LegalFrameworks string
 
 	// OfflineMode decides what an inactive website answers: "notfound" (404,
 	// the old behaviour) or "maintenance" (503, which keeps the search index).
@@ -147,6 +154,21 @@ func (w Website) AllLocales() []string {
 	}
 	return out
 }
+
+// Frameworks is the website's set of legal frameworks.
+func (w Website) Frameworks() legal.Set { return legal.ParseSet(w.LegalFrameworks) }
+
+// HasFramework reports whether the website follows the framework with this
+// id. It takes a plain string for the templates, which cannot convert one into
+// a legal.Framework; an id that is not a framework is simply not followed.
+func (w Website) HasFramework(id string) bool {
+	return w.Frameworks().Has(legal.Framework(id))
+}
+
+// HasUSFramework reports whether the website follows the US state privacy
+// laws, which is what switches the "Do Not Sell or Share" page and the
+// honouring of Global Privacy Control on.
+func (w Website) HasUSFramework() bool { return w.Frameworks().Has(legal.US) }
 
 // HasArchive reports whether this website publishes a post archive.
 func (w Website) HasArchive() bool { return w.BlogBase != "" }
