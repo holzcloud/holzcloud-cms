@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -155,6 +156,23 @@ func TestMarkHandledKeepsTheFirstTime(t *testing.T) {
 
 	if err := s.MarkHandled(ctx, ws, id+1000); !errors.Is(err, ErrNotFound) {
 		t.Errorf("MarkHandled(missing) = %v; want ErrNotFound", err)
+	}
+}
+
+// TestTheStoreCannotDelete holds D-14: this phase deletes no request. A US
+// opt-out has to be kept for at least 24 months (CCPA regs § 7101), and when a
+// row may go is Phase 33.2's retention to decide. A method that deletes,
+// added here for convenience, would be the way that rule breaks without
+// anybody deciding it — so its very existence fails the suite.
+func TestTheStoreCannotDelete(t *testing.T) {
+	typ := reflect.TypeOf(&Store{})
+	for i := 0; i < typ.NumMethod(); i++ {
+		name := typ.Method(i).Name
+		for _, verb := range []string{"Delete", "Remove", "Erase", "Purge", "Expire"} {
+			if strings.HasPrefix(name, verb) {
+				t.Errorf("dsr.Store has %s; deleting requests is Phase 33.2's retention, not this store's (D-14)", name)
+			}
+		}
 	}
 }
 

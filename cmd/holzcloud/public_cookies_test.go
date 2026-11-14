@@ -10,12 +10,14 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/money"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
 	"github.com/holzcloud/holzcloud-cms/internal/shop"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
@@ -106,6 +108,7 @@ const (
 	cookieTestProductTitle = "Eichentisch"
 	cookieTestHomeTitle    = "Startseite"
 	cookieTestPostCount    = 12
+	cookieTestOptOutSlug   = "do-not-sell-or-share"
 )
 
 // cookieTestSiteName is the name of the website seeded for one theme.
@@ -181,6 +184,20 @@ func seedThemeSites(t *testing.T, database *db.DB, dataDir string) {
 			 WHERE id = ?`, ws.ID); err != nil {
 			t.Fatalf("%s: switch the shop on: %v", bt.Slug, err)
 		}
+
+		// US in the set and a published "Do Not Sell or Share" page carrying
+		// the opt-out widget, so the matrix sees the widget, gpc.json and the
+		// form on every theme (Pitfall 7).
+		if _, err := database.Write.ExecContext(ctx,
+			`UPDATE websites SET legal_frameworks = 'eu,ch,us' WHERE id = ?`, ws.ID); err != nil {
+			t.Fatalf("%s: choose the frameworks: %v", bt.Slug, err)
+		}
+		if _, err := pages.CreatePage(ctx, page.PageCreate{
+			WebsiteID: ws.ID, Title: "Do Not Sell or Share", Slug: cookieTestOptOutSlug, Kind: "page",
+			Status: "published", Markdown: "[[widerspruch]]", HTML: "<p>[[widerspruch]]</p>",
+		}); err != nil {
+			t.Fatalf("%s: CreatePage %s: %v", bt.Slug, cookieTestOptOutSlug, err)
+		}
 		for _, p := range []struct{ slug, title string }{
 			{cookieTestProductSlug, cookieTestProductTitle},
 			{"stuhl", "Eichenstuhl"},
@@ -219,6 +236,12 @@ type publicGet struct {
 //
 // Statuses are exact. An address that answers 404 where content is expected
 // would make the whole test vacuous, so there is no "anything".
+//
+// The "Do Not Sell or Share" page and /.well-known/gpc.json are here because
+// every seeded website follows US law, and the matrix runs twice — once
+// with Sec-GPC: 1 on every request — because a visitor whose browser sends
+// the signal must not be treated differently beyond the widget's status line,
+// least of all with a cookie (D-12, D-03).
 var publicGetMatrix = []publicGet{
 	{"/", []int{200}, cookieTestHomeTitle},
 	{"/ueber-uns", []int{200}, cookieTestSearchWord},
@@ -246,25 +269,39 @@ var publicGetMatrix = []publicGet{
 	{"/t/style.css", []int{200}, ""},
 	{"/bestellung/unbekannt", []int{404}, ""},
 	{"/zahlung/zurueck/unbekannt", []int{404}, ""},
+	{"/do-not-sell-or-share", []int{200}, "data-hc-optout"},
+	{"/.well-known/gpc.json", []int{200}, `"gpc"`},
 }
 
 // lastMatrixRun holds the theme slugs the matrix ran, for the coverage test.
 var lastMatrixRun []string
 
 // runPublicGetMatrix visits every address of the matrix on one website per
-// shipped theme and returns the theme slugs it ran.
-func runPublicGetMatrix(t *testing.T) []string {
+// shipped theme and returns the theme slugs it ran. Every request carries the
+// headers given, if any.
+func runPublicGetMatrix(t *testing.T, hdrs ...http.Header) []string {
 	t.Helper()
 	handler, _, _ := testRouterWith(t, routerTweaks{
 		shop: true, secure: true, searchPlugin: true, seed: seedThemeSites,
 	})
+
+	withHeaders := func(req *http.Request) *http.Request {
+		for _, hdr := range hdrs {
+			for k, vs := range hdr {
+				for _, v := range vs {
+					req.Header.Add(k, v)
+				}
+			}
+		}
+		return req
+	}
 
 	var ran []string
 	for _, bt := range tmpl.BuiltinTemplates {
 		ran = append(ran, bt.Slug)
 		t.Run(bt.Slug, func(t *testing.T) {
 			for _, g := range publicGetMatrix {
-				req := httptest.NewRequest(http.MethodGet, g.path, nil)
+				req := withHeaders(httptest.NewRequest(http.MethodGet, g.path, nil))
 				req.Host = bt.Slug + ".test"
 				rec := httptest.NewRecorder()
 				handler.ServeHTTP(rec, req)
@@ -283,7 +320,7 @@ func runPublicGetMatrix(t *testing.T) []string {
 
 			// A 200 from an error page would pass the status check above, so
 			// the start page must show the website it belongs to.
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req := withHeaders(httptest.NewRequest(http.MethodGet, "/", nil))
 			req.Host = bt.Slug + ".test"
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
@@ -302,6 +339,49 @@ func runPublicGetMatrix(t *testing.T) []string {
 // fails here, and not in a complaint.
 func TestNoPublicGetSetsACookie(t *testing.T) {
 	lastMatrixRun = runPublicGetMatrix(t)
+}
+
+// The same matrix with the Global Privacy Control signal on every request.
+// Honouring it changes the widget's status line and nothing else (D-12), and
+// above all it sets nothing (D-03).
+func TestNoPublicGetSetsACookieWithGPC(t *testing.T) {
+	runPublicGetMatrix(t, http.Header{"Sec-Gpc": {"1"}})
+}
+
+// The opt-out form is the one public POST that must NOT set a cookie — the
+// opposite of the three visitor-triggered cookies below. A request not to be
+// tracked that leaves something behind in the browser would be a joke at the
+// visitor's expense.
+func TestTheOptOutPostSetsNoCookie(t *testing.T) {
+	handler, _, database := testRouterWith(t, routerTweaks{
+		shop: true, secure: true, searchPlugin: true, seed: seedThemeSites,
+	})
+	// The test router's signer, as main_test.go wires it; minted ten seconds
+	// ago so the time trap lets it through.
+	issued := time.Now().Add(-10 * time.Second)
+	stamp := sharelink.New([]byte("optout")).Token(issued.Unix(), issued.Add(12*time.Hour))
+
+	rec := postForm(handler, "default.test", "/widerspruch", url.Values{
+		"seite": {cookieTestOptOutSlug}, "stempel": {stamp}, "name": {"Ada"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("POST /widerspruch: status %d, want 303\n%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); loc != "/"+cookieTestOptOutSlug+"?widerspruch=eingegangen" {
+		t.Errorf("Location = %q; want the page with the recorded notice", loc)
+	}
+	if got := cookieFindings(rec); len(got) != 0 {
+		t.Errorf("POST /widerspruch set a cookie: %q", got)
+	}
+	var n int
+	if err := database.Read.QueryRow(
+		`SELECT COUNT(*) FROM privacy_requests r JOIN websites w ON w.id = r.website_id
+		 WHERE w.name = ? AND r.name = 'Ada'`, cookieTestSiteName("default")).Scan(&n); err != nil {
+		t.Fatalf("count requests: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("%d opt-outs stored on the website; want 1 — a trap caught the test, and the no-cookie check proved nothing", n)
+	}
 }
 
 // A ninth theme directory that is not listed cannot escape the cookie test.

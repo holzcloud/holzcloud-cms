@@ -909,3 +909,74 @@ func TestMigration00063DownAndUp(t *testing.T) {
 		t.Error("the CHECK did not come back: 'EU' was stored")
 	}
 }
+
+// TestMigration00064DownAndUp drives privacy_requests down and up again, and
+// checks the two rules the table carries beside its lengths: a request must
+// say something, and a website's requests go with the website.
+func TestMigration00064DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+	tableExists := func() bool {
+		var n int
+		if err := database.Read.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'privacy_requests'`).
+			Scan(&n); err != nil {
+			t.Fatalf("looking for the table: %v", err)
+		}
+		return n == 1
+	}
+	if !tableExists() {
+		t.Fatal("privacy_requests is not there after the migrations")
+	}
+
+	rollBackTo(t, ctx, provider, 63)
+	if tableExists() {
+		t.Error("privacy_requests survived its own rollback")
+	}
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+	if !tableExists() {
+		t.Fatal("privacy_requests did not come back")
+	}
+
+	res, err := database.Write.ExecContext(ctx,
+		`INSERT INTO websites (name, description) VALUES ('Hofladen', '')`)
+	if err != nil {
+		t.Fatalf("creating a website: %v", err)
+	}
+	site, _ := res.LastInsertId()
+
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO privacy_requests (website_id, kind, name, email, note, gpc)
+		 VALUES (?, 'optout', '', '', '', 0)`, site); err == nil {
+		t.Error("a request with no name, no address and no signal was stored")
+	}
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO privacy_requests (website_id, kind, gpc) VALUES (?, 'optout', 1)`, site); err != nil {
+		t.Errorf("a request carried by the signal alone was refused: %v", err)
+	}
+
+	if _, err := database.Write.ExecContext(ctx, `DELETE FROM websites WHERE id = ?`, site); err != nil {
+		t.Fatalf("deleting the website: %v", err)
+	}
+	var left int
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM privacy_requests WHERE website_id = ?`, site).Scan(&left); err != nil {
+		t.Fatalf("counting: %v", err)
+	}
+	if left != 0 {
+		t.Errorf("%d requests outlived their website (ON DELETE CASCADE)", left)
+	}
+}
