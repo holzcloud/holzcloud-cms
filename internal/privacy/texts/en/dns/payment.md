@@ -1,0 +1,1 @@
+For the online payment of an order, the payment provider Payrexx, Switzerland, receives the amount, the currency, the order number, your name, e-mail address and postal address, and uses them only to process the payment.
