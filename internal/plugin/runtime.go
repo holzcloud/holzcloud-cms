@@ -26,9 +26,11 @@ import (
 // rather than a dead one.
 const CallTimeout = 2 * time.Second
 
-// LoadTimeout bounds compiling a module and running its _initialize. It is
-// far above what a shipped plugin needs (well under a second) and exists so
-// that a module whose start never returns cannot hold a load for ever.
+// LoadTimeout is the default bound of every Runtime on compiling a module and
+// running its _initialize; the bound itself lives on the Runtime
+// (loadTimeout). It is far above what a shipped plugin needs (well under a
+// second) and exists so that a module whose start never returns cannot hold a
+// load for ever.
 const LoadTimeout = 60 * time.Second
 
 // MemoryPages bounds one instance's linear memory, in 64 KiB pages.
@@ -51,6 +53,12 @@ type Runtime struct {
 	store  *Store
 	log    *slog.Logger
 	engine wazero.Runtime
+
+	// loadTimeout is the bound Load applies. It is LoadTimeout unless a test
+	// in this package shortens it before the first Load. It is a field rather
+	// than a package variable so that one test's short bound cannot race
+	// another test's runtime under go test -race.
+	loadTimeout time.Duration
 
 	mu      sync.RWMutex
 	loaded  map[string]*instance
@@ -155,7 +163,7 @@ func NewRuntime(ctx context.Context, store *Store, log *slog.Logger) (*Runtime, 
 		return nil, fmt.Errorf("wasi bereitstellen: %w", err)
 	}
 
-	r := &Runtime{store: store, log: log, engine: engine, loaded: map[string]*instance{}}
+	r := &Runtime{store: store, log: log, engine: engine, loadTimeout: LoadTimeout, loaded: map[string]*instance{}}
 
 	host, err := engine.NewHostModuleBuilder(HostModule).
 		NewFunctionBuilder().WithFunc(r.hostCall).Export(FnCall).
@@ -191,7 +199,7 @@ func (r *Runtime) Load(ctx context.Context, m *Manifest, module []byte) error {
 	// with WithCloseOnContextDone the engine then closes the module mid-start,
 	// and the plugin stays switched on but not running. The load keeps the
 	// caller's values, drops its cancellation and gets a bound of its own.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), LoadTimeout)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.loadTimeout)
 	defer cancel()
 
 	compiled, err := r.engine.CompileModule(ctx, module)

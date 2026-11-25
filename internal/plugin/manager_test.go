@@ -5,10 +5,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -388,5 +390,140 @@ func TestServesNeedsTheHookTheWebsiteAndTheModule(t *testing.T) {
 	}
 	if m.Serves("echo", HookContent, site+1) {
 		t.Error("a plugin serves another website")
+	}
+}
+
+// A request dropped while a plugin is being switched on (WR-03): the browser
+// navigates away or the tab closes, and the request context is cancelled. The
+// switch-on is one sequence and must finish whatever the browser does, or the
+// plugin stays enabled and not running until the next restart.
+func TestEnableOutlivesTheRequestThatStartedIt(t *testing.T) {
+	m, _, site := neuerManager(t)
+	bg := context.Background()
+	einspielen(t, m, echoArchive(t, nil))
+
+	gone, cancel := context.WithCancel(bg)
+	cancel()
+	if err := m.Enable(gone, "echo"); err != nil {
+		t.Fatalf("Enable with the request already gone: %v", err)
+	}
+	st, err := m.Get(bg, "echo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.Enabled || !st.Running {
+		t.Fatalf("enabled=%v running=%v, both must be true", st.Enabled, st.Running)
+	}
+	if err := m.SetWebsites(bg, "echo", []int64{site}); err != nil {
+		t.Fatal(err)
+	}
+	got := m.FilterContent(bg, site, ContentIn{WebsiteID: site, Slug: "home", HTML: "<p>x</p>"})
+	if got != "<p>x</p><!-- echo -->" {
+		t.Errorf("the page was not filtered: %q", got)
+	}
+}
+
+// WR-03, the window itself: the row is committed as enabled and the request is
+// gone before Sync reads it. The reconciliation must still load the plugin.
+func TestSyncFinishesWhenTheRequestIsGone(t *testing.T) {
+	m, store, _ := neuerManager(t)
+	bg := context.Background()
+	einspielen(t, m, echoArchive(t, nil))
+	if err := store.SetEnabled(bg, "echo", true); err != nil {
+		t.Fatal(err)
+	}
+
+	gone, cancel := context.WithCancel(bg)
+	cancel()
+	if err := m.Sync(gone); err != nil {
+		t.Fatalf("Sync with the request gone: %v", err)
+	}
+	if !m.rt.Loaded("echo") {
+		t.Error("the plugin is enabled in the database and not loaded")
+	}
+}
+
+// WR-03: the reason a load failed must survive the request it was found in, or
+// the operator sees a plugin that is not running and nothing saying why.
+func TestTheReasonIsRecordedWhenTheRequestIsGone(t *testing.T) {
+	m, _, _ := neuerManager(t)
+	bg := context.Background()
+	einspielen(t, m, echoArchive(t, nil))
+
+	gone, cancel := context.WithCancel(bg)
+	cancel()
+	m.note(gone, "echo", errors.New("the module cannot be started: test reason"))
+
+	st, err := m.Get(bg, "echo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(st.LastError, "test reason") {
+		t.Errorf("the reason was lost with the request: %q", st.LastError)
+	}
+}
+
+// WR-03, end to end: a failed switch-on with the request gone still says why,
+// both in the error and on the plugin.
+func TestEnableWithTheRequestGoneStillSaysWhy(t *testing.T) {
+	m, _, _ := neuerManager(t)
+	bg := context.Background()
+	einspielen(t, m, echoArchive(t, nil))
+	if err := os.Remove(filepath.Join(m.root(), "echo", ModuleName)); err != nil {
+		t.Fatal(err)
+	}
+
+	gone, cancel := context.WithCancel(bg)
+	cancel()
+	err := m.Enable(gone, "echo")
+	if err == nil || !strings.Contains(err.Error(), "missing from disk") {
+		t.Fatalf("expected the missing module as the reason, got: %v", err)
+	}
+	st, gerr := m.Get(bg, "echo")
+	if gerr != nil {
+		t.Fatal(gerr)
+	}
+	if st.LastError == "" {
+		t.Error("no reason is recorded on the plugin")
+	}
+}
+
+// IN-02: concurrent reconciliations of one enabled plugin compile and start
+// its module once, not once per caller.
+func TestConcurrentSyncsLoadAPluginOnce(t *testing.T) {
+	m, store, _ := neuerManager(t)
+	bg := context.Background()
+	einspielen(t, m, echoArchive(t, nil))
+	if err := store.SetEnabled(bg, "echo", true); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	m.log = slog.New(slog.NewTextHandler(&buf, nil))
+
+	const callers = 4
+	start := make(chan struct{})
+	errs := make(chan error, callers)
+	var wg sync.WaitGroup
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			errs <- m.Sync(bg)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Errorf("Sync: %v", err)
+		}
+	}
+	if !m.rt.Loaded("echo") {
+		t.Error("the plugin is not loaded")
+	}
+	if n := strings.Count(buf.String(), `msg="plugin loaded"`); n != 1 {
+		t.Errorf("the plugin was loaded %d times, expected once:\n%s", n, buf.String())
 	}
 }

@@ -27,6 +27,16 @@ type Manager struct {
 	dataDir string
 	log     *slog.Logger
 
+	// loadMu guards loadLocks. There is one lock per plugin id, held from "is
+	// it loaded?" until it is. Since cefe4ac an abandoned load runs on for up
+	// to the load bound; without the lock a retried request would compile and
+	// start the same module a second time beside it, at up to 16 MB per
+	// instance, and a module with a hanging _initialize would get one busy
+	// loop per submit. The map grows only by installed plugin ids, so it is
+	// never pruned.
+	loadMu    sync.Mutex
+	loadLocks map[string]*sync.Mutex
+
 	// mu guards the snapshot below.
 	mu   sync.RWMutex
 	snap snapshot
@@ -100,6 +110,13 @@ func (m *Manager) dir(id string) string { return filepath.Join(m.root(), id) }
 // broken module must not stop a server that is serving four other websites
 // perfectly well.
 func (m *Manager) Sync(ctx context.Context) error {
+	// Sync reconciles the database with the running modules for every caller:
+	// Install, Enable, Disable, SetWebsites, Remove and startup. A
+	// reconciliation stopped halfway by a dropped request leaves the two
+	// disagreeing; in the switch-off direction, Disable's committed row would
+	// leave the plugin running and still filtering pages.
+	ctx = context.WithoutCancel(ctx)
+
 	installed, err := m.store.List(ctx)
 	if err != nil {
 		return err
@@ -111,19 +128,7 @@ func (m *Manager) Sync(ctx context.Context) error {
 			continue
 		}
 		want[p.ID] = true
-		if m.rt.Loaded(p.ID) {
-			continue
-		}
-		module, err := os.ReadFile(filepath.Join(m.dir(p.ID), ModuleName))
-		if err != nil {
-			m.note(ctx, p.ID, fmt.Errorf("the module is missing from disk: %w", err))
-			continue
-		}
-		if err := m.rt.Load(ctx, p.Manifest, module); err != nil {
-			m.note(ctx, p.ID, err)
-			continue
-		}
-		m.log.Info("plugin loaded", "plugin", p.ID, "version", p.Version)
+		m.loadOne(ctx, p)
 	}
 
 	// Anything running that should not be.
@@ -137,9 +142,52 @@ func (m *Manager) Sync(ctx context.Context) error {
 	return nil
 }
 
+// loadLock returns the lock that serialises loading one plugin.
+func (m *Manager) loadLock(id string) *sync.Mutex {
+	m.loadMu.Lock()
+	defer m.loadMu.Unlock()
+	if m.loadLocks == nil {
+		m.loadLocks = map[string]*sync.Mutex{}
+	}
+	l, ok := m.loadLocks[id]
+	if !ok {
+		l = &sync.Mutex{}
+		m.loadLocks[id] = l
+	}
+	return l
+}
+
+// loadOne loads one enabled plugin unless it is already running, recording
+// why when it cannot. The per-plugin lock makes a concurrent caller wait for
+// the load in progress and then find the plugin loaded.
+func (m *Manager) loadOne(ctx context.Context, p Installed) {
+	l := m.loadLock(p.ID)
+	l.Lock()
+	defer l.Unlock()
+
+	if m.rt.Loaded(p.ID) {
+		return
+	}
+	module, err := os.ReadFile(filepath.Join(m.dir(p.ID), ModuleName))
+	if err != nil {
+		m.note(ctx, p.ID, fmt.Errorf("the module is missing from disk: %w", err))
+		return
+	}
+	if err := m.rt.Load(ctx, p.Manifest, module); err != nil {
+		m.note(ctx, p.ID, err)
+		return
+	}
+	m.log.Info("plugin loaded", "plugin", p.ID, "version", p.Version)
+}
+
 // note records why a plugin is not running.
 func (m *Manager) note(ctx context.Context, id string, err error) {
 	m.log.Error("plugin not loaded", "plugin", id, "err", err)
+	// The reason must survive the request it was found in: otherwise the
+	// operator sees a plugin that is not running with no recorded reason. The
+	// bound is the one Runtime.fail uses for the same write.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer cancel()
 	_ = m.store.SetError(ctx, id, err.Error())
 }
 
@@ -538,6 +586,14 @@ func (m *Manager) write(pkg *Package) error {
 
 // Enable switches a plugin on and loads it.
 func (m *Manager) Enable(ctx context.Context, id string) error {
+	// Switching on is one sequence: the row, the load and the reason read
+	// back. A browser that drops the request between SetEnabled and Sync used
+	// to leave the plugin enabled and not loaded until the next restart
+	// (WR-03, the symptom cefe4ac fixed inside Load). Values are kept and only
+	// the cancellation is dropped; every step keeps a bound of its own:
+	// busy_timeout on the database, the runtime's load bound on Load.
+	ctx = context.WithoutCancel(ctx)
+
 	if err := m.store.SetEnabled(ctx, id, true); err != nil {
 		return err
 	}
