@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -484,5 +485,45 @@ func TestEnableWithTheRequestGoneStillSaysWhy(t *testing.T) {
 	}
 	if st.LastError == "" {
 		t.Error("no reason is recorded on the plugin")
+	}
+}
+
+// IN-02: concurrent reconciliations of one enabled plugin compile and start
+// its module once, not once per caller.
+func TestConcurrentSyncsLoadAPluginOnce(t *testing.T) {
+	m, store, _ := neuerManager(t)
+	bg := context.Background()
+	einspielen(t, m, echoArchive(t, nil))
+	if err := store.SetEnabled(bg, "echo", true); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	m.log = slog.New(slog.NewTextHandler(&buf, nil))
+
+	const callers = 4
+	start := make(chan struct{})
+	errs := make(chan error, callers)
+	var wg sync.WaitGroup
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			errs <- m.Sync(bg)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Errorf("Sync: %v", err)
+		}
+	}
+	if !m.rt.Loaded("echo") {
+		t.Error("the plugin is not loaded")
+	}
+	if n := strings.Count(buf.String(), `msg="plugin loaded"`); n != 1 {
+		t.Errorf("the plugin was loaded %d times, expected once:\n%s", n, buf.String())
 	}
 }

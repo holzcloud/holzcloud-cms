@@ -296,3 +296,114 @@ func TestALoadOutlivesTheRequestThatStartedIt(t *testing.T) {
 		t.Errorf("the plugin did not run: %+v", out)
 	}
 }
+
+// spinningModule is a hand-assembled wasm module whose _initialize never
+// returns. It exports the names Load requires (GuestAlloc, GuestHandle), so
+// that Load's export check passes and the failure comes from the start
+// function. All three exports point at function 0, an endless loop.
+func spinningModule() []byte {
+	return []byte{
+		// header: magic and version
+		0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+		// type section: one function type, no parameters, no results
+		0x01, 0x04, 0x01, 0x60, 0x00, 0x00,
+		// function section: one function of type 0
+		0x03, 0x02, 0x01, 0x00,
+		// export section: _initialize, hc_alloc, hc_handle, each kind func index 0
+		0x07, 0x26, 0x03,
+		0x0b, '_', 'i', 'n', 'i', 't', 'i', 'a', 'l', 'i', 'z', 'e', 0x00, 0x00,
+		0x08, 'h', 'c', '_', 'a', 'l', 'l', 'o', 'c', 0x00, 0x00,
+		0x09, 'h', 'c', '_', 'h', 'a', 'n', 'd', 'l', 'e', 0x00, 0x00,
+		// code section: one body, no locals: loop, br 0, end, end
+		0x0a, 0x09, 0x01, 0x07, 0x00, 0x03, 0x40, 0x0c, 0x00, 0x0b, 0x0b,
+	}
+}
+
+// spinningLoad runs Load on spinningModule with a one-second bound and a
+// caller whose context is cancelled cancelAfter into the load (never, when it
+// is zero). It returns the error and how long the load took.
+func spinningLoad(t *testing.T, cancelAfter time.Duration) (error, time.Duration) {
+	t.Helper()
+	s, _ := neuerSpeicher(t)
+	r, err := NewRuntime(context.Background(), s, nil)
+	if err != nil {
+		t.Fatalf("NewRuntime: %v", err)
+	}
+	t.Cleanup(func() { r.Close(context.Background()) })
+	r.loadTimeout = time.Second
+
+	m := goodManifest()
+	m.ID = "spin"
+	m.Name = "Spin"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if cancelAfter > 0 {
+		time.AfterFunc(cancelAfter, cancel)
+	}
+	start := time.Now()
+	err = r.Load(ctx, &m, spinningModule())
+	took := time.Since(start)
+	if r.Loaded("spin") {
+		t.Error("a module whose start never returns is loaded")
+	}
+	return err, took
+}
+
+// IN-01: the bound is what ends a load whose _initialize never returns.
+func TestALoadThatNeverStartsIsCutAtItsBound(t *testing.T) {
+	err, took := spinningLoad(t, 0)
+	if err == nil || !strings.Contains(err.Error(), "deadline exceeded") {
+		t.Fatalf("expected deadline exceeded, got: %v", err)
+	}
+	if took < 500*time.Millisecond || took > 10*time.Second {
+		t.Errorf("the load took %v, expected about the one-second bound", took)
+	}
+}
+
+// IN-01: a cancel arriving while _initialize runs is not honoured; only the
+// load's own bound ends it.
+func TestACancelDuringInitializeDoesNotEndTheLoad(t *testing.T) {
+	err, took := spinningLoad(t, 50*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "deadline exceeded") || strings.Contains(err.Error(), "canceled") {
+		t.Fatalf("expected deadline exceeded and not canceled, got: %v", err)
+	}
+	if took < 500*time.Millisecond {
+		t.Errorf("the caller's cancel ended the load after %v", took)
+	}
+}
+
+// The success path of the same: the request is dropped 50 ms into the load and
+// the plugin still comes up.
+func TestALoadCancelledMidwayStillRuns(t *testing.T) {
+	s, _ := neuerSpeicher(t)
+	r, err := NewRuntime(context.Background(), s, nil)
+	if err != nil {
+		t.Fatalf("NewRuntime: %v", err)
+	}
+	t.Cleanup(func() { r.Close(context.Background()) })
+
+	m := goodManifest()
+	m.ID = "echo"
+	m.Name = "Echo"
+	m.Hooks = []string{HookContent}
+	p := &Package{Manifest: &m, Module: echoModule(t), SHA256: strings.Repeat("a", 64)}
+	if err := s.Install(context.Background(), p); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	time.AfterFunc(50*time.Millisecond, cancel)
+	if err := r.Load(ctx, &m, p.Module); err != nil {
+		t.Fatalf("Load cancelled midway: %v", err)
+	}
+	var out ContentOut
+	if err := r.Dispatch(context.Background(), "echo", HookContent, 1,
+		ContentIn{WebsiteID: 1, Slug: "home", HTML: "<p>Hallo</p>"}, &out); err != nil {
+		t.Fatalf("the plugin does not answer: %v", err)
+	}
+	if !out.Changed {
+		t.Errorf("the plugin did not run: %+v", out)
+	}
+}

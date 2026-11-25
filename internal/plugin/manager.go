@@ -27,6 +27,16 @@ type Manager struct {
 	dataDir string
 	log     *slog.Logger
 
+	// loadMu guards loadLocks. There is one lock per plugin id, held from "is
+	// it loaded?" until it is. Since cefe4ac an abandoned load runs on for up
+	// to the load bound; without the lock a retried request would compile and
+	// start the same module a second time beside it, at up to 16 MB per
+	// instance, and a module with a hanging _initialize would get one busy
+	// loop per submit. The map grows only by installed plugin ids, so it is
+	// never pruned.
+	loadMu    sync.Mutex
+	loadLocks map[string]*sync.Mutex
+
 	// mu guards the snapshot below.
 	mu   sync.RWMutex
 	snap snapshot
@@ -118,19 +128,7 @@ func (m *Manager) Sync(ctx context.Context) error {
 			continue
 		}
 		want[p.ID] = true
-		if m.rt.Loaded(p.ID) {
-			continue
-		}
-		module, err := os.ReadFile(filepath.Join(m.dir(p.ID), ModuleName))
-		if err != nil {
-			m.note(ctx, p.ID, fmt.Errorf("the module is missing from disk: %w", err))
-			continue
-		}
-		if err := m.rt.Load(ctx, p.Manifest, module); err != nil {
-			m.note(ctx, p.ID, err)
-			continue
-		}
-		m.log.Info("plugin loaded", "plugin", p.ID, "version", p.Version)
+		m.loadOne(ctx, p)
 	}
 
 	// Anything running that should not be.
@@ -142,6 +140,44 @@ func (m *Manager) Sync(ctx context.Context) error {
 
 	m.rebuild(installed)
 	return nil
+}
+
+// loadLock returns the lock that serialises loading one plugin.
+func (m *Manager) loadLock(id string) *sync.Mutex {
+	m.loadMu.Lock()
+	defer m.loadMu.Unlock()
+	if m.loadLocks == nil {
+		m.loadLocks = map[string]*sync.Mutex{}
+	}
+	l, ok := m.loadLocks[id]
+	if !ok {
+		l = &sync.Mutex{}
+		m.loadLocks[id] = l
+	}
+	return l
+}
+
+// loadOne loads one enabled plugin unless it is already running, recording
+// why when it cannot. The per-plugin lock makes a concurrent caller wait for
+// the load in progress and then find the plugin loaded.
+func (m *Manager) loadOne(ctx context.Context, p Installed) {
+	l := m.loadLock(p.ID)
+	l.Lock()
+	defer l.Unlock()
+
+	if m.rt.Loaded(p.ID) {
+		return
+	}
+	module, err := os.ReadFile(filepath.Join(m.dir(p.ID), ModuleName))
+	if err != nil {
+		m.note(ctx, p.ID, fmt.Errorf("the module is missing from disk: %w", err))
+		return
+	}
+	if err := m.rt.Load(ctx, p.Manifest, module); err != nil {
+		m.note(ctx, p.ID, err)
+		return
+	}
+	m.log.Info("plugin loaded", "plugin", p.ID, "version", p.Version)
 }
 
 // note records why a plugin is not running.
