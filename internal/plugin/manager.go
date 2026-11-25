@@ -100,6 +100,13 @@ func (m *Manager) dir(id string) string { return filepath.Join(m.root(), id) }
 // broken module must not stop a server that is serving four other websites
 // perfectly well.
 func (m *Manager) Sync(ctx context.Context) error {
+	// Sync reconciles the database with the running modules for every caller:
+	// Install, Enable, Disable, SetWebsites, Remove and startup. A
+	// reconciliation stopped halfway by a dropped request leaves the two
+	// disagreeing; in the switch-off direction, Disable's committed row would
+	// leave the plugin running and still filtering pages.
+	ctx = context.WithoutCancel(ctx)
+
 	installed, err := m.store.List(ctx)
 	if err != nil {
 		return err
@@ -140,6 +147,11 @@ func (m *Manager) Sync(ctx context.Context) error {
 // note records why a plugin is not running.
 func (m *Manager) note(ctx context.Context, id string, err error) {
 	m.log.Error("plugin not loaded", "plugin", id, "err", err)
+	// The reason must survive the request it was found in: otherwise the
+	// operator sees a plugin that is not running with no recorded reason. The
+	// bound is the one Runtime.fail uses for the same write.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer cancel()
 	_ = m.store.SetError(ctx, id, err.Error())
 }
 
@@ -538,6 +550,14 @@ func (m *Manager) write(pkg *Package) error {
 
 // Enable switches a plugin on and loads it.
 func (m *Manager) Enable(ctx context.Context, id string) error {
+	// Switching on is one sequence: the row, the load and the reason read
+	// back. A browser that drops the request between SetEnabled and Sync used
+	// to leave the plugin enabled and not loaded until the next restart
+	// (WR-03, the symptom cefe4ac fixed inside Load). Values are kept and only
+	// the cancellation is dropped; every step keeps a bound of its own:
+	// busy_timeout on the database, the runtime's load bound on Load.
+	ctx = context.WithoutCancel(ctx)
+
 	if err := m.store.SetEnabled(ctx, id, true); err != nil {
 		return err
 	}
