@@ -7,9 +7,11 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/localpath"
 )
 
-// LocalPath checks a target that is meant to stay on this site. Every
-// server-issued redirect to a local target goes through it, so there is one
-// rule (localpath.Is) and not one per handler.
+// LocalPath checks a target that is meant to stay on this site. The public
+// redirects (price switch, plugin Location, stored redirects, admin redirect
+// save) go through it, so they share one rule (localpath.Is) and not one per
+// handler. The admin's own return and continue targets (auth.SafeReturn,
+// admin.continueTarget) do not: they also require an /admin/ prefix.
 //
 // It returns the checked string, so a caller cannot redirect to the unchecked
 // one by mistake: use the first result, and only when the second is true.

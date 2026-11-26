@@ -1,6 +1,10 @@
-// Package localpath holds the one rule the program has for a "local" target:
-// a string that may be sent as a Location header or written as an href and
-// stays on this origin.
+// Package localpath holds the shared rule for a "local" target: a string that
+// may be sent as a Location header or written as an href and stays on this
+// origin. It is the rule of the public-side redirects and of the content sinks
+// (fields, blocks, the sign-out path). The admin keeps rules of its own that
+// also demand an /admin/ prefix or compare origins: admin.continueTarget,
+// auth.SafeReturn and value.sameOrigin, and the back and redirect targets in
+// the admin menu handlers. They are safe as written and are not routed here.
 //
 // It is a leaf package with no imports from this module because the places
 // that need the rule sit on both sides of internal/web: internal/field and
@@ -12,9 +16,10 @@ import (
 	"strings"
 )
 
-// Is reports whether p is a path on this server (RDR-01). It is the only
-// local-path rule of the program; web.LocalPath, the configuration's sign-out
-// path, the content-field link check and the block link renderer all call it.
+// Is reports whether p is a path on this server (RDR-01). web.LocalPath, the
+// configuration's sign-out path, the content-field link check and the block
+// link renderer all call it; the admin-side rules named in the package comment
+// are separate.
 //
 // Each clause closes a way for a string that starts with a slash to leave:
 //
