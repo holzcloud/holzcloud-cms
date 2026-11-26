@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
@@ -247,13 +247,7 @@ func TestTheTermChoiceFailsQuietly(t *testing.T) {
 
 	// And with one that no longer answers.
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "kaputt.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "kaputt.sqlite"))
 	h := &Handler{terms: term.NewStore(database)}
 	database.Close()
 	if got := h.siteTerms(ctx, 1); got != nil {

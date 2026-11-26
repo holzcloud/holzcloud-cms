@@ -8,6 +8,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
 // MaxPluginBodyBytes bounds what a plugin route may read from a request.
@@ -121,6 +122,29 @@ func pluginRequest(r *http.Request, websiteID int64) plugin.RequestIn {
 	return in
 }
 
+// pluginLocation checks a plugin's Location. The path must be local by
+// web.LocalPath. A backslash after the path (in the query or the fragment)
+// cannot change the origin, and a plugin that echoes a visitor's input there
+// would otherwise turn a working redirect into a 500, so it is percent-encoded
+// instead of refused. A control character anywhere is still refused: it would
+// carry a line break into the header.
+func pluginLocation(loc string) (string, bool) {
+	path, rest := loc, ""
+	if i := strings.IndexAny(loc, "?#"); i >= 0 {
+		path, rest = loc[:i], loc[i:]
+	}
+	checked, ok := web.LocalPath(path)
+	if !ok {
+		return "", false
+	}
+	for i := 0; i < len(rest); i++ {
+		if c := rest[i]; c < 0x20 || c == 0x7f {
+			return "", false
+		}
+	}
+	return checked + strings.ReplaceAll(rest, `\`, "%5C"), true
+}
+
 // writePluginResponse turns a plugin's answer into an HTTP response.
 //
 // What a plugin may set is deliberately narrow. Headers that decide how the
@@ -134,13 +158,18 @@ func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
 	}
 
 	if out.Location != "" {
-		// Only within this site. An open redirect is a phishing tool: a link
-		// that starts with the operator's own domain and lands somewhere else.
-		if !safeLocation(out.Location) {
-			http.Error(w, "Interner Fehler", http.StatusInternalServerError)
+		// Only within this site, by the local-path rule (web.LocalPath). An
+		// open redirect is a phishing tool: a link that starts with the
+		// operator's own domain and lands somewhere else.
+		loc, ok := pluginLocation(out.Location)
+		if !ok {
+			// The status text of the standard library, as the other public
+			// handlers give it: this is a visitor's answer, not a sentence of
+			// the operator's catalogue.
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Location", out.Location)
+		w.Header().Set("Location", loc)
 		if status < 300 || status > 399 {
 			status = http.StatusSeeOther
 		}
@@ -162,16 +191,6 @@ func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
 	if out.Body != "" {
 		_, _ = io.WriteString(w, out.Body)
 	}
-}
-
-// safeLocation allows only a path on this site.
-func safeLocation(loc string) bool {
-	if !strings.HasPrefix(loc, "/") {
-		return false
-	}
-	// "//evil.example" is a protocol-relative URL and leaves the site, even
-	// though it starts with a slash.
-	return !strings.HasPrefix(loc, "//")
 }
 
 // reservedHeader names the ones a plugin may not set.

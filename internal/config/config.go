@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/holzcloud/holzcloud-cms/internal/localpath"
 	"github.com/holzcloud/holzcloud-cms/internal/oidc"
 )
 
@@ -570,25 +571,12 @@ func secureURL(raw string) bool {
 
 // isLocalPath reports whether p is a path on this server.
 //
-// One leading slash and no second character a browser would read as the start
-// of a host: "//evil.example" is protocol-relative, and "/\evil.example" is the
-// same trick with the separator browsers also accept. Both leave this origin,
-// and neither looks like a URL to somebody skimming an environment file.
+// The rule lives in internal/localpath and is shared with every redirect the
+// program issues: "//evil.example" and "/\evil.example" are both read by a
+// browser as another host, and neither looks like a URL to somebody skimming
+// an environment file.
 func isLocalPath(p string) bool {
-	if !strings.HasPrefix(p, "/") {
-		return false
-	}
-	// No control character anywhere. A browser removes tab, line feed and
-	// carriage return from a URL before resolving it, so "/<TAB>/evil.example"
-	// is followed as "//evil.example" — protocol-relative, somebody else's
-	// server — and net/http keeps the tab in a Location header (Phase 10
-	// security audit, T-10-05).
-	for _, c := range p {
-		if c < 0x20 || c == 0x7f {
-			return false
-		}
-	}
-	return !strings.HasPrefix(p, "//") && !strings.HasPrefix(p, `/\`)
+	return localpath.Is(p)
 }
 
 // parseWebsiteGroups parses a comma-separated list of group=websiteID pairs,

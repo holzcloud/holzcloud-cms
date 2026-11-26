@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/field"
+	"github.com/holzcloud/holzcloud-cms/internal/localpath"
 	"github.com/holzcloud/holzcloud-cms/internal/marker"
 	// For i18n.N alone, which marks a literal so the collector can see it.
 	// i18n is a leaf with no database and no HTTP, so the purity this
@@ -833,10 +834,14 @@ func safeURL(raw string) string {
 	switch {
 	case u == "":
 		return ""
-	case strings.HasPrefix(u, "//"):
-		// Protocol-relative: leaves the site while looking like a path.
-		return ""
-	case strings.HasPrefix(u, "/"), strings.HasPrefix(u, "#"):
+	case strings.HasPrefix(u, "/"):
+		// "//host", "/\host" and a tab-led path are read by a browser as
+		// another server; localpath.Is refuses all three.
+		if !localpath.Is(u) {
+			return ""
+		}
+		return u
+	case strings.HasPrefix(u, "#"):
 		return u
 	case strings.HasPrefix(u, "https://"), strings.HasPrefix(u, "http://"),
 		strings.HasPrefix(u, "mailto:"), strings.HasPrefix(u, "tel:"):

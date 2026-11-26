@@ -12,6 +12,7 @@ import (
 	"testing/fstest"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
@@ -39,14 +40,7 @@ func ldTheme() fstest.MapFS {
 func ldHandler(t *testing.T) (*Handler, *db.DB) {
 	t.Helper()
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatal(err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 	fsys := ldTheme()
 	loader := tmpl.NewLoader(dir, fsys, nil, nil)
 	h := NewHandler(page.NewStore(database), menu.NewStore(database), media.NewStore(database), snippet.NewStore(database), loader, nil, dir, fsys, false)

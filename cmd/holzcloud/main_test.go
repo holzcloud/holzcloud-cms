@@ -25,6 +25,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/config"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
@@ -87,14 +88,7 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 	t.Helper()
 
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("migrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 
 	if tw.seed != nil {
 		tw.seed(t, database, dir)
@@ -885,14 +879,7 @@ func (r refusingLookup) GetWebsite(context.Context, int64) (*domain.Website, err
 // user_websites — which NewWebsiteAccessLookup reads as "every website".
 func TestProvisioningRefusesToStartWithoutItsDefaultWebsite(t *testing.T) {
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("migrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 	ctx := context.Background()
 	store := domain.NewStore(database)
 
@@ -1318,14 +1305,7 @@ func TestPasswordPathIsUnchangedWithSSOOff(t *testing.T) {
 // groups never were.
 func TestSingleSignOnRefusesToStartWithAWebsiteGroupForNoWebsite(t *testing.T) {
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("migrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 	ctx := context.Background()
 	store := domain.NewStore(database)
 	created, err := store.CreateWebsite(ctx, "Redaktion A", "")

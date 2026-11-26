@@ -166,6 +166,7 @@ func languageUploadRequest(t *testing.T, code, filename string, data []byte) *ht
 
 func TestTheLanguageScreenShowsWhatIsInstalled(t *testing.T) {
 	h, sm, _, _ := newTestAdmin(t)
+	h.templates = privateAdminTemplates(t)
 	languageDir(t)
 
 	rec := serve(t, h, sm, h.HandleLanguages,
@@ -244,6 +245,7 @@ func TestALanguageIsDownloadedOrIsNotThere(t *testing.T) {
 // refused at load time must not sit in the folder looking installed.
 func TestWhatTheLanguageUploadRefusesIsNotWritten(t *testing.T) {
 	h, sm, _, _ := newTestAdmin(t)
+	h.templates = privateAdminTemplates(t)
 	dir := languageDir(t)
 
 	good, err := json.Marshal(map[string]string{"Pages": "Paginas"})
@@ -282,6 +284,7 @@ func TestWhatTheLanguageUploadRefusesIsNotWritten(t *testing.T) {
 // The round trip an operator actually makes: upload, see it, delete it again.
 func TestALanguageIsInstalledAndRemovedAgain(t *testing.T) {
 	h, sm, _, _ := newTestAdmin(t)
+	h.templates = privateAdminTemplates(t)
 	dir := languageDir(t)
 
 	data, err := json.Marshal(map[string]string{"Pages": "Paginas", "Media": "Medios"})
@@ -330,6 +333,7 @@ func TestALanguageIsInstalledAndRemovedAgain(t *testing.T) {
 // one into the working directory.
 func TestWithoutALanguageFolderTheUploadSaysSo(t *testing.T) {
 	h, sm, _, _ := newTestAdmin(t)
+	h.templates = privateAdminTemplates(t)
 	before := i18n.Dir()
 	i18n.SetDir("")
 	t.Cleanup(func() { i18n.SetDir(before); i18n.Reload() })

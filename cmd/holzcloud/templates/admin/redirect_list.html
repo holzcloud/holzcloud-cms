@@ -46,6 +46,7 @@
 {{end}}
 
 <div class="card">
+    {{if .OffsiteAny}}<p class="alert alert--warning">{{t "Some redirects lead to another server and are not followed. They are marked in the list; correct or delete them."}}</p>{{end}}
     {{if .Redirects}}
     <table class="table">
         <thead>
@@ -62,7 +63,7 @@
             {{range .Redirects}}
             <tr>
                 <td><code>{{.FromPath}}</code></td>
-                <td><code>{{.ToPath}}</code></td>
+                <td><code>{{.ToPath}}</code>{{if index $.Offsite .ID}} <span class="badge badge--warning">{{t "not followed"}}</span>{{end}}</td>
                 <td class="text-muted">{{.Code}}{{if eq .Source "auto"}} {{t "· automatic"}}{{end}}</td>
                 <td>{{.Hits}}</td>
                 <td class="text-muted">{{.CreatedAt.Format "02.01.2006"}}</td>

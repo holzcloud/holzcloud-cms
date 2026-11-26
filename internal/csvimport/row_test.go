@@ -28,6 +28,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/csv"
 	"github.com/holzcloud/holzcloud-cms/internal/csvimport"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
@@ -503,13 +504,7 @@ func TestRowIsRolledBack(t *testing.T) {
 	// A term store over a database that is closed: SetForPage fails on its very
 	// first statement, which is the residual window D-02 describes — the page
 	// is already in, the terms are not, and nothing wraps the two.
-	broken, err := db.Open(t.TempDir() + "/broken.sqlite")
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	if err := db.RunMigrations(broken.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	broken := dbtest.Open(t)
 	broken.Close()
 
 	w := csvimport.Writer{Pages: page.NewStore(database), Terms: term.NewStore(broken)}

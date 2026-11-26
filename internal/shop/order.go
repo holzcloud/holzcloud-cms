@@ -7,10 +7,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/money"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 // Order status values.
@@ -169,22 +170,13 @@ func (s *OrderStore) Place(ctx context.Context, websiteID int64, set Settings,
 		}
 	}
 
-	number, err := nextOrderNumber(ctx, tx, now)
-	if err != nil {
-		return nil, err
-	}
-
-	token, err := newOrderToken()
-	if err != nil {
-		return nil, err
-	}
-
 	exempt := 0
 	if set.VATExempt {
 		exempt = 1
 	}
-	res, err := tx.ExecContext(ctx,
-		`INSERT INTO orders (website_id, number, token, audience, currency,
+	insert := func(number, token string) (sql.Result, error) {
+		return tx.ExecContext(ctx,
+			`INSERT INTO orders (website_id, number, token, audience, currency,
 			email, name, company, vat_number, phone,
 			street, postal_code, city, country, note,
 			items_net, items_tax, items_gross,
@@ -194,14 +186,42 @@ func (s *OrderStore) Place(ctx context.Context, websiteID int64, set Settings,
 			created_at, updated_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
 		         $15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
-		websiteID, number, token, string(audience), set.Currency.Code,
-		customer.Email, customer.Name, customer.Company, customer.VATNumber, customer.Phone,
-		customer.Street, customer.PostalCode, customer.City, customer.Country, customer.Note,
-		int64(totals.ItemsNet), int64(totals.ItemsTax), int64(totals.ItemsGross),
-		int64(totals.ShippingNet), int64(totals.ShippingTax), int64(totals.ShippingGross),
-		int64(totals.TotalNet), int64(totals.TotalTax), int64(totals.TotalGross), exempt,
-		OrderNew, method, PaymentOpen, set.ReturnPolicy,
-		now.Format(timeLayout), now.Format(timeLayout))
+			websiteID, number, token, string(audience), set.Currency.Code,
+			customer.Email, customer.Name, customer.Company, customer.VATNumber, customer.Phone,
+			customer.Street, customer.PostalCode, customer.City, customer.Country, customer.Note,
+			int64(totals.ItemsNet), int64(totals.ItemsTax), int64(totals.ItemsGross),
+			int64(totals.ShippingNet), int64(totals.ShippingTax), int64(totals.ShippingGross),
+			int64(totals.TotalNet), int64(totals.TotalTax), int64(totals.TotalGross), exempt,
+			OrderNew, method, PaymentOpen, set.ReturnPolicy,
+			now.Format(timeLayout), now.Format(timeLayout))
+	}
+
+	number, n, err := nextOrderNumber(ctx, tx, now, 0)
+	if err != nil {
+		return nil, err
+	}
+	token, err := newOrderToken()
+	if err != nil {
+		return nil, err
+	}
+	res, err := insert(number, token)
+	if isUniqueConstraint(err) {
+		// With the numeric maximum, read inside this immediate write
+		// transaction, a collision should not happen. The retry is the cheap
+		// guard for a row the maximum did not see (an imported number that
+		// the maximum ignores, or a concurrent writer). It starts above the
+		// number that just failed, so it moves on and does not compute the
+		// same one again. It runs once, so a broken table cannot loop on the
+		// only write connection; SQLite aborts only the failed statement, so
+		// the transaction and its stock reservations stay.
+		if number, _, err = nextOrderNumber(ctx, tx, now, n); err != nil {
+			return nil, err
+		}
+		if token, err = newOrderToken(); err != nil {
+			return nil, err
+		}
+		res, err = insert(number, token)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("create order: %w", err)
 	}
@@ -246,39 +266,57 @@ func (s *OrderStore) Place(ctx context.Context, websiteID int64, set Settings,
 	return order, nil
 }
 
-// nextOrderNumber produces "2026-0001", counting within the calendar year.
+// isUniqueConstraint reports whether err is a UNIQUE constraint violation, by
+// SQLite's extended result code and never by the text of the message (the
+// looser isUniqueViolation of product.go reads the text and also matches a
+// message that merely says "unique").
+func isUniqueConstraint(err error) bool {
+	var serr *sqlite.Error
+	return errors.As(err, &serr) && serr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
+}
+
+// nextOrderNumber produces "2026-0001", counting within the calendar year, and
+// returns the count it used so a caller that has to ask again can pass it back
+// as after.
 //
 // Derived from what is already stored rather than from a counter table: a
 // counter that drifts out of step with the orders is a second source of truth,
-// and the query is one indexed scan per order placed.
-func nextOrderNumber(ctx context.Context, tx *sql.Tx, now time.Time) (string, error) {
+// and the query is one scan of the year's range of the UNIQUE index per order
+// placed.
+//
+// The maximum is taken numerically. As text "2026-9999" sorts above
+// "2026-10000", so from the 10,000th order of a year the generator would have
+// handed out 10000 again and every checkout of the installation would have hit
+// the UNIQUE index until New Year. The format stays "%04d": it simply grows to
+// five digits, so the numbers that customers, invoices and admin URLs already
+// carry keep their shape.
+//
+// The range is year+"-" up to year+".", the dot being the character that sorts
+// directly after the dash, so it holds exactly that year's numbers.
+//
+// Only a suffix of one to nine digits counts. Anything else (letters, a minus
+// sign, nineteen digits that SQLite clamps to the largest integer) is a number
+// somebody edited by hand: it is ignored rather than allowed to wrap the
+// counter negative, which would hand out the same number to every checkout
+// from then on. The count therefore stays below a billion and n cannot
+// overflow.
+//
+// It must run inside the write transaction of Place, which is what serialises
+// the read and the insert that follows it.
+func nextOrderNumber(ctx context.Context, tx *sql.Tx, now time.Time, after int) (string, int, error) {
 	year := now.Format("2006")
-	var last sql.NullString
+	var last int
 	if err := tx.QueryRowContext(ctx,
-		`SELECT max(number) FROM orders WHERE number LIKE $1`, year+"-%").Scan(&last); err != nil {
-		return "", fmt.Errorf("read last order number: %w", err)
+		`SELECT COALESCE(MAX(CAST(substr(number, 6) AS INTEGER)), 0)
+		 FROM orders WHERE number >= $1 AND number < $2
+		   AND length(substr(number, 6)) BETWEEN 1 AND 9
+		   AND substr(number, 6) NOT GLOB '*[^0-9]*'`,
+		year+"-", year+".").Scan(&last); err != nil {
+		return "", 0, fmt.Errorf("read last order number: %w", err)
 	}
 
-	n := 1
-	if last.Valid {
-		if _, after, ok := strings.Cut(last.String, "-"); ok {
-			if prev, err := parseInt(after); err == nil {
-				n = prev + 1
-			}
-		}
-	}
-	return fmt.Sprintf("%s-%04d", year, n), nil
-}
-
-func parseInt(s string) (int, error) {
-	n := 0
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return 0, errors.New("not a number")
-		}
-		n = n*10 + int(r-'0')
-	}
-	return n, nil
+	n := max(last, after) + 1
+	return fmt.Sprintf("%s-%04d", year, n), n, nil
 }
 
 // orderColumns is the projection every order scan expects.

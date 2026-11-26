@@ -15,6 +15,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/shop"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/value"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
 // productsPerPage is how many articles one catalogue page shows.
@@ -321,10 +322,13 @@ func (h *Handler) HandlePriceSwitch(w http.ResponseWriter, r *http.Request) erro
 	// same reason.
 	shop.SetAudienceCookie(w, h.secure, shop.ParseAudience(r.FormValue("ansicht")))
 
-	back := r.FormValue("zurueck")
-	// Only a path on this site. An open redirect out of a shop is how a
-	// phishing page gets a genuine domain in front of it.
-	if !strings.HasPrefix(back, "/") || strings.HasPrefix(back, "//") {
+	// Only a path on this site, by the one rule the program has for it
+	// (web.LocalPath): an open redirect out of a shop is how a phishing page
+	// gets a genuine domain in front of it, and "/\host" is read by a browser
+	// as "//host". From the POST body only, because a query string is what a
+	// link can plant.
+	back, ok := web.LocalPath(r.PostFormValue("zurueck"))
+	if !ok {
 		back = website.ShopURL()
 	}
 	http.Redirect(w, r, back, http.StatusSeeOther)

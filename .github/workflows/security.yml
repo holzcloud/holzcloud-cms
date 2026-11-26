@@ -61,11 +61,17 @@ jobs:
         # internal/admin: the whole-tree run with -timeout 30m ended on
         # 2026-11-08 with "panic: test timed out after 30m0s" in internal/admin,
         # at forwardauth_test.go. By then it had finished about 130 of its 442
-        # top-level tests, at roughly 15 s each: every test opens a fresh SQLite
-        # database and applies all migrations, and under -race that is slow.
+        # top-level tests, at roughly 15 s each: every test opened a fresh SQLite
+        # database and applied all migrations, and under -race that is slow.
         # That adds up to about 100 minutes for the package. None of its tests
         # calls t.Parallel, so it runs serially in one test binary: a job of its
         # own and 150 minutes is the lever here, not more parallelism.
+        # Since phase 35 the tests copy one migrated template database per test
+        # binary and share one parse of the admin templates. Measured locally on
+        # 2026-11-26 (arm64, a loaded machine): `go test -race ./internal/admin/`
+        # took 517 s after; before, it did not finish within 120 minutes. The
+        # limits below are left as they are until a hosted runner has run the
+        # new suite; lowering them is a separate decision.
         - shard: admin
           go-timeout: 150m
           minutes: 170

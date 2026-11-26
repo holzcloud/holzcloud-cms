@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
@@ -30,14 +29,8 @@ func TestTheExamplePluginRunsThrough(t *testing.T) {
 		t.Fatalf("the shipped manifest is invalid: %v", err)
 	}
 
-	database, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	database := dbtest.Open(t)
 	defer database.Close()
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatal(err)
-	}
 	store := plugin.NewStore(database)
 
 	ctx := context.Background()

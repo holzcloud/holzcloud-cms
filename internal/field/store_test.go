@@ -5,12 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 )
 
 // newFieldStore creates a fresh database along with a website.
@@ -19,14 +18,7 @@ import (
 // opening, and an in-memory database cannot satisfy them.
 func newFieldStore(t *testing.T) (*Store, int64) {
 	t.Helper()
-	database, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(func() { database.Close() })
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("Wanderungen: %v", err)
-	}
+	database := dbtest.Open(t)
 	res, err := database.Write.Exec(
 		`INSERT INTO websites (name, description) VALUES ('Prüfsite', '')`)
 	if err != nil {

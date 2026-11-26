@@ -123,3 +123,28 @@ func hostOnly(addr string) string {
 	}
 	return addr
 }
+
+// throttleKeyMax bounds the key of an address that does not parse, so a value
+// chosen by the client cannot become an unbounded map key.
+const throttleKeyMax = 64
+
+// ThrottleKey is the key every throttle counts a client under (PWD-02).
+//
+// An IPv4 address is its own key. An IPv6 address is reduced to its /64,
+// because a single subscriber is handed a whole /64 and would otherwise have
+// 2^64 budgets to spend. A port, brackets, an IPv4-mapped form and a zone are
+// dropped first. What does not parse as an address is cut to 64 bytes.
+func ThrottleKey(ip string) string {
+	addr, err := netip.ParseAddr(hostOnly(ip))
+	if err != nil {
+		if len(ip) > throttleKeyMax {
+			return ip[:throttleKeyMax]
+		}
+		return ip
+	}
+	addr = addr.Unmap().WithZone("")
+	if addr.Is4() {
+		return addr.String()
+	}
+	return netip.PrefixFrom(addr, 64).Masked().String()
+}

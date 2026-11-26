@@ -247,6 +247,7 @@ func TestBrandingThroughTheHandler(t *testing.T) {
 // A language file goes in and out through the same checks as the upload.
 func TestLanguagesThroughTheHandler(t *testing.T) {
 	rig := newInstallationRig(t)
+	rig.h.templates = privateAdminTemplates(t)
 	languageDir(t)
 
 	var source string

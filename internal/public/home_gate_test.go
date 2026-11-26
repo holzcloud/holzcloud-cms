@@ -102,3 +102,44 @@ func TestUnlockingTheHomePageSticks(t *testing.T) {
 		t.Errorf("home after unlock = %d, want 200", rec.Code)
 	}
 }
+
+// The page a visitor unlocks is addressed by its slug. A page stored under a
+// slug that a browser would read as another server (an older row, or one that
+// did not pass the editor's check) must not turn the redirect after the
+// password into a redirect to that server.
+func TestUnlockRedirectStaysOnTheSite(t *testing.T) {
+	h, database := newTestHandler(t)
+	ws := seedWebsite(t, database, "Demo")
+	h.SetShareSigners(sharelink.New([]byte("share-secret-share-secret-share!")),
+		sharelink.New([]byte("unlock-secret-unlock-secret-unl!")))
+	store := page.NewStore(database)
+	ctx := context.Background()
+
+	for _, slug := range []string{`\evil.example`, "x\ty"} {
+		pg, err := store.CreatePage(ctx, page.PageCreate{
+			WebsiteID: ws.ID, Title: "Falsch", Slug: slug, Markdown: "Geheim", HTML: "<p>Geheim</p>", Status: "published",
+		})
+		if err != nil {
+			t.Fatalf("CreatePage(%q): %v", slug, err)
+		}
+		if err := store.SetAccess(ctx, pg.ID, page.AccessUpdate{Protected: true, Password: "geheim"}, auth.DefaultParams); err != nil {
+			t.Fatalf("SetAccess: %v", err)
+		}
+
+		form := url.Values{"seite": {"/" + slug}, "passwort": {"geheim"}}
+		req := httptest.NewRequest(http.MethodPost, "/freischalten", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Host = "demo.test"
+		req = req.WithContext(domain.WebsiteToContext(req.Context(), ws))
+		rec := httptest.NewRecorder()
+		if err := h.HandleUnlock(rec, req); err != nil {
+			t.Fatalf("HandleUnlock(%q): %v", slug, err)
+		}
+		if rec.Code != http.StatusSeeOther {
+			t.Fatalf("slug %q: unlock answered %d, want 303", slug, rec.Code)
+		}
+		if loc := rec.Header().Get("Location"); loc != "/" {
+			t.Errorf("slug %q: Location = %q, want the start page", slug, loc)
+		}
+	}
+}

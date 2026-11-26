@@ -7,6 +7,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
 // brokenLink is an internal link on a page that resolves to nothing.
@@ -88,12 +89,14 @@ func (h *Handler) linkResolves(ctx context.Context, websiteID int64, target stri
 	if pg != nil {
 		return true, nil
 	}
-	// A redirect is a working link too.
-	redirect, err := h.pages.LookupRedirect(ctx, websiteID, target)
-	if err != nil {
+	// A redirect is a working link too, as long as it is one the public side
+	// follows. Looking it up here is not a visit, so no hit is counted.
+	redirect, err := h.pages.FindRedirect(ctx, websiteID, target)
+	if err != nil || redirect == nil {
 		return false, err
 	}
-	return redirect != nil, nil
+	_, ok := web.RedirectTarget(redirect.ToPath)
+	return ok, nil
 }
 
 // internalLinks collects the same-origin <a href> targets of a document.

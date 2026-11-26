@@ -17,6 +17,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
@@ -29,14 +30,7 @@ import (
 func newStores(t *testing.T) Stores {
 	t.Helper()
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 	fields := field.NewStore(database)
 	return Stores{
 		Domains:    domain.NewStore(database),
@@ -2400,14 +2394,7 @@ func TestASnippetThatCannotBeReadBackDoesNotCrash(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
 
-	leer, err := db.Open(filepath.Join(t.TempDir(), "leer.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open (leer): %v", err)
-	}
-	t.Cleanup(leer.Close)
-	if err := db.RunMigrations(leer.Write); err != nil {
-		t.Fatalf("RunMigrations (leer): %v", err)
-	}
+	leer := dbtest.Open(t)
 	s.Snippets = &snippet.Store{DB: &db.DB{Write: s.Snippets.DB.Write, Read: leer.Read}}
 
 	archive := archiveWith(t, Manifest{

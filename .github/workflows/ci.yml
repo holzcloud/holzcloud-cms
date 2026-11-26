@@ -131,7 +131,11 @@ jobs:
       # is exactly go test's default limit; on 2026-10-01 it ran out at 600 s
       # with every test passing. Under -race it needs far longer, which is why security.yml runs it as a job of its own.
       # By 2026-11-14 it took 1063 s and once ran out at 20 m; the tests of
-      # phase 33.2 pushed it over every time, hence 40 m.
+      # phase 33.2 pushed it over every time, hence 40 m. Since phase 35 the
+      # tests copy one migrated template database per test binary instead of
+      # migrating each time: locally on 2026-11-26 the plain run of internal/admin
+      # went from 1274 s to 40 s (a loaded machine). The limit stays at 40 m until
+      # a hosted runner has run the new suite.
       run: go test -timeout 40m ./...
 
     # Without this the job built the binary and threw it away, so there was

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 )
 
@@ -26,14 +27,7 @@ func checkFilesCase(t *testing.T) (*db.DB, int64, string) {
 	t.Helper()
 	dataDir := t.TempDir()
 	t.Setenv("HOLZCLOUD_DATA_DIR", dataDir)
-	database, err := db.Open(filepath.Join(dataDir, "holzcloud.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dataDir, "holzcloud.sqlite"))
 	res, err := database.Write.Exec(`INSERT INTO websites (name, description) VALUES ('Test', '')`)
 	if err != nil {
 		t.Fatalf("insert website: %v", err)

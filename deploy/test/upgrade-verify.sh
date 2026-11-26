@@ -103,7 +103,9 @@ SUMMARY_FILE=$BASE_OUT/amd64-t34-summary.txt
 # Everything of this module that ./cmd/holzcloud compiles or embeds: the root
 # package is changelog.go, which embeds CHANGELOG.md. bound_check refuses a run
 # while it differs from HEAD or go list -deps names a file outside this list
-# (binary_uncovered).
+# (binary_uncovered). The files are listed for linux/amd64, the target the
+# drivers build, and bound_check also refuses a file the binary compiles or
+# embeds that no commit holds, a gitignored one included (binary_untracked).
 BINARY_SOURCE="cmd internal go.mod go.sum changelog.go CHANGELOG.md"
 BOUND_FILES="deploy/DEPLOY.md deploy/backup.sh deploy/restore.sh deploy/holzcloud.service deploy/test/run.sh deploy/test/Dockerfile deploy/test/upgrade-verify.sh plugins/bestellung/bestellung.zip plugins/jahreszahl/jahreszahl.zip plugins/kontaktformular/kontaktformular.zip plugins/nicht-gefunden/nicht-gefunden.zip plugins/suche/suche.zip"
 DEPLOY_DOC=deploy/DEPLOY.md
@@ -699,7 +701,7 @@ put() {
 # bound_check: the bound files are tracked and equal to HEAD. Prints one line per
 # problem and fails when there is one.
 bound_check() {
-  local f bad=0 unc
+  local f bad=0 unc unt
   for f in $BOUND_FILES; do
     if ! git ls-files --error-unmatch -- "$f" > /dev/null 2>&1; then
       say "upgrade-verify.sh: bound file $f is not tracked"
@@ -716,9 +718,18 @@ bound_check() {
   if ! unc=$(binary_uncovered); then
     say "upgrade-verify.sh: go list -deps ./cmd/holzcloud failed, so the binary's source cannot be bound"
     bad=1
-  elif [ -n "$unc" ]; then
-    say "upgrade-verify.sh: the binary compiles or embeds files BINARY_SOURCE does not bind: $(printf '%s\n' "$unc" | tr '\n' ' ')"
-    bad=1
+  else
+    if [ -n "$unc" ]; then
+      say "upgrade-verify.sh: the binary compiles or embeds files BINARY_SOURCE does not bind: $(printf '%s\n' "$unc" | tr '\n' ' ')"
+      bad=1
+    fi
+    if ! unt=$(binary_untracked); then
+      say "upgrade-verify.sh: go list -deps ./cmd/holzcloud failed, so the binary's source cannot be bound"
+      bad=1
+    elif [ -n "$unt" ]; then
+      say "upgrade-verify.sh: the binary compiles or embeds files that no commit holds (untracked or gitignored): $(printf '%s\n' "$unt" | tr '\n' ' ')"
+      bad=1
+    fi
   fi
   [ "$bad" -eq 0 ]
 }
@@ -736,19 +747,47 @@ binary_covered() {
   return 1
 }
 
-# binary_uncovered: the files of this module that ./cmd/holzcloud compiles or
-# embeds (go list -deps) and BINARY_SOURCE does not cover, one per line; empty
-# when the list binds the whole binary. Fails when go list fails.
-binary_uncovered() {
+# binary_files: the files of this module that ./cmd/holzcloud compiles or embeds
+# for the target the drivers build (GOOS=linux GOARCH=amd64 CGO_ENABLED=0, so a
+# file behind //go:build linux counts and one behind darwin does not, whatever
+# machine this runs on), as paths relative to the repository, one per line. The
+# one place that runs go list. Fails when go list fails.
+binary_files() {
   local p here phys out
   here=$(pwd)
   phys=$(pwd -P)
-  out=$(go list -deps -f '{{if .Module}}{{if .Module.Main}}{{$d := .Dir}}{{range .GoFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}{{range .EmbedFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}{{end}}{{end}}' ./cmd/holzcloud) || return 1
+  out=$(GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go list -deps -f '{{if .Module}}{{if .Module.Main}}{{$d := .Dir}}{{range .GoFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}{{range .EmbedFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}{{end}}{{end}}' ./cmd/holzcloud) || return 1
   while IFS= read -r p; do
     [ -n "$p" ] || continue
     p=${p#"$here"/}
     p=${p#"$phys"/}
+    printf '%s\n' "$p"
+  done <<< "$out"
+}
+
+# binary_uncovered: the files binary_files lists that BINARY_SOURCE does not
+# cover, one per line; empty when the list binds the whole binary. Fails when
+# go list fails.
+binary_uncovered() {
+  local p out
+  out=$(binary_files) || return 1
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
     binary_covered "$p" || printf '%s\n' "$p"
+  done <<< "$out"
+}
+
+# binary_untracked: the files binary_files lists that git does not track, one
+# per line: untracked and gitignored files alike, because a binary built from a
+# file no commit holds is not the binary of any commit (IN-03 of the second
+# review of phase 34). Only files the binary really compiles or embeds count; a
+# Finder .DS_Store is neither. Fails when go list fails.
+binary_untracked() {
+  local p out
+  out=$(binary_files) || return 1
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    git ls-files --error-unmatch -- "$p" > /dev/null 2>&1 || printf '%s\n' "$p"
   done <<< "$out"
 }
 
@@ -2920,6 +2959,40 @@ selftest_binary_source() {
   fi
 }
 
+# The binary's files are listed for linux/amd64 and every one of them must be
+# tracked (IN-03 of the second review of phase 34), shown on a scratch module in
+# the selftest's temporary directory, never on the real tree: cmd/holzcloud has a
+# file behind //go:build linux that imports a package nothing else names, and a
+# gitignored file in package main.
+selftest_scratch_bound() { # DIR: bound_check in the scratch module, nothing bound but its source
+  ( cd "$1" && export GOWORK=off GOFLAGS= && BOUND_FILES="" BINARY_SOURCE='cmd lnx' bound_check )
+}
+selftest_binary_files() {
+  local d gover
+  command -v go > /dev/null 2>&1 || return 0
+  d=$ST_TMP/binmod
+  gover=$(sed -n 's/^go //p' go.mod | head -n 1)
+  mkdir -p "$d/cmd/holzcloud" "$d/lnx"
+  printf 'module example.com/st\n\ngo %s\n' "$gover" > "$d/go.mod"
+  printf 'package main\n\nfunc main() {}\n' > "$d/cmd/holzcloud/main.go"
+  printf '//go:build linux\n\npackage main\n\nimport _ "example.com/st/lnx"\n' > "$d/cmd/holzcloud/main_linux.go"
+  printf 'package lnx\n' > "$d/lnx/lnx.go"
+  printf 'cmd/holzcloud/extra.go\n' > "$d/.gitignore"
+  git -C "$d" init -q 2> /dev/null
+  git -C "$d" add -A
+  git -C "$d" -c user.name=st -c user.email=st@invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m scratch
+  st_eq "binary_uncovered: the list is made for linux/amd64, so lnx/lnx.go shows" "lnx/lnx.go" \
+    "$(cd "$d" && export GOWORK=off GOFLAGS= && BINARY_SOURCE='cmd' binary_uncovered 2>&1)"
+  st_eq "binary_untracked: control, every file the binary compiles is tracked" "" \
+    "$(cd "$d" && export GOWORK=off GOFLAGS= && BINARY_SOURCE='cmd lnx' binary_untracked 2>&1)"
+  st_ok "bound_check: control, a scratch module whose binary is all tracked" selftest_scratch_bound "$d"
+  printf 'package main\n' > "$d/cmd/holzcloud/extra.go"
+  st_eq "binary_untracked: a gitignored file in package main is named" "cmd/holzcloud/extra.go" \
+    "$(cd "$d" && export GOWORK=off GOFLAGS= && BINARY_SOURCE='cmd lnx' binary_untracked 2>&1)"
+  st_fail "bound_check: refuses a gitignored file the binary compiles" selftest_scratch_bound "$d"
+  st_has "bound_check: and says which file and why" "files that no commit holds (untracked or gitignored): cmd/holzcloud/extra.go" "$(selftest_scratch_bound "$d" 2>&1)"
+}
+
 # The synthetic builds fail closed (IN-02 of the phase 34 review): bash ignores
 # `set -e` in a subshell that is the left side of `||`, so each step is checked
 # by hand. syn_clone is stubbed for the mktemp cases, so a build that went on
@@ -2979,6 +3052,7 @@ cmd_selftest() {
   selftest_prune_expect
   selftest_verdict_upd01
   selftest_binary_source
+  selftest_binary_files
   selftest_syn_fail_closed
   if [ "$ST_BAD" -ne 0 ]; then
     echo "SELFTEST FAILED: $ST_BAD of $ST_N cases"

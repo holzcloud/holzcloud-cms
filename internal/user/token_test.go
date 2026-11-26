@@ -3,24 +3,16 @@ package user
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
-	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 )
 
 func newTestStore(t *testing.T) (*Store, int64) {
 	t.Helper()
-	database, err := db.Open(filepath.Join(t.TempDir(), "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.Open(t)
 	// Cheap Argon2 parameters: these tests are about tokens, not hashing costs.
 	s := NewStore(database, auth.Argon2Params{
 		Memory: 8, Iterations: 1, Parallelism: 1, SaltLength: 16, KeyLength: 32,
