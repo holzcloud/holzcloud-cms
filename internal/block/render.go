@@ -834,11 +834,9 @@ func safeURL(raw string) string {
 	switch {
 	case u == "":
 		return ""
-	case strings.HasPrefix(u, "//"):
-		// Protocol-relative: leaves the site while looking like a path.
-		return ""
 	case strings.HasPrefix(u, "/"):
-		// "/\host" and a tab-led path are read by a browser as "//host".
+		// "//host", "/\host" and a tab-led path are read by a browser as
+		// another server; localpath.Is refuses all three.
 		if !localpath.Is(u) {
 			return ""
 		}
