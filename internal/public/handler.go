@@ -467,6 +467,11 @@ func assetCacheControl(r *http.Request) string {
 // is the same in every language) keeps the visitor in their language: its
 // target gets the prefix back. Without that, renaming a page sent every
 // visitor of /fr/ancien to the main language's /nouveau.
+//
+// A stored target is followed only when web.RedirectTarget accepts it: a path
+// on this site or an explicit http(s) address. A row that reads as a path but
+// leaves the site (//host, /\host) is treated as absent, so the visitor gets
+// the 404 page; the rows themselves are left for the operator to correct.
 func (h *Handler) lookupRedirect(r *http.Request, website *domain.Website) (string, int, bool) {
 	tag := LocaleFrom(r.Context())
 	if tag != "" {
@@ -474,7 +479,10 @@ func (h *Handler) lookupRedirect(r *http.Request, website *domain.Website) (stri
 		if redirect, err := h.pageStore.LookupRedirect(r.Context(), website.ID, prefixed); err != nil {
 			slog.Error("redirect lookup failed", "err", err, "path", prefixed)
 		} else if redirect != nil && redirect.ToPath != prefixed {
-			return redirect.ToPath, redirect.Code, true
+			if to, ok := web.RedirectTarget(redirect.ToPath); ok {
+				return to, redirect.Code, true
+			}
+			logOffsiteRedirect(redirect, website.ID, prefixed)
 		}
 	}
 
@@ -486,7 +494,26 @@ func (h *Handler) lookupRedirect(r *http.Request, website *domain.Website) (stri
 	if redirect == nil || redirect.ToPath == r.URL.Path {
 		return "", 0, false
 	}
-	return withLanguagePrefix(tag, redirect.ToPath), redirect.Code, true
+	// The stored target is checked as it was written and again once the
+	// language prefix is on it: a row that leaves the site is not followed,
+	// whatever an earlier version let into the table (RDR-02).
+	if _, ok := web.RedirectTarget(redirect.ToPath); !ok {
+		logOffsiteRedirect(redirect, website.ID, r.URL.Path)
+		return "", 0, false
+	}
+	to, ok := web.RedirectTarget(withLanguagePrefix(tag, redirect.ToPath))
+	if !ok {
+		logOffsiteRedirect(redirect, website.ID, r.URL.Path)
+		return "", 0, false
+	}
+	return to, redirect.Code, true
+}
+
+// logOffsiteRedirect records that a stored redirect was not followed. The
+// redirect screen marks the same rows for the operator.
+func logOffsiteRedirect(redirect *page.Redirect, websiteID int64, from string) {
+	slog.Warn("redirect not followed: its target leads to another server",
+		"redirect", redirect.ID, "website", websiteID, "from", from)
 }
 
 // withLanguagePrefix puts a language prefix in front of an address on this
