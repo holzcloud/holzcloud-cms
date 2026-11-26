@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/money"
@@ -169,7 +168,7 @@ func (s *OrderStore) Place(ctx context.Context, websiteID int64, set Settings,
 		}
 	}
 
-	number, err := nextOrderNumber(ctx, tx, now)
+	number, _, err := nextOrderNumber(ctx, tx, now, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -246,39 +245,40 @@ func (s *OrderStore) Place(ctx context.Context, websiteID int64, set Settings,
 	return order, nil
 }
 
-// nextOrderNumber produces "2026-0001", counting within the calendar year.
+// nextOrderNumber produces "2026-0001", counting within the calendar year, and
+// returns the count it used so a caller that has to ask again can pass it back
+// as after.
 //
 // Derived from what is already stored rather than from a counter table: a
 // counter that drifts out of step with the orders is a second source of truth,
-// and the query is one indexed scan per order placed.
-func nextOrderNumber(ctx context.Context, tx *sql.Tx, now time.Time) (string, error) {
+// and the query is one scan of the year's range of the UNIQUE index per order
+// placed.
+//
+// The maximum is taken numerically. As text "2026-9999" sorts above
+// "2026-10000", so from the 10,000th order of a year the generator would have
+// handed out 10000 again and every checkout of the installation would have hit
+// the UNIQUE index until New Year. The format stays "%04d": it simply grows to
+// five digits, so the numbers that customers, invoices and admin URLs already
+// carry keep their shape.
+//
+// The range is year+"-" up to year+".", the dot being the character that sorts
+// directly after the dash, so it holds exactly that year's numbers. A suffix
+// that is not a number casts to 0 and never lowers the count.
+//
+// It must run inside the write transaction of Place, which is what serialises
+// the read and the insert that follows it.
+func nextOrderNumber(ctx context.Context, tx *sql.Tx, now time.Time, after int) (string, int, error) {
 	year := now.Format("2006")
-	var last sql.NullString
+	var last int
 	if err := tx.QueryRowContext(ctx,
-		`SELECT max(number) FROM orders WHERE number LIKE $1`, year+"-%").Scan(&last); err != nil {
-		return "", fmt.Errorf("read last order number: %w", err)
+		`SELECT COALESCE(MAX(CAST(substr(number, 6) AS INTEGER)), 0)
+		 FROM orders WHERE number >= $1 AND number < $2`,
+		year+"-", year+".").Scan(&last); err != nil {
+		return "", 0, fmt.Errorf("read last order number: %w", err)
 	}
 
-	n := 1
-	if last.Valid {
-		if _, after, ok := strings.Cut(last.String, "-"); ok {
-			if prev, err := parseInt(after); err == nil {
-				n = prev + 1
-			}
-		}
-	}
-	return fmt.Sprintf("%s-%04d", year, n), nil
-}
-
-func parseInt(s string) (int, error) {
-	n := 0
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return 0, errors.New("not a number")
-		}
-		n = n*10 + int(r-'0')
-	}
-	return n, nil
+	n := max(last, after) + 1
+	return fmt.Sprintf("%s-%04d", year, n), n, nil
 }
 
 // orderColumns is the projection every order scan expects.
