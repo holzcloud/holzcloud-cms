@@ -8,13 +8,13 @@
 #
 # frozen    the evidence still holds: each record of RECORDS has exactly one
 #           `Evidence commit:` line naming a commit of ROOT, and between that commit and
-#           HEAD the bound files of its driver did not change and the source of the binary
+#           the judged tree (AT, else the working tree) the bound files of its driver did not change and the source of the binary
 #           (cmd, internal, go.mod, go.sum, changelog.go, CHANGELOG.md) changed in nothing
 #           but CHANGELOG.md, and there only by new version sections: one block of lines
 #           inserted directly above the older first `## ` line, whose level-two headings are
 #           all `## X.Y.Z — YYYY-MM-DD` of a version no older heading has, with every older
 #           line and everything above the first heading byte for byte as it was. RECORD_AT
-#           must be an ancestor of HEAD and must hold the full binary source (CHANGELOG.md
+#           must be an ancestor of AT (HEAD without it) and must hold the full binary source (CHANGELOG.md
 #           included) of every evidence commit. The bound files
 #           are read from the `BOUND_FILES=` line of the driver that made the record
 #           (deploy/test/upgrade-verify.sh for the three container records,
@@ -25,7 +25,7 @@
 #           refuses to run without it. TIP is HEAD unless set; after the merge of phase 34
 #           it is set to that merge, as 32-check.sh does for phase 32, and it only moves
 #           the list of the phase's files: the bound files and the binary's source are
-#           always compared with HEAD.
+#           always compared with the judged tree, AT or else the working tree.
 # quotes   every required row of docs/beta.md (REQUIRED_ROWS) exists once, names one of
 #           the records of 0.1.5 (RECORDS) in its Record column, and every phrase of its
 #           Cited words column is found in that record by grep -F, byte for byte. A phrase
@@ -53,10 +53,10 @@
 #           deploy/test/upgrade-verify.sh for each of its three records and that of
 #           deploy/test/browser-verify.sh prove the records against their scratch files.
 #           They run in a temporary git worktree at RECORD_AT, removed again, after the
-#           rule has proved that RECORD_AT is an ancestor of HEAD, that the binary's source
-#           differs from it at most by new version sections of CHANGELOG.md, and that the
-#           bound files of both drivers are equal at RECORD_AT and HEAD, so the driver code
-#           that runs is byte for byte the code of HEAD. When E32 holds amd64-t32-src, the
+#           rule has proved that RECORD_AT is an ancestor of AT (HEAD without it), that the
+#           binary's source differs from it at most by new version sections of CHANGELOG.md,
+#           and that the bound files of both drivers are equal at RECORD_AT and in the judged
+#           tree, so the driver code that runs is byte for byte the code that is judged. When E32 holds amd64-t32-src, the
 #           gate of phase 32 runs whole at ROOT after its
 #           merge (`BASE=e1116b3 TIP=93bfb80 E="$E32" bash deploy/test/32-check.sh all`),
 #           which runs the record-check of deploy/test/backup-verify.sh. Every one must end
@@ -88,7 +88,7 @@
 # the seventh command of docs/beta.md already leaves it out). The drivers embed CHANGELOG.md
 # in their binary source, compare it with HEAD, and are bound files of their own evidence,
 # so they cannot change. Their record-checks therefore run where HEAD is RECORD_AT, after
-# this gate has proved the step from RECORD_AT to HEAD.
+# this gate has proved the step from RECORD_AT to the judged tree.
 #
 # Why a second gate. deploy/test/32-check.sh is the gate of phase 32 and checks the rows
 # that rest on deploy/BACKUP-VERIFY-RUN.md; it stays as it is, because it is the gate of
@@ -105,6 +105,13 @@
 #   BASE     the commit the phase branched from (frozen only), for example
 #            BASE=$(git merge-base origin/main HEAD)
 #   TIP      the end of the phase's change (frozen only); default HEAD
+#   AT       the commit this gate judges as the state of the repository (frozen and record:
+#            the bound files, the source of the binary, the ancestry of RECORD_AT); default
+#            empty, which means the working tree of ROOT, untracked files included. After a
+#            release the live HEAD moves on, so a gate of that release is proved by naming
+#            the release commit (AT=v0.1.5); without AT a local run sees an edit that is not
+#            committed yet (IN-04 of the review of phase 34). The files the phase changed
+#            (BASE...TIP) are always commits.
 #   RECORD_AT  the newest commit whose binary source is that of the evidence commits (the
 #            head of main when 0.1.5 was audited), default daf307f; record runs the
 #            drivers' record-checks there, and frozen proves it
@@ -161,6 +168,7 @@ E=${E:-$ROOT/deploy/test/out}
 E32=${E32:-$ROOT/deploy/test/out}
 BASE=${BASE:-}
 TIP=${TIP:-HEAD}
+AT=${AT:-}
 RECORD_AT=${RECORD_AT:-daf307f}
 # The drivers now run in another directory, so a path given relative is made absolute here,
 # as the caller meant it.
@@ -262,10 +270,17 @@ driver_of() {
     *) return 1 ;;
   esac
 }
-# bound_of DRIVER : the files of the driver's single `BOUND_FILES="…"` line.
+# bound_of DRIVER : the files of the driver's single `BOUND_FILES="…"` line, as the judged
+# tree holds the driver.
 bound_of() {
-  [ "$(grep -c '^BOUND_FILES=' "$ROOT/$1")" = 1 ] || return 1
-  sed -n 's/^BOUND_FILES="\(.*\)"$/\1/p' "$ROOT/$1"
+  local src="$TMPROOT/bound-driver"
+  if [ -n "$AT" ]; then
+    git -C "$ROOT" show "$AT:$1" > "$src" 2> /dev/null || return 1
+  else
+    cp "$ROOT/$1" "$src" 2> /dev/null || return 1
+  fi
+  [ "$(grep -c '^BOUND_FILES=' "$src")" = 1 ] || return 1
+  sed -n 's/^BOUND_FILES="\(.*\)"$/\1/p' "$src"
 }
 # not_in A B : the lines of A that are not lines of B.
 
@@ -305,12 +320,37 @@ changelog_added() {
   done < <(grep '^## ' "$TMPROOT/cl-block")
   return 0
 }
-# src_since FROM : the source of the binary (BINARY_SRC) changed between FROM and HEAD in
-# nothing but new version sections of CHANGELOG.md. Prints the reason and returns 1 if not.
+# at_ref : the ref of the judged tree for the ancestry checks, AT or else HEAD.
+at_ref() { printf '%s' "${AT:-HEAD}"; }
+# judged : the judged tree, as the messages name it.
+judged() { if [ -n "$AT" ]; then printf 'AT %s' "$AT"; else printf 'the working tree'; fi; }
+# at_ok RULE : AT, when it is set, is a commit of ROOT. A gate that cannot read the tree it was
+# asked to judge must not say that nothing moved.
+at_ok() {
+  [ -z "$AT" ] && return 0
+  git -C "$ROOT" rev-parse -q --verify "$AT^{commit}" > /dev/null || { fail "$1: AT '$AT' is not a commit of $ROOT"; return 1; }
+}
+# moved_since FROM PATH... : the names of the PATHs that differ between the commit FROM and the
+# judged tree. With AT that is the commit AT. Without it, it is the working tree of ROOT
+# (what is staged and what is edited), and a file git does not track yet counts as moved:
+# an edit that is not committed is exactly what a local run must not pass over.
+moved_since() {
+  local from="$1"
+  shift
+  if [ -n "$AT" ]; then
+    git -C "$ROOT" diff --name-only "$from" "$AT" -- "$@"
+  else
+    git -C "$ROOT" diff --name-only "$from" -- "$@"
+    git -C "$ROOT" ls-files --others --exclude-standard -- "$@"
+  fi
+}
+# src_since FROM : the source of the binary (BINARY_SRC) changed between FROM and the judged
+# tree in nothing but new version sections of CHANGELOG.md. Prints the reason and returns 1 if
+# not.
 src_since() {
   local from="$1" names other
   # shellcheck disable=SC2086
-  names=$(git -C "$ROOT" diff --name-only "$from" HEAD -- $BINARY_SRC)
+  names=$(moved_since "$from" $BINARY_SRC)
   [ -n "$names" ] || return 0
   other=$(printf '%s\n' "$names" | grep -vxF CHANGELOG.md | tr '\n' ' ' | sed 's/ $//')
   if [ -n "$other" ]; then
@@ -318,7 +358,11 @@ src_since() {
     return 1
   fi
   git -C "$ROOT" show "$from:CHANGELOG.md" > "$TMPROOT/cl-old" 2> /dev/null || { echo "CHANGELOG.md: not in $from"; return 1; }
-  git -C "$ROOT" show "HEAD:CHANGELOG.md" > "$TMPROOT/cl-new" 2> /dev/null || { echo "CHANGELOG.md: not in HEAD"; return 1; }
+  if [ -n "$AT" ]; then
+    git -C "$ROOT" show "$AT:CHANGELOG.md" > "$TMPROOT/cl-new" 2> /dev/null || { echo "CHANGELOG.md: not in $AT"; return 1; }
+  else
+    cp "$ROOT/CHANGELOG.md" "$TMPROOT/cl-new" 2> /dev/null || { echo "CHANGELOG.md: not in the working tree"; return 1; }
+  fi
   changelog_added "$TMPROOT/cl-old" "$TMPROOT/cl-new"
 }
 not_in() { printf '%s\n' "$1" | while IFS= read -r l; do [ -n "$l" ] || continue; printf '%s\n' "$2" | grep -qxF -- "$l" || printf '%s ' "$l"; done; }
@@ -360,8 +404,9 @@ rule_frozen() {
   git -C "$ROOT" rev-parse -q --verify "$BASE^{commit}" > /dev/null || { fail "frozen: BASE '$BASE' is not a commit of $ROOT"; return 2; }
   git -C "$ROOT" rev-parse -q --verify "$TIP^{commit}" > /dev/null || { fail "frozen: TIP '$TIP' is not a commit of $ROOT"; return 2; }
   local rec f n sha drv bound moved got want held="" nb reason
+  at_ok frozen || return 2
   git -C "$ROOT" rev-parse -q --verify "$RECORD_AT^{commit}" > /dev/null || { fail "frozen: RECORD_AT '$RECORD_AT' is not a commit of $ROOT"; return 2; }
-  git -C "$ROOT" merge-base --is-ancestor "$RECORD_AT" HEAD || fail "frozen: RECORD_AT $RECORD_AT is not an ancestor of HEAD"
+  git -C "$ROOT" merge-base --is-ancestor "$RECORD_AT" "$(at_ref)" || fail "frozen: RECORD_AT $RECORD_AT is not an ancestor of $(at_ref)"
   for rec in $RECORDS; do
     f="$REC_ROOT/$rec"
     need "$f" || continue
@@ -376,12 +421,12 @@ rule_frozen() {
     bound=$(bound_of "$drv") || { fail "frozen: $drv has no single BOUND_FILES= line"; continue; }
     [ -n "$bound" ] || { fail "frozen: the BOUND_FILES= line of $drv is empty"; continue; }
     # shellcheck disable=SC2086
-    if ! git -C "$ROOT" diff --quiet "$sha" HEAD -- $bound; then
-      moved=$(git -C "$ROOT" diff --name-only "$sha" HEAD -- $bound | tr '\n' ' ')
-      fail "frozen: $rec: a bound file moved since the evidence commit $sha: $moved"
+    moved=$(moved_since "$sha" $bound | tr '\n' ' ')
+    if [ -n "$moved" ]; then
+      fail "frozen: $rec: a bound file moved since the evidence commit $sha (judged: $(judged)): $moved"
     fi
     if ! reason=$(src_since "$sha"); then
-      fail "frozen: $rec: the source of the binary moved since the evidence commit $sha: $reason"
+      fail "frozen: $rec: the source of the binary moved since the evidence commit $sha (judged: $(judged)): $reason"
     fi
     # shellcheck disable=SC2086
     if ! git -C "$ROOT" diff --quiet "$sha" "$RECORD_AT" -- $BINARY_SRC; then
@@ -396,7 +441,7 @@ rule_frozen() {
   if [ "$got" != "$want" ]; then
     fail "frozen: the files changed in $BASE...$TIP (TIP $TIP) are not the files of the phase; extra: $(not_in "$got" "$want")missing: $(not_in "$want" "$got")"
   fi
-  [ "$RULE_FAIL" = 0 ] && ok "frozen: the bound files unchanged and $BINARY_SRC unchanged but for new version sections of CHANGELOG.md since the evidence commit of each record (${held#, }), RECORD_AT $RECORD_AT holds each binary, and $BASE...$TIP changed exactly the $(printf '%s\n' "$want" | grep -c .) files of the phase"
+  [ "$RULE_FAIL" = 0 ] && ok "frozen: judged: $(judged); the bound files unchanged and $BINARY_SRC unchanged but for new version sections of CHANGELOG.md since the evidence commit of each record (${held#, }), RECORD_AT $RECORD_AT holds each binary, and $BASE...$TIP changed exactly the $(printf '%s\n' "$want" | grep -c .) files of the phase"
 }
 
 rule_quotes() {
@@ -593,19 +638,19 @@ run_ok() {
 # the drivers there are the code of HEAD and RECORD_AT is HEAD but for new changelog sections.
 record_prove() {
   local reason drv bound moved
+  at_ok record || return 2
   git -C "$ROOT" rev-parse -q --verify "$RECORD_AT^{commit}" > /dev/null || { fail "record: RECORD_AT '$RECORD_AT' is not a commit of $ROOT"; return 2; }
-  git -C "$ROOT" merge-base --is-ancestor "$RECORD_AT" HEAD || { fail "record: RECORD_AT $RECORD_AT is not an ancestor of HEAD"; return 1; }
+  git -C "$ROOT" merge-base --is-ancestor "$RECORD_AT" "$(at_ref)" || { fail "record: RECORD_AT $RECORD_AT is not an ancestor of $(at_ref)"; return 1; }
   if ! reason=$(src_since "$RECORD_AT"); then
-    fail "record: the source of the binary moved since RECORD_AT $RECORD_AT: $reason"
+    fail "record: the source of the binary moved since RECORD_AT $RECORD_AT (judged: $(judged)): $reason"
     return 1
   fi
   for drv in deploy/test/upgrade-verify.sh deploy/test/browser-verify.sh; do
     bound=$(bound_of "$drv") || { fail "record: $drv has no single BOUND_FILES= line"; return 1; }
     # shellcheck disable=SC2086
-    if ! git -C "$ROOT" diff --quiet "$RECORD_AT" HEAD -- $bound; then
-      # shellcheck disable=SC2086
-      moved=$(git -C "$ROOT" diff --name-only "$RECORD_AT" HEAD -- $bound | tr '\n' ' ')
-      fail "record: a bound file of $drv moved since RECORD_AT $RECORD_AT: $moved"
+    moved=$(moved_since "$RECORD_AT" $bound | tr '\n' ' ')
+    if [ -n "$moved" ]; then
+      fail "record: a bound file of $drv moved since RECORD_AT $RECORD_AT (judged: $(judged)): $moved"
       return 1
     fi
   done
@@ -642,7 +687,7 @@ rule_record() {
     missing="$missing E ($E holds no amd64-t34-summary.txt and mac-t34-uat)"
   fi
   if [ -d "$E32/amd64-t32-src" ]; then
-    RUN_NOSKIP=1 run_ok "32-check.sh all after the merge of phase 32" '32-CHECK OK (' env BASE=e1116b3 TIP=93bfb80 E="$E32" bash deploy/test/32-check.sh all
+    RUN_NOSKIP=1 run_ok "32-check.sh all after the merge of phase 32" '32-CHECK OK (' env AT="$AT" BASE=e1116b3 TIP=93bfb80 E="$E32" bash deploy/test/32-check.sh all
   elif ls "$E32"/amd64-t32-* > /dev/null 2>&1; then
     fail "record: $E32 holds only part of the evidence set of phase 32 (amd64-t32-src missing)"
   else
@@ -653,7 +698,7 @@ rule_record() {
     echo "SKIP record: no scratch files under$missing"
     return "$SKIP"
   fi
-  ok "record: the record-checks of the four records of phase 34 ran at RECORD_AT $RECORD_AT, which HEAD differs from at most by new version sections of CHANGELOG.md, and the gate of phase 32 ended OK"
+  ok "record: the record-checks of the four records of phase 34 ran at RECORD_AT $RECORD_AT, which the judged tree ($(judged)) differs from at most by new version sections of CHANGELOG.md, and the gate of phase 32 ended OK"
 }
 
 # ------------------------------------------------------------- selftest ----
@@ -671,7 +716,9 @@ st_run() {
   shift 3
   while [ "$#" -gt 0 ] && [ "$1" != "--" ]; do envs[${#envs[@]}]="$1"; shift; done
   shift
-  out=$(env ${envs[@]+"${envs[@]}"} bash "$ME" "$@" 2>&1)
+  # AT= first: a value the caller of the selftest set must not reach a case that did not ask
+  # for it; a case that names AT comes later in the list and wins.
+  out=$(env AT= ${envs[@]+"${envs[@]}"} bash "$ME" "$@" 2>&1)
   rc=$?
   if [ "$rc" != "$want" ]; then st_bad "$desc: exit $rc, want $want; last line: $(printf '%s\n' "$out" | tail -n 1)"; return; fi
   if [ -n "$msg" ] && ! printf '%s\n' "$out" | grep -qF -- "$msg"; then st_bad "$desc: the output does not say '$msg'"; return; fi
@@ -721,7 +768,7 @@ t_e_nohead() { awk '!done && /^## / { print "- Ein Satz ohne Version."; print ""
 t_e_pre() { sed '1s/^# Changelog$/# Changes/'; }
 
 selftest() {
-  local T base tip rec less wt0 c1 c2 tipsha side
+  local T base tip rec less wt0 c1 c2 tipsha side at atarg
   T=$(mktemp -d "$TMPROOT/st.XXXXXX")
   wt0=$(git -C "$ROOT" worktree list | grep -c .)
   cp "$BETA" "$T/good.md"
@@ -742,53 +789,74 @@ selftest() {
     tip=${TIP:-HEAD}
   fi
   base=$(git -C "$ROOT" rev-parse -q --verify "$base^{commit}" 2> /dev/null)
+  # The cases on ROOT judge the release whose records this gate proves, not the live HEAD,
+  # which moved on after it (the frozen control failed on every checkout after pull request
+  # 101). AT given by the caller is kept; otherwise the tag v0.1.5 when this clone has it,
+  # and the working tree when it has not.
+  at=$AT
+  if [ -z "$at" ] && git -C "$ROOT" rev-parse -q --verify 'v0.1.5^{commit}' > /dev/null 2>&1; then at=v0.1.5; fi
+  atarg="AT=$at"
   # frozen
-  st_run 'frozen: control, the records as they are' 0 'ok: frozen' "BASE=$base" "TIP=$tip" -- frozen
+  st_run 'frozen: control, the records as they are' 0 'ok: frozen' "BASE=$base" "TIP=$tip" "$atarg" -- frozen
   mkdir -p "$T/rec/deploy"
   for rec in $RECORDS; do cp "$REC_ROOT/$rec" "$T/rec/$rec"; done
   sed "s/^Evidence commit: .*/Evidence commit: $base/" "$REC_ROOT/deploy/MIGRATION-RESTORE-RUN.md" > "$T/rec/deploy/MIGRATION-RESTORE-RUN.md"
-  st_run 'frozen: the Evidence commit of a record replaced by BASE' 1 'frozen: deploy/MIGRATION-RESTORE-RUN.md: a bound file moved since the evidence commit' "BASE=$base" "TIP=$tip" "REC_ROOT=$T/rec" -- frozen
+  st_run 'frozen: the Evidence commit of a record replaced by BASE' 1 'frozen: deploy/MIGRATION-RESTORE-RUN.md: a bound file moved since the evidence commit' "BASE=$base" "TIP=$tip" "REC_ROOT=$T/rec" "$atarg" -- frozen
   less=$(printf '%s\n' "$PHASE_FILES" | grep -vxF 'docs/beta.md')
-  st_run 'frozen: the list of the phase without docs/beta.md' 1 'extra: docs/beta.md' "BASE=$base" "TIP=$tip" "PHASE_FILES=$less" -- frozen
-  st_run 'frozen: no BASE' 2 'frozen: BASE is required' "BASE=" "TIP=$tip" -- frozen
-  st_run 'frozen: RECORD_AT is not a commit' 2 "frozen: RECORD_AT '0000000' is not a commit" "BASE=$base" "TIP=$tip" "RECORD_AT=0000000" -- frozen
-  st_run 'frozen: RECORD_AT is BASE, whose binary is not that of the evidence' 1 'does not hold the binary of the evidence commit' "BASE=$base" "TIP=$tip" "RECORD_AT=$base" -- frozen
+  st_run 'frozen: the list of the phase without docs/beta.md' 1 'extra: docs/beta.md' "BASE=$base" "TIP=$tip" "PHASE_FILES=$less" "$atarg" -- frozen
+  st_run 'frozen: no BASE' 2 'frozen: BASE is required' "BASE=" "TIP=$tip" "$atarg" -- frozen
+  st_run 'frozen: RECORD_AT is not a commit' 2 "frozen: RECORD_AT '0000000' is not a commit" "BASE=$base" "TIP=$tip" "RECORD_AT=0000000" "$atarg" -- frozen
+  st_run 'frozen: RECORD_AT is BASE, whose binary is not that of the evidence' 1 'does not hold the binary of the evidence commit' "BASE=$base" "TIP=$tip" "RECORD_AT=$base" "$atarg" -- frozen
   # A scratch clone of ROOT, with one commit on top of HEAD per case. TIP is resolved here:
   # inside the clone, HEAD is the case's commit and would make BASE...TIP list the case.
-  HEADSHA=$(git -C "$ROOT" rev-parse HEAD)
+  HEADSHA=$(git -C "$ROOT" rev-parse "${at:-HEAD}^{commit}")
   tipsha=$(git -C "$ROOT" rev-parse -q --verify "$tip^{commit}")
   git -c core.hooksPath=/dev/null clone -q --shared --no-checkout "$ROOT" "$T/clone" 2> /dev/null
   t_cl_case "$T/clone" 9.9.9 2099-01-01
   t_commit "$T/clone"
-  st_run 'frozen: a commit that adds a new top section to CHANGELOG.md passes' 0 'ok: frozen' "ROOT=$T/clone" "BASE=$base" "TIP=$tipsha" -- frozen
+  st_run 'frozen: a commit that adds a new top section to CHANGELOG.md passes' 0 'ok: frozen' "ROOT=$T/clone" "AT=HEAD" "BASE=$base" "TIP=$tipsha" -- frozen
   t_cl_case "$T/clone" 9.9.9 2099-01-01
   printf '// selftest\n' >> "$T/clone/changelog.go"
   t_commit "$T/clone"
-  st_run 'frozen: a commit that also changes changelog.go fails' 1 'beyond CHANGELOG.md: changelog.go' "ROOT=$T/clone" "BASE=$base" "TIP=$tipsha" -- frozen
+  st_run 'frozen: a commit that also changes changelog.go fails' 1 'beyond CHANGELOG.md: changelog.go' "ROOT=$T/clone" "AT=HEAD" "BASE=$base" "TIP=$tipsha" -- frozen
   t_cl_case "$T/clone" 9.9.9 2099-01-01 t_e_date
   t_commit "$T/clone"
-  st_run 'frozen: a commit that adds a section and edits an older line of CHANGELOG.md fails' 1 'an older line changed, moved or was removed' "ROOT=$T/clone" "BASE=$base" "TIP=$tipsha" -- frozen
+  st_run 'frozen: a commit that adds a section and edits an older line of CHANGELOG.md fails' 1 'an older line changed, moved or was removed' "ROOT=$T/clone" "AT=HEAD" "BASE=$base" "TIP=$tipsha" -- frozen
   t_cl_case "$T/clone" 9.9.9 2099-01-01 t_e_last
   t_commit "$T/clone"
-  st_run 'frozen: a commit that adds a section and removes an older line of CHANGELOG.md fails' 1 'an older line changed, moved or was removed' "ROOT=$T/clone" "BASE=$base" "TIP=$tipsha" -- frozen
+  st_run 'frozen: a commit that adds a section and removes an older line of CHANGELOG.md fails' 1 'an older line changed, moved or was removed' "ROOT=$T/clone" "AT=HEAD" "BASE=$base" "TIP=$tipsha" -- frozen
   t_cl_case "$T/clone" "" "" t_e_end
   t_commit "$T/clone"
-  st_run 'frozen: a commit that adds the section at the end of CHANGELOG.md fails' 1 'an older line changed, moved or was removed' "ROOT=$T/clone" "BASE=$base" "TIP=$tipsha" -- frozen
+  st_run 'frozen: a commit that adds the section at the end of CHANGELOG.md fails' 1 'an older line changed, moved or was removed' "ROOT=$T/clone" "AT=HEAD" "BASE=$base" "TIP=$tipsha" -- frozen
   t_cl_case "$T/clone" "" "" t_e_nohead
   t_commit "$T/clone"
-  st_run 'frozen: a commit whose added lines do not begin with a version heading fails' 1 'the added lines do not begin with a version heading' "ROOT=$T/clone" "BASE=$base" "TIP=$tipsha" -- frozen
+  st_run 'frozen: a commit whose added lines do not begin with a version heading fails' 1 'the added lines do not begin with a version heading' "ROOT=$T/clone" "AT=HEAD" "BASE=$base" "TIP=$tipsha" -- frozen
   t_cl_case "$T/clone" 9.9.9 2099-01-01 t_e_pre
   t_commit "$T/clone"
-  st_run 'frozen: a commit that changes the preamble of CHANGELOG.md fails' 1 'a line above its first version heading changed' "ROOT=$T/clone" "BASE=$base" "TIP=$tipsha" -- frozen
+  st_run 'frozen: a commit that changes the preamble of CHANGELOG.md fails' 1 'a line above its first version heading changed' "ROOT=$T/clone" "AT=HEAD" "BASE=$base" "TIP=$tipsha" -- frozen
   t_cl_case "$T/clone" 0.1.4 2026-11-24
   t_commit "$T/clone"
-  st_run 'frozen: a commit that adds a second section for an existing version fails' 1 'names a version an older heading already has' "ROOT=$T/clone" "BASE=$base" "TIP=$tipsha" -- frozen
+  st_run 'frozen: a commit that adds a second section for an existing version fails' 1 'names a version an older heading already has' "ROOT=$T/clone" "AT=HEAD" "BASE=$base" "TIP=$tipsha" -- frozen
   t_cl_case "$T/clone" "" ""
   printf 'selftest\n' >> "$T/clone/README.md"
   t_commit "$T/clone"
   side=$(git -C "$T/clone" rev-parse HEAD)
   git -C "$T/clone" -c core.hooksPath=/dev/null checkout -q -f --detach "$HEADSHA"
-  st_run 'frozen: RECORD_AT on a side commit that is not an ancestor of HEAD fails' 1 'is not an ancestor of HEAD' "ROOT=$T/clone" "BASE=$base" "TIP=$tipsha" "RECORD_AT=$side" -- frozen
+  st_run 'frozen: RECORD_AT on a side commit that is not an ancestor of HEAD fails' 1 'is not an ancestor of HEAD' "ROOT=$T/clone" "AT=HEAD" "BASE=$base" "TIP=$tipsha" "RECORD_AT=$side" -- frozen
+  # Without AT the gate judges the working tree. The clone is checked out clean at the pin,
+  # so the control passes; an untracked file under the source of the binary and an edit of a
+  # bound file that is not committed each make it fail, and with AT=HEAD the same edit is
+  # invisible, because AT names a commit and the edit is in none.
+  git -C "$T/clone" -c core.hooksPath=/dev/null checkout -q -f --detach "$HEADSHA"
+  st_run 'frozen: AT unset, the clone checked out clean at the pin: the working tree passes' 0 'ok: frozen' "ROOT=$T/clone" "BASE=$base" "TIP=$tipsha" -- frozen
+  printf 'package selftest\n' > "$T/clone/internal/selftest_untracked.go"
+  st_run 'frozen: AT unset, an untracked file under the source of the binary fails' 1 '(judged: the working tree): beyond CHANGELOG.md: internal/selftest_untracked.go' "ROOT=$T/clone" "BASE=$base" "TIP=$tipsha" -- frozen
+  rm -f "$T/clone/internal/selftest_untracked.go"
+  printf '# selftest\n' >> "$T/clone/deploy/test/run.sh"
+  st_run 'frozen: AT unset, an uncommitted edit of a bound file fails and names it' 1 '(judged: the working tree): deploy/test/run.sh' "ROOT=$T/clone" "BASE=$base" "TIP=$tipsha" -- frozen
+  st_run 'frozen: AT=HEAD does not see the uncommitted edit of a bound file' 0 'ok: frozen' "ROOT=$T/clone" "AT=HEAD" "BASE=$base" "TIP=$tipsha" -- frozen
+  git -C "$T/clone" -c core.hooksPath=/dev/null checkout -q -f --detach "$HEADSHA"
+  st_run 'frozen: AT is not a commit' 2 "frozen: AT 'no-such-ref' is not a commit" "BASE=$base" "TIP=$tip" "AT=no-such-ref" -- frozen
   # quotes
   st_run 'quotes: control, the page as it is' 0 'ok: quotes' "BETA=$T/good.md" -- quotes
   t_row_append P-27 'NO SUCH PHRASE 34' < "$T/good.md" > "$T/q-absent.md"
@@ -848,7 +916,7 @@ selftest() {
   st_run 'record: a run in which every rule was skipped proves nothing and exits 77' "$SKIP" '34-CHECK NOT PROVEN (0 rules, 1 skipped)' "E=$T/empty-e" "E32=$T/empty-e" -- record
   st_run 'record: a skip beside a rule that passed names the skipped rule and still exits 0' 0 'NOT PROVEN: record' "E=$T/empty-e" "E32=$T/empty-e" -- nojs record
   st_run 'record: a skip beside a rule that passed keeps the count in the last line' 0 '34-CHECK OK (1 rules, 1 skipped)' "E=$T/empty-e" "E32=$T/empty-e" -- nojs record
-  st_run 'record: E holds an empty set, so the record-check fails' 1 'record: upgrade-verify.sh record-check of deploy/MIGRATION-RESTORE-RUN.md did not end' "E=$T/bad-e" "E32=$T/empty-e" -- record
+  st_run 'record: E holds an empty set, so the record-check fails' 1 'record: upgrade-verify.sh record-check of deploy/MIGRATION-RESTORE-RUN.md did not end' "E=$T/bad-e" "E32=$T/empty-e" "$atarg" -- record
   # A half-present set is evidence that is partly there, and the rule refuses it.
   mkdir -p "$T/half-summary" "$T/half-uat/mac-t34-uat" "$T/half-t32"
   : > "$T/half-summary/amd64-t34-summary.txt"
