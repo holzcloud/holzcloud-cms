@@ -112,6 +112,9 @@ func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 	if ort := rec.Header().Get("Location"); ort != "/kontakt?formular=gesendet" {
 		t.Errorf("Location = %q", ort)
 	}
+	if csp := rec.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "script-src 'none'") {
+		t.Errorf("the 303 answer's policy = %q, want script-src 'none'", csp)
+	}
 	if n := messages(t, database); n != 1 {
 		t.Fatalf("%d Nachrichten gespeichert, want 1", n)
 	}

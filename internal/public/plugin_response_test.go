@@ -74,3 +74,91 @@ func TestAPluginAnswerCannotBeScript(t *testing.T) {
 		t.Errorf("payment form-action lost: %q", rec.Header().Get("Content-Security-Policy"))
 	}
 }
+
+// W-2 of the phase 35 security report: the deny list let Refresh through, which
+// redirects without going through the Location check, and Link, which makes the
+// browser preload a script. The headers a plugin may send are now a short list;
+// everything else is dropped, the next header a browser learns to obey included.
+func TestAPluginCannotSetRefreshOrLink(t *testing.T) {
+	dropped := map[string]string{
+		"Refresh":                     "0; url=https://evil.example",
+		"refresh":                     "0; url=https://evil.example",
+		"Link":                        "<https://evil.example/x.js>; rel=preload; as=script",
+		"Set-Cookie":                  "a=b",
+		"Content-Security-Policy":     "script-src 'unsafe-inline'",
+		"X-Frame-Options":             "ALLOWALL",
+		"Access-Control-Allow-Origin": "*",
+		"Strict-Transport-Security":   "max-age=0",
+		"Location":                    "https://evil.example",
+		"X-Anything":                  "1",
+		"Content-Length":              "5",
+		"Transfer-Encoding":           "chunked",
+		"Content-Type":                "text/javascript",
+		"Clear-Site-Data":             `"cache"`,
+		"Server-Timing":               "x",
+	}
+	sent := map[string]string{
+		"Cache-Control":       "no-store",
+		"content-language":    "de-CH",
+		"Content-Disposition": `attachment; filename="a.txt"`,
+		"ETag":                `"abc"`,
+		"Expires":             "0",
+		"Last-Modified":       "Mon, 02 Jan 2006 15:04:05 GMT",
+		"Retry-After":         "30",
+		"Vary":                "Accept-Language",
+		"X-Robots-Tag":        "noindex",
+	}
+	headers := map[string]string{}
+	for k, v := range dropped {
+		headers[k] = v
+	}
+	for k, v := range sent {
+		headers[k] = v
+	}
+
+	rec := answerWithPolicy(&plugin.RequestOut{Handled: true, Headers: headers, Body: "x"})
+	for k := range dropped {
+		if k == "Content-Type" || k == "Content-Security-Policy" {
+			continue // always set by the host, checked below
+		}
+		if got := rec.Header().Values(k); len(got) != 0 {
+			t.Errorf("%s was sent: %q", k, got)
+		}
+	}
+	for k, v := range sent {
+		if got := rec.Header().Get(k); got != v {
+			t.Errorf("%s = %q, want %q", k, got, v)
+		}
+	}
+	if got := rec.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
+		t.Errorf("Content-Type = %q", got)
+	}
+	if csp := rec.Header().Get("Content-Security-Policy"); strings.Contains(csp, "script-src 'unsafe-inline'") || !strings.Contains(csp, "script-src 'none'") {
+		t.Errorf("a plugin replaced the policy: %q", csp)
+	}
+	if rec.Header().Get("Location") != "" {
+		t.Errorf("Location = %q", rec.Header().Get("Location"))
+	}
+}
+
+// A 103 carries headers to the browser before the real answer, and a 101 is not
+// an answer at all. Nothing below 200 leaves the host as sent.
+func TestAPluginCannotAnswerWithAnInformationalStatus(t *testing.T) {
+	for status, want := range map[int]int{
+		103: 200, 101: 200, 100: 200, 99: 200, 600: 200, 0: 200, -1: 200,
+		200: 200, 204: 204, 303: 303, 404: 404, 503: 503, 599: 599,
+	} {
+		out := &plugin.RequestOut{Handled: true, Status: status, Body: "x"}
+		if status == 103 {
+			out.Headers = map[string]string{"Link": "</x.js>; rel=preload; as=script"}
+		}
+		rec := httptest.NewRecorder()
+		writePluginResponse(rec, out)
+		if rec.Code != want {
+			t.Errorf("status %d was sent as %d, want %d", status, rec.Code, want)
+		}
+		if status == 103 && rec.Header().Get("Link") != "" {
+			t.Errorf("Link was sent with the 103: %q", rec.Header().Get("Link"))
+		}
+	}
+}

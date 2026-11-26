@@ -170,8 +170,10 @@ func pluginLocation(loc string) (string, bool) {
 // cookies — are the host's, and a plugin that could set them could undo the
 // protections every other page relies on.
 func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
+	// 200 to 599: an informational status is not an answer, and a 103 would
+	// carry a plugin's headers to the browser before the real one.
 	status := out.Status
-	if status < 100 || status > 599 {
+	if status < 200 || status > 599 {
 		status = http.StatusOK
 	}
 
@@ -194,7 +196,7 @@ func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
 	}
 
 	for k, v := range out.Headers {
-		if reservedHeader(k) {
+		if !pluginHeaders[http.CanonicalHeaderKey(k)] {
 			continue
 		}
 		w.Header().Set(k, v)
@@ -210,17 +212,19 @@ func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
 	}
 }
 
-// reservedHeader names the ones a plugin may not set.
-func reservedHeader(name string) bool {
-	switch strings.ToLower(name) {
-	case "content-security-policy", "content-security-policy-report-only",
-		"set-cookie", "strict-transport-security", "x-frame-options",
-		"content-type", "location", "content-length", "transfer-encoding",
-		"referrer-policy", "permissions-policy", "x-content-type-options",
-		"access-control-allow-origin":
-		return true
-	}
-	return false
+// pluginHeaders is the closed list of headers a plugin may set.
+//
+// An allow list, not a deny list: the deny list that stood here missed Refresh,
+// which redirects without passing the Location check, and Link, which makes the
+// browser preload a script (W-2 of the phase 35 security report), and the next
+// header a browser learns to obey would have been missed the same way. What is
+// on the list describes the answer (its caching, language, validators and
+// filename) and decides nothing about how the browser treats the origin. Names
+// are canonicalised first, so case does not matter.
+var pluginHeaders = map[string]bool{
+	"Cache-Control": true, "Content-Disposition": true, "Content-Language": true,
+	"Etag": true, "Expires": true, "Last-Modified": true, "Retry-After": true,
+	"Vary": true, "X-Robots-Tag": true,
 }
 
 // pluginMediaTypes is the closed list of media types a plugin may answer with.

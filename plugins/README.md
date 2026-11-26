@@ -74,8 +74,8 @@ The zip is uploaded in the admin under *Plugins*. It contains:
 |---|---|---|
 | `plugin.json` | yes | key, hooks, addresses, permissions |
 | `plugin.wasm` | yes | the module |
-| `assets/…` | no | files served under `/plugin-assets/<key>/` |
-| `migrations/*.sql` | no | tables of its own, applied once |
+| `assets/…` | no | stylesheets, images, fonts, JSON and text served under `/plugin-assets/<key>/` (see [Assets](#assets)) |
+| `migrations/*.sql` | no | tables of its own, applied once (see [Migrations](#migrations)) |
 
 ## Handing over a file
 
@@ -244,6 +244,86 @@ reaches the database only through the host functions the SDK offers. An endless
 loop is aborted after two seconds and a crash is caught — in both cases the
 request carries on as though the plugin had said nothing, and the reason is shown
 in the admin next to the plugin.
+
+### What an answer may carry
+
+A route, request or notfound hook answers a visitor on a website's own address,
+and that address shares its session with the admin. So the host decides what
+leaves, not the plugin.
+
+- **Media type.** `text/html`, `text/plain`, `text/csv`, `text/calendar`,
+  `text/xml`, `application/xml`, `application/json`, `application/rss+xml` and
+  `application/atom+xml`, with their charset as given. An empty type means
+  `text/html; charset=utf-8`. Anything else, `text/javascript`, `text/css`,
+  `image/svg+xml` or a type that does not parse, is sent as
+  `text/plain; charset=utf-8`. The type is compared as parsed, not as a prefix.
+- **Headers.** `Cache-Control`, `Content-Disposition`, `Content-Language`,
+  `ETag`, `Expires`, `Last-Modified`, `Retry-After`, `Vary` and `X-Robots-Tag`.
+  Every other header is dropped, whatever its case: `Refresh` (it redirects
+  without the `Location` check), `Link` (it preloads a script), `Set-Cookie`, the
+  security policies and anything a browser may learn to obey later.
+- **Status.** 200 to 599. Anything below 200 (a 103 would carry headers to the
+  browser ahead of the answer) or above 599 becomes 200.
+- **Location.** A path on the same site, as before; a redirect without a
+  3xx status becomes 303.
+- **Script.** Every answer carries a content policy with `script-src 'none'`
+  on top of the one the site already has. A plugin's page cannot use
+  JavaScript, neither inline, nor in an event attribute, nor from a file.
+  Forms and links work as usual, a form still posts to the site itself.
+
+### Assets
+
+Files under `assets/` are served under `/plugin-assets/<key>/` on every host of
+the installation, including the one the admin session lives on, so only files a
+browser never executes are allowed: `.css`, `.png`, `.jpg`, `.jpeg`, `.gif`,
+`.webp`, `.avif`, `.ico`, `.woff2`, `.woff`, `.json`, `.txt` and `.svg`. Each is
+served with the content type of that extension and never sniffed; an `.svg` is
+served as a download only. `.js`, `.mjs`, `.cjs`, `.wasm`, HTML (`.html`,
+`.htm`, `.xhtml`), `.xml` and files without an extension are refused when the
+archive is installed, with a message that names the file, and are never served,
+even when an older installation still has one on disk.
+
+### Migrations
+
+A file under `migrations/` is applied once, in name order, inside a transaction.
+SQLite itself checks what it does, at install, while it runs:
+
+- **May create and change:** tables and indexes whose name starts with
+  `plugin_<id>_` (the id with `-` written as `_`), and add rows to
+  `plugin_store` with its own plugin id.
+- **May read:** its own tables; `form_messages` through `id`, `website_id`,
+  `created_at`, `name`, `email`, `subject`, `body`, `read_at` and `page_id`;
+  `pages.id` and `pages.slug`. The schema tables (`sqlite_master`,
+  `sqlite_sequence`) can be read, because SQLite itself reads them when it alters
+  a table: the structure of the host's tables is public in the source and the
+  counters are all that is learned there. That is a known and accepted limit.
+  Changing them is checked after every statement: a new entry outside its prefix,
+  a missing foreign entry or a changed foreign counter refuses the migration.
+- **Refused:** every other table and column (`users`, `sessions`, `websites`,
+  `pages.access_password` and so on), reading `plugin_store`, updating or
+  deleting `plugin_store` rows, triggers, views, renaming a table out of the
+  prefix, `PRAGMA`, `ATTACH`, `BEGIN`/`COMMIT`/`SAVEPOINT`.
+- **Names:** a plugin whose id would share a table prefix with an installed
+  plugin's (`nicht` beside `nicht-gefunden`) is refused at install.
+- **Time:** a migration has ten seconds. A refused, failed or timed-out
+  migration changes nothing and does not stop the host from working.
+
+### When a plugin is busy or failing
+
+- A call runs to its own two-second bound even when the visitor has left, so a
+  form that was submitted is not cut off by a closed tab. The bound starts when
+  the call gets to run, not while it waits for another.
+- Callers of one plugin wait at most two seconds, and at most 32 of them wait.
+  Beyond that a route answers `503` with `Retry-After`; so does a visitor who
+  asks while the plugin is held back.
+- After three failed calls in a row (a trap, a timeout, an error) the plugin is
+  held back for 30 seconds: its routes answer `503` with `Retry-After`, and the
+  admin shows that it is held back and until when. The first call after that
+  decides; a success ends it, a failure holds again for 30 seconds. A plugin
+  that declines a request is not failing.
+- **The host may start a plugin's module afresh at any time**: after a timeout,
+  a trap, a restart or an update. A plugin therefore keeps nothing it needs in
+  memory between calls and uses its store instead, as the five bundled ones do.
 
 ## The size
 
