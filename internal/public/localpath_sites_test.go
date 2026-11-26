@@ -101,10 +101,30 @@ func TestPluginLocationStaysOnTheSite(t *testing.T) {
 			rec.Code, rec.Header().Get("Location"))
 	}
 
+	// A backslash in the query or the fragment cannot change the origin: a
+	// plugin that echoes user input there still redirects, with the backslash
+	// percent-encoded. Only the path is judged by the local-path rule.
+	for loc, want := range map[string]string{
+		`/suche?q=C:\temp`:  "/suche?q=C:%5Ctemp",
+		`/suche#a\b`:        "/suche#a%5Cb",
+		`/?x=1&y=\\evil`:    "/?x=1&y=%5C%5Cevil",
+		"/aktion-50%?q=a%b": "/aktion-50%?q=a%b",
+	} {
+		rec := httptest.NewRecorder()
+		writePluginResponse(rec, &plugin.RequestOut{Handled: true, Location: loc})
+		if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != want {
+			t.Errorf("Location %q: status %d, Location %q; want 303 to %q",
+				loc, rec.Code, rec.Header().Get("Location"), want)
+		}
+	}
+
 	for name, loc := range map[string]string{
-		"backslash":    `/\evil.example`,
-		"double slash": "//evil.example",
-		"tab":          "/\tevil.example",
+		"backslash":             `/\evil.example`,
+		"backslash in the path": `/x\y?q=1`,
+		"double slash":          "//evil.example",
+		"tab":                   "/\tevil.example",
+		"line break in a query": "/x?q=a\r\nSet-Cookie: a=b",
+		"no path":               "?q=1",
 	} {
 		t.Run(name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
