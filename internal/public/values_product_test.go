@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
@@ -34,14 +34,7 @@ func shopRequest(ws *domain.Website, path string) *http.Request {
 // engines — never the raw [[wert:…]].
 func TestAProductDescriptionResolvesItsValues(t *testing.T) {
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatal(err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 	fsys := testFS()
 	fsys["layout.html"] = &fstest.MapFile{Data: []byte(
 		`<html><head><meta name="description" content="{{.Meta.Description}}"></head>` +

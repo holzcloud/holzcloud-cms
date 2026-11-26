@@ -10,6 +10,7 @@ import (
 	"testing/fstest"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
@@ -55,15 +56,7 @@ func newTestHandler(t *testing.T) (*Handler, *db.DB) {
 	t.Helper()
 
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 
 	fsys := testFS()
 	loader := tmpl.NewLoader(dir, fsys, nil, nil)
@@ -738,14 +731,7 @@ func newFieldTestHandler(t *testing.T) (*Handler, *db.DB) {
 	t.Helper()
 
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 
 	fsys := testFS()
 	// The {{with}} is the point: for a term that cannot be resolved the theme

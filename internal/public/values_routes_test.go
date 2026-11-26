@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
@@ -77,14 +78,7 @@ func newValueRoutesFixture(t *testing.T, body string) *valueRoutesFixture {
 	t.Helper()
 	ctx := context.Background()
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 	fsys := valueRoutesFS()
 	loader := tmpl.NewLoader(dir, fsys, nil, nil)
 	h := NewHandler(page.NewStore(database), menu.NewStore(database), media.NewStore(database),

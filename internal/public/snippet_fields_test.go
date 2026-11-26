@@ -11,6 +11,7 @@ import (
 	"testing/fstest"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
@@ -77,14 +78,7 @@ func snippetFixture(t *testing.T) (*Handler, *db.DB, *domain.Website) {
 	ctx := context.Background()
 
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 
 	loader := tmpl.NewLoader(dir, snippetFS(), nil, nil)
 	h := NewHandler(page.NewStore(database), menu.NewStore(database), media.NewStore(database),
@@ -168,14 +162,7 @@ func TestSnippetsStaysTemplateHTML(t *testing.T) {
 	ctx := context.Background()
 
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 
 	loader := tmpl.NewLoader(dir, snippetFS(), nil, nil)
 	h := NewHandler(page.NewStore(database), menu.NewStore(database), media.NewStore(database),
