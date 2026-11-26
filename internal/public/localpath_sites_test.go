@@ -10,6 +10,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/shop"
 )
 
@@ -87,5 +88,33 @@ func TestPriceSwitchReadsTheReturnPathFromTheBodyOnly(t *testing.T) {
 	}
 	if got, want := rec.Header().Get("Location"), ws.ShopURL(); got != want {
 		t.Errorf("Location %q, want %q: the query string was read", got, want)
+	}
+}
+
+// A plugin chooses the Location of its answer; one that a browser reads as
+// another host is not sent.
+func TestPluginLocationStaysOnTheSite(t *testing.T) {
+	rec := httptest.NewRecorder()
+	writePluginResponse(rec, &plugin.RequestOut{Handled: true, Location: "/kontakt?gesendet=1"})
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/kontakt?gesendet=1" {
+		t.Fatalf("a local path: status %d, Location %q; want 303 to /kontakt?gesendet=1",
+			rec.Code, rec.Header().Get("Location"))
+	}
+
+	for name, loc := range map[string]string{
+		"backslash":    `/\evil.example`,
+		"double slash": "//evil.example",
+		"tab":          "/\tevil.example",
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			writePluginResponse(rec, &plugin.RequestOut{Handled: true, Location: loc})
+			if rec.Code != http.StatusInternalServerError {
+				t.Errorf("status %d, want 500", rec.Code)
+			}
+			if got := rec.Header().Get("Location"); got != "" {
+				t.Errorf("Location %q was sent for %q", got, loc)
+			}
+		})
 	}
 }

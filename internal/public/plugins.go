@@ -8,6 +8,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
 // MaxPluginBodyBytes bounds what a plugin route may read from a request.
@@ -134,13 +135,15 @@ func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
 	}
 
 	if out.Location != "" {
-		// Only within this site. An open redirect is a phishing tool: a link
-		// that starts with the operator's own domain and lands somewhere else.
-		if !safeLocation(out.Location) {
+		// Only within this site, by the program's one local-path rule. An open
+		// redirect is a phishing tool: a link that starts with the operator's
+		// own domain and lands somewhere else.
+		loc, ok := web.LocalPath(out.Location)
+		if !ok {
 			http.Error(w, "Interner Fehler", http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Location", out.Location)
+		w.Header().Set("Location", loc)
 		if status < 300 || status > 399 {
 			status = http.StatusSeeOther
 		}
@@ -162,16 +165,6 @@ func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
 	if out.Body != "" {
 		_, _ = io.WriteString(w, out.Body)
 	}
-}
-
-// safeLocation allows only a path on this site.
-func safeLocation(loc string) bool {
-	if !strings.HasPrefix(loc, "/") {
-		return false
-	}
-	// "//evil.example" is a protocol-relative URL and leaves the site, even
-	// though it starts with a slash.
-	return !strings.HasPrefix(loc, "//")
 }
 
 // reservedHeader names the ones a plugin may not set.
