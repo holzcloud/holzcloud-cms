@@ -27,6 +27,10 @@ type redirectListData struct {
 	// opens but offers no change (D-05). Set where the data is built, so the
 	// list and the re-render of a refused add agree.
 	ReadOnly bool
+	// Offsite marks the stored rows whose target leaves the site; the public
+	// side does not follow them (RDR-02). OffsiteAny is true when there is one.
+	Offsite    map[int64]bool
+	OffsiteAny bool
 }
 
 // HandleRedirectList shows the redirects of a website and the form to add one.
@@ -83,6 +87,13 @@ func (h *Handler) redirectListData(r *http.Request, websiteID int64, websiteName
 		return data, err
 	}
 	data.Redirects = list
+	data.Offsite = map[int64]bool{}
+	for _, rd := range list {
+		if _, ok := web.RedirectTarget(rd.ToPath); !ok {
+			data.Offsite[rd.ID] = true
+			data.OffsiteAny = true
+		}
+	}
 
 	broken, err := h.checkInternalLinks(r.Context(), websiteID)
 	if err != nil {
@@ -178,6 +189,13 @@ func redirectProblems(from, to string) []redirectProblem {
 	if from != "" && from == to {
 		// Otherwise the browser follows the redirect back to itself forever.
 		out = append(out, redirectProblem{"to_path", i18n.N("Target and source must not be the same.")})
+	}
+	if to != "" {
+		// "//host" and "/\host" read as a path and are another server: the
+		// same rule as the price switch and the plugin redirects (RDR-01).
+		if _, ok := web.LocalPath(to); !ok {
+			out = append(out, redirectProblem{"to_path", i18n.N("This target leads to another server. Give an address on this website that starts with a single slash.")})
+		}
 	}
 	return out
 }
