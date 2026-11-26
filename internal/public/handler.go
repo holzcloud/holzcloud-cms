@@ -476,17 +476,18 @@ func (h *Handler) lookupRedirect(r *http.Request, website *domain.Website) (stri
 	tag := LocaleFrom(r.Context())
 	if tag != "" {
 		prefixed := "/" + tag + r.URL.Path
-		if redirect, err := h.pageStore.LookupRedirect(r.Context(), website.ID, prefixed); err != nil {
+		if redirect, err := h.pageStore.FindRedirect(r.Context(), website.ID, prefixed); err != nil {
 			slog.Error("redirect lookup failed", "err", err, "path", prefixed)
 		} else if redirect != nil && redirect.ToPath != prefixed {
 			if to, ok := web.RedirectTarget(redirect.ToPath); ok {
+				h.pageStore.CountRedirectHit(r.Context(), redirect.ID)
 				return to, redirect.Code, true
 			}
 			logOffsiteRedirect(redirect, website.ID, prefixed)
 		}
 	}
 
-	redirect, err := h.pageStore.LookupRedirect(r.Context(), website.ID, r.URL.Path)
+	redirect, err := h.pageStore.FindRedirect(r.Context(), website.ID, r.URL.Path)
 	if err != nil {
 		slog.Error("redirect lookup failed", "err", err, "path", r.URL.Path)
 		return "", 0, false
@@ -506,6 +507,9 @@ func (h *Handler) lookupRedirect(r *http.Request, website *domain.Website) (stri
 		logOffsiteRedirect(redirect, website.ID, r.URL.Path)
 		return "", 0, false
 	}
+	// Counted only now that the row is followed: a refused one brings nobody
+	// anywhere, and the operator's counter is about traffic that arrives.
+	h.pageStore.CountRedirectHit(r.Context(), redirect.ID)
 	return to, redirect.Code, true
 }
 

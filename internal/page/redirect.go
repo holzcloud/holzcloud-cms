@@ -72,7 +72,21 @@ func recordSlugChange(ctx context.Context, tx *sql.Tx, websiteID int64, oldSlug,
 //
 // It is called only after the page lookup came up empty, so it costs nothing on
 // the hot path — an indexed lookup on the way to what would otherwise be a 404.
+//
+// A caller that may decide not to follow the row (the public side refuses a
+// target that leaves the site) uses FindRedirect and CountRedirectHit instead,
+// so that a row that brings nobody anywhere is not counted.
 func (s *Store) LookupRedirect(ctx context.Context, websiteID int64, path string) (*Redirect, error) {
+	r, err := s.FindRedirect(ctx, websiteID, path)
+	if err != nil || r == nil {
+		return r, err
+	}
+	s.CountRedirectHit(ctx, r.ID)
+	return r, nil
+}
+
+// FindRedirect is LookupRedirect without the count.
+func (s *Store) FindRedirect(ctx context.Context, websiteID int64, path string) (*Redirect, error) {
 	var r Redirect
 	var createdAt string
 	err := s.DB.Read.QueryRowContext(ctx,
@@ -86,14 +100,16 @@ func (s *Store) LookupRedirect(ctx context.Context, websiteID int64, path string
 		return nil, fmt.Errorf("lookup redirect: %w", err)
 	}
 	r.CreatedAt, _ = time.Parse(timeLayout, createdAt)
-
-	// The counter is what tells the operator which old URL still brings
-	// traffic, so it is worth a write — but never at the cost of the response.
-	if _, err := s.DB.Write.ExecContext(ctx,
-		`UPDATE redirects SET hits = hits + 1 WHERE id = $1`, r.ID); err != nil {
-		return &r, nil
-	}
 	return &r, nil
+}
+
+// CountRedirectHit adds one to a redirect's counter.
+//
+// The counter is what tells the operator which old URL still brings traffic, so
+// it is worth a write — but never at the cost of the response, so a failure is
+// dropped.
+func (s *Store) CountRedirectHit(ctx context.Context, id int64) {
+	_, _ = s.DB.Write.ExecContext(ctx, `UPDATE redirects SET hits = hits + 1 WHERE id = $1`, id)
 }
 
 // ListRedirects returns the redirects of a website, most used first.
