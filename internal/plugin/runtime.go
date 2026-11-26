@@ -171,6 +171,13 @@ type instance struct {
 	mod    api.Module
 	alloc  api.Function
 	handle api.Function
+
+	// The breaker. failures counts calls in a row that failed on the guest's
+	// side, heldUntil is when a hold ends (zero when there is none). A hold
+	// that has ended is not cleared until a call succeeds: the first call after
+	// it is the trial.
+	failures  int
+	heldUntil time.Time
 }
 
 func newInstance(m *Manifest, compiled wazero.CompiledModule) *instance {
@@ -445,12 +452,18 @@ func (r *Runtime) Dispatch(ctx context.Context, id, hook string, websiteID int64
 		files: keeperFrom(ctx),
 	})
 
-	answer, err := r.call(ctx, inst, base, hook, payload)
+	answer, o, err := r.call(ctx, inst, base, hook, payload)
 	if err != nil {
-		if failure(err) {
+		switch {
+		case o.held:
+			r.hold(id, hook, err, o)
+		case failure(err):
 			r.fail(id, hook, err)
 		}
 		return err
+	}
+	if o.cleared {
+		r.record(id, "")
 	}
 	if len(answer) == 0 || out == nil {
 		return nil
@@ -509,12 +522,45 @@ func failure(err error) bool {
 // fail records why a plugin misbehaved, in the log and on the plugin itself.
 func (r *Runtime) fail(id, hook string, err error) {
 	r.log.Error("plugin call failed", "plugin", id, "hook", hook, "err", err)
-	// Best effort and deliberately not on the request's context: the request
-	// may already be cancelled, and losing the reason would leave the operator
-	// with a plugin that quietly does nothing.
+	r.record(id, fmt.Sprintf("%s: %v", hook, err))
+}
+
+// hold records that a plugin was held back, once: this call is the one that
+// opened the hold. The calls it turns away afterwards record nothing.
+//
+// One line in the log and one on the plugin, in place of the line fail would
+// write, and it carries the failure that tipped the count so that the cause is
+// not lost behind the consequence.
+func (r *Runtime) hold(id, hook string, err error, o outcome) {
+	until := o.until.UTC().Format(time.RFC3339)
+	r.log.Error("plugin held back after repeated failures",
+		"plugin", id, "hook", hook, "failures", o.failures, "until", until, "err", err)
+	r.record(id, fmt.Sprintf("held back after %d failed calls in a row, tried again at %s; last failure: %s: %v",
+		o.failures, until, hook, err))
+}
+
+// record writes the plugin's error line. Best effort and deliberately not on
+// the request's context: the request may already be cancelled, and losing the
+// reason would leave the operator with a plugin that quietly does nothing. Never
+// called while the instance lock is held, so that a plugin's lock is not held
+// while the single write connection is waited for.
+func (r *Runtime) record(id, msg string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_ = r.store.SetError(ctx, id, fmt.Sprintf("%s: %v", hook, err))
+	_ = r.store.SetError(ctx, id, msg)
+}
+
+// outcome is what a call tells Dispatch about the breaker, so that the one
+// line that is worth writing is written, after the lock is released.
+type outcome struct {
+	// held is set on the call that opened a hold: the plugin has failed
+	// `failures` calls in a row and is left alone until `until`.
+	held     bool
+	failures int
+	until    time.Time
+	// cleared is set on the first success after a hold: the error recorded
+	// when it began is stale.
+	cleared bool
 }
 
 // call moves the bytes across and back.
@@ -522,18 +568,47 @@ func (r *Runtime) fail(id, hook string, err error) {
 // The bound of the call starts once it holds the instance. A caller that waited
 // behind another has its whole bound left to run in: starting the clock before
 // the lock would hand a slow call's time to the one queued behind it.
-func (r *Runtime) call(ctx context.Context, i *instance, base context.Context, hook string, payload []byte) ([]byte, error) {
+func (r *Runtime) call(ctx context.Context, i *instance, base context.Context, hook string, payload []byte) ([]byte, outcome, error) {
+	var o outcome
 	if err := r.acquire(ctx, i); err != nil {
-		return nil, err
+		return nil, o, err
 	}
 	defer i.release()
 	// An instance that Load or Unload replaced is gone, whatever the caller
 	// queued for. Its compiled module is not brought back for a caller that
 	// holds a reference nothing else holds.
 	if i.closed.Load() || r.isClosed() {
-		return nil, ErrNotLoaded
+		return nil, o, ErrNotLoaded
 	}
 
+	// A plugin that failed call after call is left alone for the cooldown, and
+	// before anything is started: the point of the hold is that a crash loop
+	// does not cost an instantiation per request. After the cooldown this call
+	// goes through as the trial.
+	if !i.heldUntil.IsZero() {
+		if left := i.heldUntil.Sub(r.now()); left > 0 {
+			return nil, o, &UnavailableError{Reason: ErrHeldBack, RetryAfter: left}
+		}
+	}
+
+	res, err := r.run(i, base, hook, payload)
+	switch {
+	case err == nil:
+		o.cleared = !i.heldUntil.IsZero()
+		i.failures, i.heldUntil = 0, time.Time{}
+	case failure(err):
+		i.failures++
+		if i.failures >= r.breakerFailures {
+			i.heldUntil = r.now().Add(r.breakerCooldown)
+			o.held, o.failures, o.until = true, i.failures, i.heldUntil
+		}
+	}
+	return res, o, err
+}
+
+// run revives the module if it is closed and makes the call. The caller holds
+// the instance.
+func (r *Runtime) run(i *instance, base context.Context, hook string, payload []byte) ([]byte, error) {
 	// A module that a timeout, a trap or the engine closed is brought back
 	// from the compiled module under the lock, so that no two calls revive it.
 	if i.mod == nil || i.mod.IsClosed() {

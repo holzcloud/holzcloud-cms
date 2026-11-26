@@ -394,19 +394,28 @@ func (m *Manager) HandleNotFound(ctx context.Context, websiteID int64, in Reques
 }
 
 // HandleRoute lets the plugin that owns a path answer it.
-func (m *Manager) HandleRoute(ctx context.Context, websiteID int64, in RequestIn) (*RequestOut, bool) {
+//
+// The error is non-nil only when the plugin was not asked at all: it is busy
+// or held back (an *UnavailableError). The page is there and the plugin is
+// meant to answer it, so that is a different thing from a plugin that declines
+// or fails, which keep their (nil, false); the caller answers it with a 503 and
+// a time to come back, not with a 404.
+func (m *Manager) HandleRoute(ctx context.Context, websiteID int64, in RequestIn) (*RequestOut, bool, error) {
 	id, ok := m.RouteOwner(in.Path, websiteID)
 	if !ok {
-		return nil, false
+		return nil, false, nil
 	}
 	var out RequestOut
 	if err := m.rt.Dispatch(ctx, id, HookRoute, websiteID, in, &out); err != nil {
-		return nil, false
+		if errors.Is(err, ErrBusy) || errors.Is(err, ErrHeldBack) {
+			return nil, false, err
+		}
+		return nil, false, nil
 	}
 	if !out.Handled {
-		return nil, false
+		return nil, false, nil
 	}
-	return &out, true
+	return &out, true, nil
 }
 
 // Admin renders one plugin's screen.

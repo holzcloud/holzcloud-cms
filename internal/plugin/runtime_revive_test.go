@@ -1,8 +1,10 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -404,5 +406,133 @@ func TestATrappingPluginComesBack(t *testing.T) {
 	}
 	if after := instanceOf(r).mod; after == before {
 		t.Error("the module that trapped was used again")
+	}
+}
+
+// failThrice makes three calls fail in a row: the endless loop, each time cut at
+// the call's bound.
+func failThrice(t *testing.T, r *Runtime) {
+	t.Helper()
+	for n := 1; n <= 3; n++ {
+		if err := spin(context.Background(), r); err == nil {
+			t.Fatalf("call %d: the endless loop ran through", n)
+		} else if !failure(err) {
+			t.Fatalf("call %d: expected a failure of the plugin, got: %v", n, err)
+		}
+	}
+}
+
+// A plugin that fails call after call is not brought back on every request: a
+// crash loop would instantiate a 16 MB module per visitor. After three failures
+// in a row it is left alone for a while, and the first call after that is a
+// trial.
+func TestACrashLoopingPluginIsHeldBack(t *testing.T) {
+	r, s := reviveRuntime(t, Limits{CallTimeout: 50 * time.Millisecond})
+	clock := time.Now()
+	r.now = func() time.Time { return clock }
+
+	failThrice(t, r)
+
+	start := time.Now()
+	err := content(context.Background(), r)
+	took := time.Since(start)
+	if !errors.Is(err, ErrHeldBack) {
+		t.Fatalf("expected ErrHeldBack, got: %v", err)
+	}
+	var u *UnavailableError
+	if !errors.As(err, &u) || u.RetryAfter <= 0 || u.RetryAfter > BreakerCooldown {
+		t.Errorf("the answer does not say when to ask again: %v", err)
+	}
+	if took > 20*time.Millisecond {
+		t.Errorf("the held-back answer took %v", took)
+	}
+	if instanceOf(r).mod != nil {
+		t.Error("a held-back plugin was started again")
+	}
+	e := lastError(t, s)
+	if !strings.Contains(e, "held back") || !strings.Contains(e, "3") ||
+		!strings.Contains(e, clock.Add(BreakerCooldown).UTC().Format(time.RFC3339)) {
+		t.Errorf("LastError does not say that and until when the plugin is held back: %q", e)
+	}
+
+	// Still held just before the end of the cooldown, free just after it.
+	clock = clock.Add(BreakerCooldown - time.Second)
+	if err := content(context.Background(), r); !errors.Is(err, ErrHeldBack) {
+		t.Fatalf("a second before the end of the cooldown: %v", err)
+	}
+	clock = clock.Add(2 * time.Second)
+	if err := content(context.Background(), r); err != nil {
+		t.Fatalf("the trial after the cooldown: %v", err)
+	}
+	if e := lastError(t, s); e != "" {
+		t.Errorf("the success after the hold did not clear the error: %q", e)
+	}
+	if err := content(context.Background(), r); err != nil {
+		t.Errorf("the plugin is not working after the hold: %v", err)
+	}
+}
+
+// A trial that fails holds the plugin back for another cooldown: a plugin that
+// stays broken costs one bounded call per cooldown and nothing between.
+func TestAFailedTrialHoldsAgain(t *testing.T) {
+	r, _ := reviveRuntime(t, Limits{CallTimeout: 50 * time.Millisecond})
+	clock := time.Now()
+	r.now = func() time.Time { return clock }
+
+	failThrice(t, r)
+	clock = clock.Add(BreakerCooldown + time.Second)
+	if err := spin(context.Background(), r); err == nil || errors.Is(err, ErrHeldBack) {
+		t.Fatalf("the trial should have run and failed, got: %v", err)
+	}
+	if err := content(context.Background(), r); !errors.Is(err, ErrHeldBack) {
+		t.Fatalf("expected a second hold after the failed trial, got: %v", err)
+	}
+}
+
+// While a plugin is held back every call is turned away at once, and none of
+// them writes to the plugin's row or the log: a hold that wrote on every request
+// would make the busiest plugin the noisiest.
+func TestHeldBackIsRecordedOnce(t *testing.T) {
+	r, s := reviveRuntime(t, Limits{CallTimeout: 50 * time.Millisecond})
+	var logged bytes.Buffer
+	r.log = slog.New(slog.NewTextHandler(&logged, nil))
+
+	failThrice(t, r)
+	errorAfterHold := lastError(t, s)
+	linesAfterHold := strings.Count(logged.String(), "\n")
+	if !strings.Contains(errorAfterHold, "held back") {
+		t.Fatalf("the hold was not recorded: %q", errorAfterHold)
+	}
+
+	for n := 0; n < 10; n++ {
+		if err := content(context.Background(), r); !errors.Is(err, ErrHeldBack) {
+			t.Fatalf("call %d during the hold: %v", n, err)
+		}
+	}
+	if e := lastError(t, s); e != errorAfterHold {
+		t.Errorf("the hold wrote to the plugin's row: %q", e)
+	}
+	if n := strings.Count(logged.String(), "\n"); n != linesAfterHold {
+		t.Errorf("the hold wrote %d log lines during the hold", n-linesAfterHold)
+	}
+	// The three failures and the hold: not one line per call.
+	if linesAfterHold > 4 {
+		t.Errorf("%d log lines for three failures and a hold", linesAfterHold)
+	}
+}
+
+// Failures count only in a row: a success in between starts the count again.
+func TestASuccessResetsTheCount(t *testing.T) {
+	r, _ := reviveRuntime(t, Limits{CallTimeout: 50 * time.Millisecond})
+
+	for round := 0; round < 2; round++ {
+		for n := 0; n < 2; n++ {
+			if err := spin(context.Background(), r); err == nil {
+				t.Fatal("the endless loop ran through")
+			}
+		}
+		if err := content(context.Background(), r); err != nil {
+			t.Fatalf("round %d: a plugin with two failures in a row is held back: %v", round, err)
+		}
 	}
 }
