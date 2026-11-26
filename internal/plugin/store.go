@@ -46,6 +46,10 @@ type Installed struct {
 // disabled and removed through ordinary SQL even when it cannot be loaded.
 type Store struct {
 	DB *db.DB
+
+	// removeGuard takes the migration policy off a driver connection. Nil means
+	// the real one; only a test sets it, to make the removal fail.
+	removeGuard func(driverConn any) error
 }
 
 // NewStore creates a store.
@@ -403,21 +407,7 @@ func (s *Store) ApplyMigrations(ctx context.Context, id string, ms []Migration) 
 			return fmt.Errorf("migration %q of plugin %q refused: %w", m.Name, id, err)
 		}
 
-		tx, err := s.DB.Write.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, m.SQL); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("migration %q of plugin %q failed: %w", m.Name, id, err)
-		}
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO plugin_migrations (plugin_id, name, sha256, applied_at) VALUES ($1, $2, $3, $4)`,
-			id, m.Name, want, time.Now().UTC().Format(timeLayout)); err != nil {
-			tx.Rollback()
-			return err
-		}
-		if err := tx.Commit(); err != nil {
+		if err := s.applyGuarded(ctx, id, m, want); err != nil {
 			return err
 		}
 	}

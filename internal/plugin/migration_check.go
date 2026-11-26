@@ -33,11 +33,6 @@ var migrationReadable = map[string]bool{
 
 var reMigrationWord = regexp.MustCompile(`[a-z_][a-z0-9_$]*`)
 
-// migrationPrefix is the table-name prefix a plugin owns.
-func migrationPrefix(id string) string {
-	return "plugin_" + strings.ReplaceAll(id, "-", "_") + "_"
-}
-
 // splitMigration removes comments, masks string literals and splits the text
 // into statements. It returns, per statement, the masked lower-case text and the
 // literals found in it.
