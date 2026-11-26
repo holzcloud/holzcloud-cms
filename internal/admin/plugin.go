@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -397,19 +396,28 @@ func (h *Handler) HandlePluginAsset(w http.ResponseWriter, r *http.Request) erro
 	if path == "" {
 		return h.notFound(w, r)
 	}
+	// The table is the one ReadPackage applies at install. It is asked again
+	// here because a plugin installed before the table existed may still have a
+	// script or a page on disk, and a file the table does not know is not
+	// there as far as the web is concerned.
+	contentType, download, ok := plugin.AssetType(path)
+	if !ok {
+		return h.notFound(w, r)
+	}
 	// Long-lived: a plugin's assets change only when the plugin is replaced,
 	// and a replacement writes a new directory.
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	// A plugin's files come out of an uploaded archive and are served from the
-	// administration's own origin. Opened as a page, an .html or .svg would run
-	// there with the operator's session. So: no sniffing a type out of the
-	// bytes, a sandbox for anything that is navigated to, and a download for
-	// the kinds that are documents. Scripts and stylesheets stay usable as
-	// subresources of the plugin's own screen, which is what they are for.
+	// administration's own origin. So: the type comes from the table and is
+	// never sniffed out of the bytes (a type set beforehand is kept by
+	// ServeFile), a sandbox for anything that is navigated to, and a download
+	// for an image that can carry script. The plugin screen is sanitised
+	// (internal/web/pluginhtml.go) and never loads a script asset, so a
+	// stylesheet, an image or a font is all that is ever a subresource here.
+	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".html", ".htm", ".xhtml", ".svg", ".xml":
+	if download {
 		w.Header().Set("Content-Disposition", "attachment")
 	}
 	http.ServeFile(w, r, path)

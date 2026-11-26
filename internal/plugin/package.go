@@ -112,6 +112,11 @@ func ReadPackage(r io.ReaderAt, size int64) (*Package, error) {
 			if err != nil {
 				return nil, err
 			}
+			// Assets are served on every host, administrators' session
+			// included, so only inert files are accepted (see AssetType).
+			if _, _, ok := AssetType(rel); !ok {
+				return nil, fmt.Errorf("%s: a plugin may ship only stylesheets, images, fonts, JSON and text as assets", name)
+			}
 			data, err := readEntry(zr, name, MaxAssetBytes)
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", name, err)
