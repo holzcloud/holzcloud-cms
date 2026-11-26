@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/money"
 	"github.com/holzcloud/holzcloud-cms/internal/shop"
@@ -18,14 +18,7 @@ import (
 func store(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 	if _, err := database.Write.Exec(
 		`INSERT INTO websites (id, name, description) VALUES (1, 'Laden', '')`); err != nil {
 		t.Fatalf("Website anlegen: %v", err)

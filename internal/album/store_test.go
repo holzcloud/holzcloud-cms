@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 )
 
 // What this file is the gate on.
@@ -31,14 +31,7 @@ import (
 // websites: the one that owns things, and the stranger.
 func newTestStore(t *testing.T) (*Store, *db.DB, int64, int64) {
 	t.Helper()
-	database, err := db.Open(filepath.Join(t.TempDir(), "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.Open(t)
 	return NewStore(database), database, seedWebsite(t, database, "Owner"), seedWebsite(t, database, "Stranger")
 }
 

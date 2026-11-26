@@ -17,12 +17,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/csvimport"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 )
 
 // setup opens a migrated database in the test directory and creates a user and
@@ -30,14 +30,7 @@ import (
 // internal/csv is the other and has none.
 func setup(t *testing.T) (*csvimport.Store, *db.DB, int64, int64) {
 	t.Helper()
-	database, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.Open(t)
 	return csvimport.NewStore(database), database, user(t, database, "admin@example.com"), website(t, database, "Test Site")
 }
 

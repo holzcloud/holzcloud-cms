@@ -2,21 +2,13 @@ package menu
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
-	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 )
 
 func TestUpdateItemFullChangesEveryField(t *testing.T) {
-	database, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatal(err)
-	}
+	database := dbtest.Open(t)
 	ctx := context.Background()
 	if _, err := database.Write.ExecContext(ctx, `INSERT INTO websites (name) VALUES ('W')`); err != nil {
 		t.Skipf("cannot seed a website: %v", err)

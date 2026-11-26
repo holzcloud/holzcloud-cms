@@ -2,27 +2,20 @@ package activity_test
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 )
 
 func newTestStore(t *testing.T) (*activity.Store, *db.DB) {
 	t.Helper()
 	// CRITICAL: file-backed SQLite via t.TempDir(). db.Open verifies WAL pragma
 	// at db.Open, which an in-memory database cannot satisfy.
-	database, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(func() { database.Close() })
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("migrations: %v", err)
-	}
+	database := dbtest.Open(t)
 	return activity.NewStore(database), database
 }
 
