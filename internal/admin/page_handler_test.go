@@ -16,6 +16,7 @@ import (
 	"github.com/alexedwards/scs/v2/memstore"
 	"github.com/holzcloud/holzcloud-cms/internal/config"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
@@ -38,14 +39,7 @@ func newTestAdmin(t *testing.T) (*Handler, *scs.SessionManager, *db.DB, *domain.
 	t.Helper()
 
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations: %v", err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 
 	templates, err := web.ParseAdminTemplates(os.DirFS("../../cmd/holzcloud/templates/admin"))
 	if err != nil {
