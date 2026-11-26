@@ -2307,7 +2307,7 @@
 "all": "alle",
 "alpha": "Alpha",
 "always": "immer",
-"an address with a backslash, an encoded slash or an invisible character leads to somebody else’s server.": "eine Adresse mit einem Backslash, einem kodierten Schrägstrich oder einem unsichtbaren Zeichen führt auf einen fremden Server.",
+"an address with a backslash, an invisible character or an encoded slash right after the first / leads to somebody else’s server.": "eine Adresse mit einem Backslash, einem unsichtbaren Zeichen oder einem kodierten Schrägstrich direkt nach dem ersten / führt auf einen fremden Server.",
 "an address with two slashes leads to somebody else’s server.": "eine Adresse mit zwei Schrägstrichen führt auf einen fremden Server.",
 "and %d more": "und %d weitere",
 "and in %d products": "und in %d Produkten",

@@ -2307,7 +2307,7 @@
 "all": "tutti",
 "alpha": "alpha",
 "always": "sempre",
-"an address with a backslash, an encoded slash or an invisible character leads to somebody else’s server.": "un indirizzo con una barra rovesciata, una barra codificata o un carattere invisibile porta al server di qualcun altro.",
+"an address with a backslash, an invisible character or an encoded slash right after the first / leads to somebody else’s server.": "un indirizzo con una barra rovesciata, un carattere invisibile o una barra codificata subito dopo la prima / porta al server di qualcun altro.",
 "an address with two slashes leads to somebody else’s server.": "un indirizzo con due barre porta al server di qualcun altro.",
 "and %d more": "e altre %d",
 "and in %d products": "e in %d prodotti",

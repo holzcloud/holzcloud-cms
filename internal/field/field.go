@@ -929,7 +929,7 @@ func checkLink(value string) Reason {
 			return reasonf(i18n.N("an address with two slashes leads to somebody else’s server."))
 		}
 		if !localpath.Is(value) {
-			return reasonf(i18n.N("an address with a backslash, an encoded slash or an invisible character leads to somebody else’s server."))
+			return reasonf(i18n.N("an address with a backslash, an invisible character or an encoded slash right after the first / leads to somebody else’s server."))
 		}
 		return Reason{}
 	case strings.HasPrefix(value, "https://"), strings.HasPrefix(value, "http://"),
