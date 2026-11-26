@@ -28,7 +28,6 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/term"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
 	"github.com/holzcloud/holzcloud-cms/internal/value"
-	"github.com/holzcloud/holzcloud-cms/internal/web"
 	"github.com/holzcloud/holzcloud-cms/internal/wording"
 )
 
@@ -41,10 +40,7 @@ func newTestAdmin(t *testing.T) (*Handler, *scs.SessionManager, *db.DB, *domain.
 	dir := t.TempDir()
 	database := dbtest.OpenAt(t, filepath.Join(dir, "test.sqlite"))
 
-	templates, err := web.ParseAdminTemplates(os.DirFS("../../cmd/holzcloud/templates/admin"))
-	if err != nil {
-		t.Fatalf("ParseAdminTemplates: %v", err)
-	}
+	templates := sharedAdminTemplates(t)
 
 	sm := scs.New()
 	sm.Store = memstore.New()
