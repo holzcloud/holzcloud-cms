@@ -578,3 +578,34 @@ func TestAMultiValuedFieldGoesThroughTheToolsAndBack(t *testing.T) {
 		t.Errorf("three values were accepted although at most two are allowed: %v", zuViel)
 	}
 }
+
+// The slug an assistant hands to create_page is checked like the one an editor
+// types. A slug with a backslash is read by a browser as a second slash, so a
+// page stored under it would send the visitor to another server from every
+// place that redirects to "/"+slug.
+func TestCreatePageRefusesAnInvalidSlug(t *testing.T) {
+	ts, database, wsID, key, _ := setUp(t)
+
+	for _, slug := range []string{`\evil.example`, `a\b`, "Gross", "a b", "a--b", "-a", "admin"} {
+		res, failed := callTool(t, ts, key, "create_page", map[string]any{
+			"website": wsID, "title": "Falsch", "markdown": "Text", "slug": slug,
+		})
+		if !failed {
+			t.Errorf("create_page accepted the slug %q: %v", slug, res)
+		}
+	}
+	var n int
+	if err := database.Read.QueryRow(`SELECT count(*) FROM pages WHERE title = 'Falsch'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("%d pages with a refused slug were stored", n)
+	}
+
+	res, failed := callTool(t, ts, key, "create_page", map[string]any{
+		"website": wsID, "title": "Richtig", "markdown": "Text", "slug": "/gut-so/",
+	})
+	if failed || res["slug"] != "gut-so" {
+		t.Errorf("a valid slug: failed=%v, %v", failed, res)
+	}
+}

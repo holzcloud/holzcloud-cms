@@ -513,6 +513,11 @@ func createPage(d Deps) Tool {
 			slug := strings.TrimSpace(strings.Trim(a.Address, "/"))
 			if slug == "" {
 				slug = page.Slugify(a.Title)
+			} else if err := page.ValidateSlug(slug); err != nil {
+				// A slug the assistant chose is checked like one an editor
+				// types: "/\host" in it would be read as another server by
+				// every place that redirects to "/"+slug.
+				return nil, fmt.Errorf("the slug %q cannot be used: %w", slug, err)
 			}
 
 			fields, reason, err := checkFields(c, d, a.Website, kindFromWire(a.Type),

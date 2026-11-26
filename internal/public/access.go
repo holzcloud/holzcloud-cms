@@ -11,6 +11,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
 // unlockCookiePrefix and unlockLifetime are the exported constants of package
@@ -150,6 +151,13 @@ func (h *Handler) HandleUnlock(w http.ResponseWriter, r *http.Request) error {
 	target := "/" + pg.Slug
 	if isHome {
 		// "/home" would only be redirected to "/" anyway.
+		target = h.localePath(r, website, "/")
+	}
+	// The slug is data: a page stored under one that a browser reads as
+	// another server ("\host") goes back to the start page instead.
+	if checked, ok := web.LocalPath(target); ok {
+		target = checked
+	} else {
 		target = h.localePath(r, website, "/")
 	}
 	// 303, so a reload does not repost the password.

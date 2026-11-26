@@ -24,6 +24,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/marker"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
 // The opt-out of a website that follows US law (LEG-03).
@@ -554,7 +555,12 @@ func (h *Handler) optoutBack(r *http.Request, ws *domain.Website, seite string) 
 	if pg == nil || pg.Slug == page.HomeSlug {
 		return h.localePath(r, ws, "/"), nil
 	}
-	return h.localePath(r, ws, "/"+pg.Slug), nil
+	// The slug is data: one that a browser reads as another server ("\host")
+	// goes back to the start page instead of into a redirect.
+	if checked, ok := web.LocalPath(h.localePath(r, ws, "/"+pg.Slug)); ok {
+		return checked, nil
+	}
+	return h.localePath(r, ws, "/"), nil
 }
 
 // What the form's time stamp says about who sent it.

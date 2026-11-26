@@ -1168,3 +1168,27 @@ func TestGPCJSONOnlyForUS(t *testing.T) {
 		t.Errorf("gpc.json on a website without US = %d; want 404", rec.Code)
 	}
 }
+
+// The address the opt-out form returns to is built from a page slug. A slug a
+// browser reads as another server falls back to the start page.
+func TestOptoutBackStaysOnTheSite(t *testing.T) {
+	h, database, ws := optoutSite(t, "eu,us", "")
+	optoutPage(t, database, ws.ID, `\evil.example`, "<p>x</p>", "")
+	optoutPage(t, database, ws.ID, "ok", "<p>x</p>", "")
+
+	for seite, want := range map[string]string{
+		`\evil.example`: "/",
+		"ok":            "/ok",
+		"":              "/",
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/widerspruch", nil)
+		req = req.WithContext(domain.WebsiteToContext(req.Context(), ws))
+		got, err := h.optoutBack(req, ws, seite)
+		if err != nil {
+			t.Fatalf("optoutBack(%q): %v", seite, err)
+		}
+		if got != want {
+			t.Errorf("optoutBack(%q) = %q, want %q", seite, got, want)
+		}
+	}
+}
