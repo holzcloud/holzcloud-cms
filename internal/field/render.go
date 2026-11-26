@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/holzcloud/holzcloud-cms/internal/localpath"
 )
 
 // What a theme sees.
@@ -211,6 +213,15 @@ func Resolve(defs []Def, data Data, links Links) map[string]any {
 				continue
 			}
 			out[d.Key] = &t
+
+		case KindLink:
+			// A value that starts with a slash and that the program's local-path
+			// rule refuses ("/\host", a tab, a second slash) was stored before
+			// the check existed; it must not reach a theme as an href.
+			if strings.HasPrefix(raw, "/") && !localpath.Is(raw) {
+				raw = ""
+			}
+			out[d.Key] = raw
 
 		case KindMulti:
 			// A slice, always — a theme loops over it with {{range}}, and an

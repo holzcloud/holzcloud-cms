@@ -2305,6 +2305,7 @@
 "all": "tous",
 "alpha": "alpha",
 "always": "toujours",
+"an address with a backslash, an encoded slash or an invisible character leads to somebody else’s server.": "une adresse avec une barre oblique inversée, une barre oblique encodée ou un caractère invisible mène au serveur de quelqu’un d’autre.",
 "an address with two slashes leads to somebody else’s server.": "une adresse avec deux barres obliques mène au serveur de quelqu’un d’autre.",
 "and %d more": "et %d autres",
 "and in %d products": "et dans %d produits",

@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
+	"github.com/holzcloud/holzcloud-cms/internal/localpath"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"math"
 	"strconv"
@@ -926,6 +927,9 @@ func checkLink(value string) Reason {
 	case strings.HasPrefix(value, "/"):
 		if strings.HasPrefix(value, "//") {
 			return reasonf(i18n.N("an address with two slashes leads to somebody else’s server."))
+		}
+		if !localpath.Is(value) {
+			return reasonf(i18n.N("an address with a backslash, an encoded slash or an invisible character leads to somebody else’s server."))
 		}
 		return Reason{}
 	case strings.HasPrefix(value, "https://"), strings.HasPrefix(value, "http://"),

@@ -761,7 +761,7 @@ wants; the list is for a theme that ships with the program and knows none.
 | `auswahl` | string | `.Text` — the one chosen option |
 | `mehrfachauswahl` | list of strings | `{{range .Values}}` — see below |
 | `bild` | picture or **nil** | `{{with .Image}}` |
-| `link` | string | `.Text` is the address |
+| `link` | string | `.Text` is the address; an address that starts with `/` but would leave the site (two slashes, a backslash, an encoded slash or a control character) counts as empty, so the entry is left out of the list and the map holds an empty string |
 | `verweis` | reference or **nil** | `{{with .Ref}}` |
 | `schlagwort` | label or **nil** | `{{with .Term}}` — see below |
 | `gruppe` | list of rows | `{{range .Rows}}`; every row is itself a list of `FieldEntry` |
