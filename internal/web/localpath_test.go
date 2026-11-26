@@ -8,6 +8,8 @@ func TestRedirectTarget(t *testing.T) {
 		"/fr/neu#hier",
 		"https://example.com/weg",
 		"HTTP://example.com/x",
+		"/aktion-50%",
+		"/aktion-50%?x=1",
 	}
 	for _, to := range accepted {
 		got, ok := RedirectTarget(to)

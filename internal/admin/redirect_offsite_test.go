@@ -47,8 +47,21 @@ func TestRedirectToAnotherServerIsRefused(t *testing.T) {
 		}
 	}
 
-	form := url.Values{"from_path": {"/alt"}, "to_path": {"/kontakt"}}
+	// A stray percent sign is a local path, not another server.
+	form := url.Values{"from_path": {"/prozent"}, "to_path": {"/aktion-50%"}}
 	rec := serve(t, h, sm, h.HandleRedirectList, postForm(target, form, websiteRoute(ws.ID)))
+	if rec.Code >= 400 {
+		t.Errorf("a target with a stray percent answers %d", rec.Code)
+	}
+	if got := stored(); len(got) != 1 || got[0] != "/prozent -> /aktion-50%" {
+		t.Errorf("stored = %v; want the percent redirect", got)
+	}
+	if err := h.pages.DeleteRedirect(ctx, ws.ID, 1); err != nil {
+		t.Fatalf("DeleteRedirect: %v", err)
+	}
+
+	form = url.Values{"from_path": {"/alt"}, "to_path": {"/kontakt"}}
+	rec = serve(t, h, sm, h.HandleRedirectList, postForm(target, form, websiteRoute(ws.ID)))
 	if rec.Code >= 400 {
 		t.Errorf("a local target answers %d", rec.Code)
 	}
@@ -69,8 +82,10 @@ func TestRedirectScreenMarksRowsThatAreNotFollowed(t *testing.T) {
 		return serve(t, h, sm, h.HandleRedirectList, req).Body.String()
 	}
 
-	if err := h.pages.AddRedirect(ctx, ws.ID, "/c", "/kontakt", 301); err != nil {
-		t.Fatalf("AddRedirect: %v", err)
+	for _, row := range []struct{ from, to string }{{"/c", "/kontakt"}, {"/p", "/aktion-50%"}} {
+		if err := h.pages.AddRedirect(ctx, ws.ID, row.from, row.to, 301); err != nil {
+			t.Fatalf("AddRedirect: %v", err)
+		}
 	}
 	body := list()
 	if n := strings.Count(body, "alert alert--warning"); n != 0 {

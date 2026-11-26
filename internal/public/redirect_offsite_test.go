@@ -25,6 +25,9 @@ func TestOffsiteRedirectIsNotFollowed(t *testing.T) {
 		{"/c", "/\t/evil.example"},
 		{"/d", "/kontakt"},
 		{"/e", "https://example.com/ok"},
+		// A stray percent sign is not an escape and not another server: a row
+		// like this was followed before the shared rule and still is.
+		{"/f", "/aktion-50%"},
 	} {
 		if err := store.AddRedirect(ctx, ws.ID, row.from, row.to, 301); err != nil {
 			t.Fatalf("AddRedirect(%q): %v", row.from, err)
@@ -45,6 +48,8 @@ func TestOffsiteRedirectIsNotFollowed(t *testing.T) {
 		{"/d", "/kontakt"},
 		{"/fr/d", "/fr/kontakt"},
 		{"/e", "https://example.com/ok"},
+		{"/f", "/aktion-50%"},
+		{"/fr/f", "/fr/aktion-50%"},
 	} {
 		rec := throughMiddleware(h.HandlePage, ws, c.from, "slug")
 		if rec.Code != http.StatusMovedPermanently {

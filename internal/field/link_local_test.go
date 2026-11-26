@@ -26,7 +26,7 @@ func TestLinkFieldRefusesABackslashPath(t *testing.T) {
 		t.Errorf("Check(//evil.example) = %q, want the two-slashes reason", reason)
 	}
 
-	for _, good := range []string{"/kontakt", "https://example.ch/x", "mailto:a@example.ch"} {
+	for _, good := range []string{"/kontakt", "https://example.ch/x", "mailto:a@example.ch", "/aktion-50%", "/x#50%"} {
 		if reason := Check(d, good); !reason.Empty() {
 			t.Errorf("Check(%q) = %q, want it accepted", good, reason)
 		}
@@ -45,7 +45,7 @@ func TestResolveEmptiesALinkThatLeavesTheSite(t *testing.T) {
 			t.Errorf("Resolve(%q) = %v, want an empty value", bad, got)
 		}
 	}
-	for _, good := range []string{"/kontakt", "https://example.ch/x"} {
+	for _, good := range []string{"/kontakt", "https://example.ch/x", "/aktion-50%"} {
 		if got := resolve(good); got != good {
 			t.Errorf("Resolve(%q) = %v, want it unchanged", good, got)
 		}

@@ -9,7 +9,7 @@ func TestBlockLinkDropsABackslashPath(t *testing.T) {
 			t.Errorf("safeURL(%q) = %q, want an empty link", bad, got)
 		}
 	}
-	for _, good := range []string{"/x", "#anker", "https://example.ch"} {
+	for _, good := range []string{"/x", "#anker", "https://example.ch", "/aktion-50%"} {
 		if got := safeURL(good); got != good {
 			t.Errorf("safeURL(%q) = %q, want it kept", good, got)
 		}

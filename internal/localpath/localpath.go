@@ -30,7 +30,12 @@ import (
 //   - The path does not start with an encoded slash or backslash ("/%2f",
 //     "/%5c"). A server that decodes before it redirects would turn it into
 //     one of the two cases above; it is refused as belt and braces.
-//   - It parses as a URL with no scheme, host, opaque part or user.
+//   - It parses as a URL with no scheme, host, opaque part or user. The parse is
+//     a shape check, not a check of the escaping: a "%" that is not followed by
+//     two hex digits ("/aktion-50%") is kept by a browser as it is, is on this
+//     origin, and does not make the path refused. Such a "%" is escaped before
+//     the parse, which is safe because the encoded-slash check above has
+//     already run on the raw string.
 func Is(p string) bool {
 	if !strings.HasPrefix(p, "/") {
 		return false
@@ -48,7 +53,7 @@ func Is(p string) bool {
 	if strings.HasPrefix(lower, "/%2f") || strings.HasPrefix(lower, "/%5c") {
 		return false
 	}
-	u, err := url.Parse(p)
+	u, err := url.Parse(strings.ReplaceAll(p, "%", "%25"))
 	if err != nil {
 		return false
 	}
