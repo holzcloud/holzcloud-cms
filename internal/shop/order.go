@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/money"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 // Order status values.
@@ -168,22 +170,13 @@ func (s *OrderStore) Place(ctx context.Context, websiteID int64, set Settings,
 		}
 	}
 
-	number, _, err := nextOrderNumber(ctx, tx, now, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	token, err := newOrderToken()
-	if err != nil {
-		return nil, err
-	}
-
 	exempt := 0
 	if set.VATExempt {
 		exempt = 1
 	}
-	res, err := tx.ExecContext(ctx,
-		`INSERT INTO orders (website_id, number, token, audience, currency,
+	insert := func(number, token string) (sql.Result, error) {
+		return tx.ExecContext(ctx,
+			`INSERT INTO orders (website_id, number, token, audience, currency,
 			email, name, company, vat_number, phone,
 			street, postal_code, city, country, note,
 			items_net, items_tax, items_gross,
@@ -193,14 +186,40 @@ func (s *OrderStore) Place(ctx context.Context, websiteID int64, set Settings,
 			created_at, updated_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
 		         $15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
-		websiteID, number, token, string(audience), set.Currency.Code,
-		customer.Email, customer.Name, customer.Company, customer.VATNumber, customer.Phone,
-		customer.Street, customer.PostalCode, customer.City, customer.Country, customer.Note,
-		int64(totals.ItemsNet), int64(totals.ItemsTax), int64(totals.ItemsGross),
-		int64(totals.ShippingNet), int64(totals.ShippingTax), int64(totals.ShippingGross),
-		int64(totals.TotalNet), int64(totals.TotalTax), int64(totals.TotalGross), exempt,
-		OrderNew, method, PaymentOpen, set.ReturnPolicy,
-		now.Format(timeLayout), now.Format(timeLayout))
+			websiteID, number, token, string(audience), set.Currency.Code,
+			customer.Email, customer.Name, customer.Company, customer.VATNumber, customer.Phone,
+			customer.Street, customer.PostalCode, customer.City, customer.Country, customer.Note,
+			int64(totals.ItemsNet), int64(totals.ItemsTax), int64(totals.ItemsGross),
+			int64(totals.ShippingNet), int64(totals.ShippingTax), int64(totals.ShippingGross),
+			int64(totals.TotalNet), int64(totals.TotalTax), int64(totals.TotalGross), exempt,
+			OrderNew, method, PaymentOpen, set.ReturnPolicy,
+			now.Format(timeLayout), now.Format(timeLayout))
+	}
+
+	number, n, err := nextOrderNumber(ctx, tx, now, 0)
+	if err != nil {
+		return nil, err
+	}
+	token, err := newOrderToken()
+	if err != nil {
+		return nil, err
+	}
+	res, err := insert(number, token)
+	if isUniqueConstraint(err) {
+		// With the numeric maximum, read inside this immediate write
+		// transaction, a collision should not happen. The retry is the cheap
+		// guard for a row the maximum did not see (an imported or hand-edited
+		// number). It runs once, so a broken table cannot loop on the only
+		// write connection; SQLite aborts only the failed statement, so the
+		// transaction and its stock reservations stay.
+		if number, _, err = nextOrderNumber(ctx, tx, now, n); err != nil {
+			return nil, err
+		}
+		if token, err = newOrderToken(); err != nil {
+			return nil, err
+		}
+		res, err = insert(number, token)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("create order: %w", err)
 	}
@@ -243,6 +262,15 @@ func (s *OrderStore) Place(ctx context.Context, websiteID int64, set Settings,
 		return nil, fmt.Errorf("commit order: %w", err)
 	}
 	return order, nil
+}
+
+// isUniqueConstraint reports whether err is a UNIQUE constraint violation, by
+// SQLite's extended result code and never by the text of the message (the
+// looser isUniqueViolation of product.go reads the text and also matches a
+// message that merely says "unique").
+func isUniqueConstraint(err error) bool {
+	var serr *sqlite.Error
+	return errors.As(err, &serr) && serr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
 }
 
 // nextOrderNumber produces "2026-0001", counting within the calendar year, and
