@@ -108,3 +108,28 @@ func TestRedirectScreenMarksRowsThatAreNotFollowed(t *testing.T) {
 		t.Errorf("badge shown %d times; want twice", n)
 	}
 }
+
+// The link check resolves a link through a redirect without counting a visit,
+// and a redirect the public side does not follow is not a working link.
+func TestLinkCheckDoesNotCountRedirectHits(t *testing.T) {
+	h, _, _, ws := newTestAdmin(t)
+	ctx := context.Background()
+	for _, row := range []struct{ from, to string }{{"/gut", "/kontakt"}, {"/boese", `/\evil.example`}} {
+		if err := h.pages.AddRedirect(ctx, ws.ID, row.from, row.to, 301); err != nil {
+			t.Fatalf("AddRedirect: %v", err)
+		}
+	}
+	if ok, err := h.linkResolves(ctx, ws.ID, "/gut"); err != nil || !ok {
+		t.Errorf("linkResolves(/gut) = %v, %v; want true", ok, err)
+	}
+	if ok, err := h.linkResolves(ctx, ws.ID, "/boese"); err != nil || ok {
+		t.Errorf("linkResolves(/boese) = %v, %v; want false", ok, err)
+	}
+	r, err := h.pages.FindRedirect(ctx, ws.ID, "/gut")
+	if err != nil || r == nil {
+		t.Fatalf("FindRedirect: %v, %v", r, err)
+	}
+	if r.Hits != 0 {
+		t.Errorf("hits = %d after the link check; want 0", r.Hits)
+	}
+}
