@@ -81,14 +81,15 @@ func TestRegisterFollowsTheFeatures(t *testing.T) {
 // cookie of the admin is named through the scs configuration in
 // internal/auth/session.go and not through SetCookie, and it is not a public
 // cookie, so it is not in the register. internal/admin/oidc.go sets short-lived
-// sign-in cookies for the admin only. internal/public/plugins.go only names
-// Set-Cookie on the deny list of headers a plugin may not set.
+// sign-in cookies for the admin only. internal/public/plugins.go used to name
+// Set-Cookie on the deny list of headers a plugin may not set; since the
+// allow list of phase 36 it names no cookie at all, and plugin_response_test.go
+// holds that a plugin's Set-Cookie is still dropped.
 var writerFiles = map[string]bool{
-	"internal/shop/cart.go":      true,
-	"internal/shop/pricing.go":   true,
-	"internal/public/access.go":  true,
-	"internal/admin/oidc.go":     true,
-	"internal/public/plugins.go": true,
+	"internal/shop/cart.go":     true,
+	"internal/shop/pricing.go":  true,
+	"internal/public/access.go": true,
+	"internal/admin/oidc.go":    true,
 }
 
 // cookieWriting reports whether Go source writes a cookie: a call of a function
