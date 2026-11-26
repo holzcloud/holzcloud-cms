@@ -54,6 +54,9 @@ type Store struct {
 	// removeGuard takes the migration policy off a driver connection. Nil means
 	// the real one; only a test sets it, to make the removal fail.
 	removeGuard func(driverConn any) error
+
+	// migrationTimeout overrides MigrationTimeout. Only a test sets it.
+	migrationTimeout time.Duration
 }
 
 // NewStore creates a store.

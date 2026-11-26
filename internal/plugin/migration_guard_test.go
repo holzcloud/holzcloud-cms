@@ -2,9 +2,13 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
+	"time"
+
+	"modernc.org/sqlite"
 )
 
 // expectRefused applies a migration of plugin "eins" and holds the outcome to
@@ -370,4 +374,144 @@ func seedLegacyMessages(t *testing.T, store *Store, site int64) {
 		site, page); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// coreWrites asserts what PLG-03 demands: the core writes through the shared
+// pool, and a plugin's last error can be recorded, at once.
+func coreWrites(t *testing.T, s *Store, id string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := s.DB.Write.ExecContext(ctx, `UPDATE websites SET name = name`); err != nil {
+		t.Fatalf("core write: %v", err)
+	}
+	if err := s.SetError(ctx, id, "x"); err != nil {
+		t.Fatalf("SetError: %v", err)
+	}
+}
+
+func TestTheCoreWritesAfterARefusedMigration(t *testing.T) {
+	cases := []struct{ name, sql string }{
+		{"denial", `CREATE TABLE plugin_eins_a (t TEXT); INSERT INTO plugin_eins_a SELECT token FROM sessions;`},
+		{"hook violation", `INSERT INTO plugin_store (plugin_id, website_id, key, value, updated_at) VALUES ('zwei', 0, 'k', 'v', 'x');`},
+		{"post check", `CREATE TABLE plugin_eins_a (t TEXT); ALTER TABLE plugin_eins_a RENAME TO users2;`},
+		{"engine error", `CREATE TABLE plugin_eins_a (t TEXT); SELECT nosuchfunction();`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s, _ := neuerSpeicher(t)
+			ctx := context.Background()
+			for _, id := range []string{"eins", "zwei"} {
+				if err := s.Install(ctx, paket(id)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := s.ApplyMigrations(ctx, "eins", []Migration{{Name: "0001.sql", SQL: c.sql}}); err == nil {
+				t.Fatal("not refused")
+			}
+			coreWrites(t, s, "eins")
+
+			// And a legitimate migration of another plugin goes through.
+			if err := s.ApplyMigrations(ctx, "zwei", []Migration{{Name: "0001.sql", SQL: `CREATE TABLE plugin_zwei_a (t TEXT);`}}); err != nil {
+				t.Fatalf("next migration: %v", err)
+			}
+		})
+	}
+}
+
+func TestTheCoreWritesWhenTheGuardCannotBeRemoved(t *testing.T) {
+	for _, c := range []struct{ name, sql string }{
+		{"applied", `CREATE TABLE plugin_eins_a (t TEXT);`},
+		{"refused", `INSERT INTO plugin_store (plugin_id, website_id, key, value, updated_at) VALUES ('zwei', 0, 'k', 'v', 'x');`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s, _ := neuerSpeicher(t)
+			ctx := context.Background()
+			for _, id := range []string{"eins", "zwei"} {
+				if err := s.Install(ctx, paket(id)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// The removal fails and leaves a policy on the connection that would
+			// refuse every core write. Only a connection that is thrown away
+			// gets rid of it.
+			s.removeGuard = func(dc any) error {
+				if err := dc.(sqlite.AuthorizerRegisterer).RegisterAuthorizer(
+					func(sqlite.AuthorizerActionCode, string, string, string, string) sqlite.AuthorizerReturnCode {
+						return sqlite.AuthorizerDeny
+					}); err != nil {
+					return err
+				}
+				return errors.New("cannot take the guard off")
+			}
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				_ = s.ApplyMigrations(ctx, "eins", []Migration{{Name: "0001.sql", SQL: c.sql}})
+			}()
+			select {
+			case <-done:
+			case <-time.After(10 * time.Second):
+				t.Fatal("the migration did not return")
+			}
+			coreWrites(t, s, "eins")
+		})
+	}
+}
+
+func TestAMigrationThatRunsTooLongIsStopped(t *testing.T) {
+	s, _ := neuerSpeicher(t)
+	ctx := context.Background()
+	if err := s.Install(ctx, paket("eins")); err != nil {
+		t.Fatal(err)
+	}
+	s.migrationTimeout = 200 * time.Millisecond
+
+	runaway := `CREATE TABLE plugin_eins_a (x INTEGER);
+WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c) INSERT INTO plugin_eins_a SELECT x FROM c;`
+	start := time.Now()
+	err := s.ApplyMigrations(ctx, "eins", []Migration{{Name: "0002.sql", SQL: runaway}})
+	if err == nil {
+		t.Fatal("the runaway migration was not stopped")
+	}
+	if took := time.Since(start); took > 5*time.Second {
+		t.Errorf("stopped after %v", took)
+	}
+	if !strings.Contains(err.Error(), "failed") {
+		t.Errorf("error %q", err)
+	}
+	var n int
+	if err := s.DB.Read.QueryRowContext(ctx, `SELECT
+		(SELECT COUNT(*) FROM plugin_migrations WHERE plugin_id = 'eins' AND name = '0002.sql') +
+		(SELECT COUNT(*) FROM sqlite_schema WHERE name = 'plugin_eins_a')`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("traces of the stopped migration: %d, %v", n, err)
+	}
+	coreWrites(t, s, "eins")
+}
+
+func TestACallerThatGivesUpDoesNotCutAMigrationShort(t *testing.T) {
+	s, _ := neuerSpeicher(t)
+	ctx := context.Background()
+	if err := s.Install(ctx, paket("eins")); err != nil {
+		t.Fatal(err)
+	}
+	// The request that triggered the install ends while the migration runs. Its
+	// context is not the migration's: a rollback from outside would come while
+	// the policy is armed.
+	short, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
+	defer cancel()
+	slow := `CREATE TABLE plugin_eins_a (x INTEGER);
+WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x < 300000) INSERT INTO plugin_eins_a SELECT x FROM c;`
+	start := time.Now()
+	if err := s.ApplyMigrations(short, "eins", []Migration{{Name: "0001.sql", SQL: slow}}); err != nil {
+		t.Fatalf("the migration was cut short: %v", err)
+	}
+	if time.Since(start) < 10*time.Millisecond {
+		t.Skip("the migration finished before the caller gave up; nothing was tested")
+	}
+	var n int
+	if err := s.DB.Read.QueryRowContext(ctx, `SELECT COUNT(*) FROM plugin_eins_a`).Scan(&n); err != nil || n != 300000 {
+		t.Errorf("%d rows, %v", n, err)
+	}
+	coreWrites(t, s, "eins")
 }

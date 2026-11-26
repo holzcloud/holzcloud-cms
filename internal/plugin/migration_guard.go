@@ -26,6 +26,11 @@ import (
 // handed back to the pool without it. There is one write connection, shared by
 // the whole core: a policy left on it would make every core write fail.
 
+// MigrationTimeout bounds one migration. The shipped ones take milliseconds;
+// the bound exists so that a migration cannot hold the single write connection
+// for ever, which would stop every write of the core.
+const MigrationTimeout = 10 * time.Second
+
 // migrationPrefix is the table-name prefix a plugin owns.
 func migrationPrefix(id string) string {
 	return "plugin_" + strings.ReplaceAll(id, "-", "_") + "_"
@@ -546,12 +551,25 @@ func (g *migrationGuard) checkAfter(before, after map[schemaRow]bool, seqBefore,
 //
 // Nothing between Conn and the deferred Close may use the write pool: its one
 // connection is the one held here.
+//
+// Waiting for the write connection honours the caller's context. Once the
+// migration has the connection it is no longer the caller's: the transaction
+// runs on a context that is not cancelled with the request, because a
+// cancellation that ended it from outside would roll it back while the policy
+// is still armed, and a ROLLBACK is a statement the policy would refuse. The
+// plugin's SQL has a bound of its own instead.
 func (s *Store) applyGuarded(ctx context.Context, id string, m Migration, sum string) (err error) {
 	conn, err := s.DB.Write.Conn(ctx)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+
+	ctx = context.WithoutCancel(ctx)
+	bound := s.migrationTimeout
+	if bound <= 0 {
+		bound = MigrationTimeout
+	}
 
 	// BEGIN IMMEDIATE runs before any policy exists.
 	tx, err := conn.BeginTx(ctx, nil)
@@ -609,8 +627,12 @@ func (s *Store) applyGuarded(ctx context.Context, id string, m Migration, sum st
 		return failed(err)
 	}
 
+	// The driver interrupts the statement when the bound passes; the transaction
+	// stays open and is rolled back below, with the policy disarmed.
+	execCtx, cancel := context.WithTimeout(ctx, bound)
+	defer cancel()
 	g.armed.Store(true)
-	_, execErr := tx.ExecContext(ctx, m.SQL)
+	_, execErr := tx.ExecContext(execCtx, m.SQL)
 	g.armed.Store(false)
 
 	if why := g.refusal(); why != "" {
