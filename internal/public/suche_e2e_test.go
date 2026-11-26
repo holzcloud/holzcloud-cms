@@ -16,6 +16,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
 // The search as a plugin, through the whole chain: real module, real runtime,
@@ -50,9 +51,11 @@ func TestSuchePluginBeantwortetSuche(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "http://velowerkstatt.test/suche?q=Wolle", nil)
 	req = req.WithContext(domain.WebsiteToContext(req.Context(), ws))
-	h.PluginMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Inside the server's header layer, as in main.go: the policy the plugin's
+	// answer is tightened from is the one the server set.
+	web.SecureHeaders(h.PluginMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("die Anfrage lief am Plugin vorbei bis zum Kern")
-	})).ServeHTTP(rec, req)
+	}))).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("Status %d, Rumpf: %s", rec.Code, rec.Body.String())
@@ -75,6 +78,24 @@ func TestSuchePluginBeantwortetSuche(t *testing.T) {
 	}
 	if rec.Header().Get("X-Robots-Tag") != "noindex" {
 		t.Errorf("X-Robots-Tag = %q", rec.Header().Get("X-Robots-Tag"))
+	}
+	// The page is the plugin's own answer and runs no script; a page the core
+	// writes, reached through the same chain, keeps its policy.
+	if csp := rec.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "script-src 'none'") || strings.Contains(csp, "script-src 'self'") {
+		t.Errorf("the search page's policy = %q", csp)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
+		t.Errorf("Content-Type = %q", ct)
+	}
+
+	other := httptest.NewRecorder()
+	otherReq := httptest.NewRequest("GET", "http://velowerkstatt.test/wolle", nil)
+	otherReq = otherReq.WithContext(domain.WebsiteToContext(otherReq.Context(), ws))
+	web.SecureHeaders(h.PluginMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))).ServeHTTP(other, otherReq)
+	if csp := other.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "script-src 'self'") {
+		t.Errorf("a request the plugin does not claim lost script-src 'self': %q", csp)
 	}
 }
 

@@ -3,6 +3,7 @@ package public
 import (
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -199,11 +200,10 @@ func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
 		w.Header().Set(k, v)
 	}
 
-	ct := out.ContentType
-	if ct == "" {
-		ct = "text/html; charset=utf-8"
-	}
-	w.Header().Set("Content-Type", ct)
+	// The one rule for every answer, redirects included: no script runs on a
+	// page a plugin wrote. Before WriteHeader, or the header is gone.
+	web.ForbidScript(w)
+	w.Header().Set("Content-Type", pluginContentType(out.ContentType))
 	w.WriteHeader(status)
 	if out.Body != "" {
 		_, _ = io.WriteString(w, out.Body)
@@ -221,4 +221,37 @@ func reservedHeader(name string) bool {
 		return true
 	}
 	return false
+}
+
+// pluginMediaTypes is the closed list of media types a plugin may answer with.
+//
+// The media type decides what a browser does with the body. text/javascript
+// satisfies script-src 'self' on a website's own origin, and that origin shares
+// its session with the admin, so a plugin that could choose its type could
+// choose to run script there (finding M2 of the phase 35 security report).
+// Everything a plugin of this CMS has a reason to send is on the list: a page, a
+// feed, data, a calendar, a table. Anything else, SVG and CSS included, goes
+// out as plain text.
+var pluginMediaTypes = map[string]bool{
+	"text/html": true, "text/plain": true, "text/csv": true, "text/calendar": true,
+	"text/xml": true, "application/json": true, "application/xml": true,
+	"application/rss+xml": true, "application/atom+xml": true,
+}
+
+// pluginContentType turns the type a plugin asked for into the one that is
+// sent. The parsed media type is compared with the list, never a prefix or a
+// substring: "text/html-x" and "text/html, text/javascript" are not text/html.
+func pluginContentType(asked string) string {
+	const fallback = "text/plain; charset=utf-8"
+	if asked == "" {
+		return "text/html; charset=utf-8"
+	}
+	media, params, err := mime.ParseMediaType(asked)
+	if err != nil || !pluginMediaTypes[media] {
+		return fallback
+	}
+	if ct := mime.FormatMediaType(media, params); ct != "" {
+		return ct
+	}
+	return fallback
 }
