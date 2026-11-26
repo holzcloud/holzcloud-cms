@@ -47,6 +47,21 @@ func TestAMigrationCannotReadCoreSecrets(t *testing.T) {
 	const own = `CREATE TABLE plugin_eins_a (t TEXT); `
 	cases := []struct{ name, sql, word string }{
 		{"single quoted", own + `INSERT INTO plugin_eins_a SELECT token FROM 'sessions';`, "sessions"},
+		{"brackets", own + `INSERT INTO plugin_eins_a SELECT password FROM [users];`, "users"},
+		{"double quoted", own + `INSERT INTO plugin_eins_a SELECT password FROM "users";`, "users"},
+		{"backticks", own + "INSERT INTO plugin_eins_a SELECT password FROM `users`;", "users"},
+		{"cte", own + `INSERT INTO plugin_eins_a WITH x AS (SELECT token FROM sessions) SELECT token FROM x;`, "sessions"},
+		{"subselect", own + `INSERT INTO plugin_eins_a SELECT (SELECT password FROM users);`, "users"},
+		{"count", own + `INSERT INTO plugin_eins_a SELECT count(*) FROM sessions;`, "sessions"},
+		{"alias", own + `INSERT INTO plugin_eins_a SELECT s.token FROM sessions AS s;`, "sessions"},
+		{"access password", own + `INSERT INTO plugin_eins_a SELECT access_password FROM pages;`, "access_password"},
+		{"draft text", own + `INSERT INTO plugin_eins_a SELECT content_markdown FROM pages;`, "content_markdown"},
+		{"websites", own + `INSERT INTO plugin_eins_a SELECT name FROM websites;`, "websites"},
+		{"domains", own + `INSERT INTO plugin_eins_a SELECT domain FROM website_domains;`, "website_domains"},
+		{"plugin store", own + `INSERT INTO plugin_eins_a SELECT value FROM plugin_store;`, "plugin_store"},
+		{"plugin migrations", own + `INSERT INTO plugin_eins_a SELECT sha256 FROM plugin_migrations;`, "plugin_migrations"},
+		{"plugins", own + `INSERT INTO plugin_eins_a SELECT manifest FROM plugins;`, "plugins"},
+		{"extension", own + `INSERT INTO plugin_eins_a SELECT load_extension('x');`, "load_extension"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -56,6 +71,256 @@ func TestAMigrationCannotReadCoreSecrets(t *testing.T) {
 			}
 			expectRefused(t, s, c.sql, c.word)
 		})
+	}
+}
+
+// pluginStoreRows counts a plugin's rows and their values joined, so a test can
+// see that a refused migration changed nothing of another plugin's.
+func pluginStoreRows(t *testing.T, s *Store, id string) (int, string) {
+	t.Helper()
+	var n int
+	var vals string
+	if err := s.DB.Read.QueryRowContext(context.Background(),
+		`SELECT COUNT(*), COALESCE(group_concat(key || '=' || value, ','), '') FROM plugin_store WHERE plugin_id = $1`, id).Scan(&n, &vals); err != nil {
+		t.Fatal(err)
+	}
+	return n, vals
+}
+
+func TestAMigrationCannotWriteAnotherPluginsRows(t *testing.T) {
+	const row = `INSERT INTO plugin_store (plugin_id, website_id, key, value, updated_at) `
+	cases := []struct{ name, sql, word string }{
+		{"foreign id", row + `VALUES ('zwei', 0, 'k2', 'evil', 'x');`, "zwei"},
+		{"foreign id from a select", row + `SELECT 'zwei', 0, 'k3', 'evil', 'x';`, "zwei"},
+		// The old check passed a statement that merely mentioned the plugin's own
+		// id. The row it makes belongs to someone else all the same.
+		{"own id only in a comment", row + `SELECT CASE WHEN length('x') > 0 THEN 'zwei' ELSE 'eins' END, 0, 'k4', 'evil', 'x'; -- 'eins'`, "zwei"},
+		{"foreign id from the legacy table", row + `SELECT CASE WHEN m.id > 0 THEN 'zwei' ELSE 'eins' END, m.website_id, 'm' || m.id, 'evil', 'x' FROM form_messages m;`, "zwei"},
+		{"replace a foreign row", `INSERT OR REPLACE INTO plugin_store (plugin_id, website_id, key, value, updated_at) VALUES ('zwei', 0, 'k1', 'evil', 'x');`, "zwei"},
+		{"update", `UPDATE plugin_store SET value = 'evil';`, "plugin_store"},
+		{"update own id", `UPDATE plugin_store SET value = 'evil' WHERE plugin_id = 'eins';`, "plugin_store"},
+		{"delete foreign", `DELETE FROM plugin_store WHERE plugin_id = 'zwei';`, "plugin_store"},
+		{"delete nameless", `DELETE FROM plugin_store;`, "plugin_store"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s, ds := neuerSpeicher(t)
+			ctx := context.Background()
+			ws, err := ds.CreateWebsite(ctx, "Velowerkstatt", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, id := range []string{"eins", "zwei"} {
+				if err := s.Install(ctx, paket(id)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := s.StoreSet(ctx, "zwei", 0, "k1", "mine"); err != nil {
+				t.Fatal(err)
+			}
+			// One legacy message, so the case that reads form_messages has a row.
+			seedLegacyMessages(t, s, ws.ID)
+			wantN, wantVals := pluginStoreRows(t, s, "zwei")
+
+			expectRefused(t, s, c.sql, c.word)
+
+			if n, vals := pluginStoreRows(t, s, "zwei"); n != wantN || vals != wantVals {
+				t.Errorf("rows of plugin zwei changed: %d %q, were %d %q", n, vals, wantN, wantVals)
+			}
+			if n, _ := pluginStoreRows(t, s, "eins"); n != 0 {
+				t.Errorf("%d row(s) of plugin eins survived the refusal", n)
+			}
+		})
+	}
+}
+
+func TestAMigrationCannotChangeTheCountersOfCoreTables(t *testing.T) {
+	for _, c := range []struct{ name, sql, word string }{
+		{"update", `UPDATE sqlite_sequence SET seq = 0 WHERE name = 'websites';`, "websites"},
+		{"delete", `DELETE FROM sqlite_sequence WHERE name = 'websites';`, "websites"},
+		{"rename the entry", `UPDATE sqlite_sequence SET name = 'plugin_eins_a' WHERE name = 'websites';`, "websites"},
+		{"insert", `INSERT INTO sqlite_sequence (name, seq) VALUES ('users', 0);`, "sqlite_sequence"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s, ds := neuerSpeicher(t)
+			ctx := context.Background()
+			if _, err := ds.CreateWebsite(ctx, "Velowerkstatt", ""); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.Install(ctx, paket("eins")); err != nil {
+				t.Fatal(err)
+			}
+			expectRefused(t, s, c.sql, c.word)
+			var seq int64
+			if err := s.DB.Read.QueryRowContext(ctx, `SELECT seq FROM sqlite_sequence WHERE name = 'websites'`).Scan(&seq); err != nil || seq != 1 {
+				t.Errorf("counter of websites: %d, %v", seq, err)
+			}
+		})
+	}
+
+	// The plugin's own counters are its own: made, moved by a rename, dropped.
+	s, _ := neuerSpeicher(t)
+	ctx := context.Background()
+	if err := s.Install(ctx, paket("eins")); err != nil {
+		t.Fatal(err)
+	}
+	own := `CREATE TABLE plugin_eins_a (id INTEGER PRIMARY KEY AUTOINCREMENT, v TEXT);
+INSERT INTO plugin_eins_a (v) VALUES ('x');
+ALTER TABLE plugin_eins_a RENAME TO plugin_eins_b;
+CREATE TABLE plugin_eins_c (id INTEGER PRIMARY KEY AUTOINCREMENT, v TEXT);
+INSERT INTO plugin_eins_c (v) VALUES ('y');
+DROP TABLE plugin_eins_c;`
+	if err := s.ApplyMigrations(ctx, "eins", []Migration{{Name: "0001.sql", SQL: own}}); err != nil {
+		t.Fatalf("own counters: %v", err)
+	}
+}
+
+func TestARenameOutOfThePrefixIsRefused(t *testing.T) {
+	for _, c := range []struct{ name, sql, word string }{
+		{"to a core name", `CREATE TABLE plugin_eins_a (a TEXT); ALTER TABLE plugin_eins_a RENAME TO users2;`, "users2"},
+		{"to another plugin", `CREATE TABLE plugin_eins_a (a TEXT); ALTER TABLE plugin_eins_a RENAME TO plugin_zwei_a;`, "plugin_zwei_a"},
+		{"with a text key", `CREATE TABLE plugin_eins_a (k TEXT PRIMARY KEY); ALTER TABLE plugin_eins_a RENAME TO users2;`, "users2"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s, _ := neuerSpeicher(t)
+			if err := s.Install(context.Background(), paket("eins")); err != nil {
+				t.Fatal(err)
+			}
+			expectRefused(t, s, c.sql, c.word)
+			var n int
+			if err := s.DB.Read.QueryRowContext(context.Background(),
+				`SELECT COUNT(*) FROM sqlite_schema WHERE name IN ('users2', 'plugin_zwei_a')`).Scan(&n); err != nil || n != 0 {
+				t.Errorf("renamed table survived: %d, %v", n, err)
+			}
+		})
+	}
+
+	// Inside the prefix a rename is fine, and so is a table whose text key makes
+	// SQLite add an index of its own.
+	s, _ := neuerSpeicher(t)
+	ctx := context.Background()
+	if err := s.Install(ctx, paket("eins")); err != nil {
+		t.Fatal(err)
+	}
+	ok := `CREATE TABLE plugin_eins_a (k TEXT PRIMARY KEY, v TEXT);
+ALTER TABLE plugin_eins_a RENAME TO plugin_eins_b;
+CREATE TABLE plugin_eins_c (a TEXT);`
+	if err := s.ApplyMigrations(ctx, "eins", []Migration{{Name: "0001.sql", SQL: ok}}); err != nil {
+		t.Fatalf("rename inside the prefix: %v", err)
+	}
+}
+
+func TestAMigrationReadsOnlyTheListedColumns(t *testing.T) {
+	cases := []struct {
+		name, sql, word string
+		refused         bool
+	}{
+		{"a column the core adds later", `INSERT INTO plugin_eins_a SELECT ip FROM form_messages;`, "ip", true},
+		{"a column of pages that is not listed", `INSERT INTO plugin_eins_a SELECT title FROM pages;`, "title", true},
+		{"the listed columns", `INSERT INTO plugin_eins_a SELECT website_id || created_at || id || name || email || subject || body || COALESCE(read_at, '') || COALESCE(page_id, '') FROM form_messages;
+INSERT INTO plugin_eins_a SELECT id || slug FROM pages;`, "", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s, _ := neuerSpeicher(t)
+			ctx := context.Background()
+			if err := s.Install(ctx, paket("eins")); err != nil {
+				t.Fatal(err)
+			}
+			// Stands in for a column the core may add one day.
+			if _, err := s.DB.Write.ExecContext(ctx, `ALTER TABLE form_messages ADD COLUMN ip TEXT`); err != nil {
+				t.Fatal(err)
+			}
+			q := `CREATE TABLE plugin_eins_a (t TEXT); ` + c.sql
+			if c.refused {
+				expectRefused(t, s, q, c.word)
+				return
+			}
+			if err := s.ApplyMigrations(ctx, "eins", []Migration{{Name: "0001.sql", SQL: q}}); err != nil {
+				t.Fatalf("listed columns refused: %v", err)
+			}
+		})
+	}
+}
+
+func TestPluginNamespacesDoNotOverlap(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("install refuses an overlap in either direction", func(t *testing.T) {
+		s, _ := neuerSpeicher(t)
+		if err := s.Install(ctx, paket("nicht-gefunden")); err != nil {
+			t.Fatal(err)
+		}
+		err := s.Install(ctx, paket("nicht"))
+		if err == nil || !strings.Contains(err.Error(), "nicht-gefunden") || !strings.Contains(err.Error(), `"nicht"`) {
+			t.Fatalf("installing nicht beside nicht-gefunden: %v", err)
+		}
+
+		s2, _ := neuerSpeicher(t)
+		if err := s2.Install(ctx, paket("nicht")); err != nil {
+			t.Fatal(err)
+		}
+		err = s2.Install(ctx, paket("nicht-gefunden"))
+		if err == nil || !strings.Contains(err.Error(), "nicht-gefunden") || !strings.Contains(err.Error(), `"nicht"`) {
+			t.Fatalf("installing nicht-gefunden beside nicht: %v", err)
+		}
+		// A reinstall is not an overlap with itself.
+		if err := s2.Install(ctx, paket("nicht")); err != nil {
+			t.Fatalf("reinstalling nicht: %v", err)
+		}
+		// Neighbours that merely share letters do not overlap.
+		if err := s2.Install(ctx, paket("nichtig")); err != nil {
+			t.Fatalf("installing nichtig beside nicht: %v", err)
+		}
+	})
+
+	// A database that already holds both, as an installation from before the
+	// rule could: the rows are written by SQL, past Install.
+	pair := func(t *testing.T) *Store {
+		s, _ := neuerSpeicher(t)
+		for _, id := range []string{"nicht", "nicht-gefunden"} {
+			_, err := s.DB.Write.ExecContext(ctx, `INSERT INTO plugins (id, name, version, manifest, sha256, enabled, installed_at, updated_at, last_error)
+				VALUES ($1, $1, '1', '{}', 'x', 0, 'x', 'x', '')`, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := s.DB.Write.ExecContext(ctx, `CREATE TABLE plugin_nicht_gefunden_a (t TEXT); INSERT INTO plugin_nicht_gefunden_a VALUES ('mine')`); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	for _, c := range []struct{ name, sql string }{
+		{"create", `CREATE TABLE plugin_nicht_gefunden_b (t TEXT);`},
+		{"read", `CREATE TABLE plugin_nicht_x (t TEXT); INSERT INTO plugin_nicht_x SELECT t FROM plugin_nicht_gefunden_a;`},
+		{"insert", `INSERT INTO plugin_nicht_gefunden_a VALUES ('evil');`},
+		{"alter", `ALTER TABLE plugin_nicht_gefunden_a ADD COLUMN u TEXT;`},
+		{"drop", `DROP TABLE plugin_nicht_gefunden_a;`},
+		{"rename in", `CREATE TABLE plugin_nicht_x (t TEXT); ALTER TABLE plugin_nicht_x RENAME TO plugin_nicht_gefunden_y;`},
+		{"rename out", `ALTER TABLE plugin_nicht_gefunden_a RENAME TO plugin_nicht_gefunden_z;`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s := pair(t)
+			err := s.ApplyMigrations(ctx, "nicht", []Migration{{Name: "0001.sql", SQL: c.sql}})
+			if err == nil || !strings.Contains(err.Error(), "refused") || !strings.Contains(err.Error(), "plugin_nicht_gefunden_") {
+				t.Fatalf("migration of nicht reached the other namespace: %v", err)
+			}
+			var n int
+			var v string
+			if err := s.DB.Read.QueryRowContext(ctx, `SELECT COUNT(*), MIN(t) FROM plugin_nicht_gefunden_a`).Scan(&n, &v); err != nil || n != 1 || v != "mine" {
+				t.Errorf("table of nicht-gefunden changed: %d %q %v", n, v, err)
+			}
+		})
+	}
+
+	// The longer plugin keeps its own tables, and the shorter one its own.
+	s := pair(t)
+	if err := s.ApplyMigrations(ctx, "nicht-gefunden", []Migration{{Name: "0001.sql",
+		SQL: `CREATE TABLE plugin_nicht_gefunden_b (t TEXT); INSERT INTO plugin_nicht_gefunden_b SELECT t FROM plugin_nicht_gefunden_a;`}}); err != nil {
+		t.Fatalf("nicht-gefunden in its own namespace: %v", err)
+	}
+	if err := s.ApplyMigrations(ctx, "nicht", []Migration{{Name: "0001.sql", SQL: `CREATE TABLE plugin_nicht_x (t TEXT);`}}); err != nil {
+		t.Fatalf("nicht in its own namespace: %v", err)
 	}
 }
 

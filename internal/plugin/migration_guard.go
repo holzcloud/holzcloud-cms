@@ -6,12 +6,14 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 // A plugin's migration is SQL from an uploaded archive. It runs on a write
@@ -53,6 +55,12 @@ type migrationGuard struct {
 	id     string
 	prefix string
 
+	// others are the table prefixes of the other installed plugins. Plugin ids
+	// may contain hyphens, so the prefix of one plugin can be the start of
+	// another's (nicht, nicht-gefunden); a name then belongs to the plugin with
+	// the longest prefix it starts with.
+	others []string
+
 	// armed is true only while the plugin's own SQL runs. Before and after it
 	// the connection runs the host's statements (COMMIT, reading the schema,
 	// recording the migration), and those have to pass.
@@ -60,11 +68,6 @@ type migrationGuard struct {
 
 	mu     sync.Mutex
 	denial string
-	// inDDL is true from the moment SQLite announces a schema change of an own
-	// table until the next statement that is not one: SQLite reads its own
-	// schema table while it renames, adds a column or drops, and those reads are
-	// asked for like any other. See mayRead.
-	inDDL bool
 }
 
 func newMigrationGuard(id string) *migrationGuard {
@@ -78,14 +81,19 @@ func (g *migrationGuard) refusal() string {
 	return g.denial
 }
 
-// deny remembers the first denial and answers it. The first one is the cause;
-// what follows in the same statement are consequences.
-func (g *migrationGuard) deny(what string) sqlite.AuthorizerReturnCode {
+// record remembers the first thing that was refused. The first one is the
+// cause; what follows in the same statement are consequences.
+func (g *migrationGuard) record(what string) {
 	g.mu.Lock()
 	if g.denial == "" {
 		g.denial = what
 	}
 	g.mu.Unlock()
+}
+
+// deny records a denial and answers it.
+func (g *migrationGuard) deny(what string) sqlite.AuthorizerReturnCode {
+	g.record(what)
 	return sqlite.AuthorizerDeny
 }
 
@@ -104,19 +112,31 @@ func asciiLower(s string) string {
 // namespace. SQLite compares names without regard to case.
 func (g *migrationGuard) owns(name string) bool {
 	n := asciiLower(name)
-	return strings.HasPrefix(n, g.prefix) && len(n) > len(g.prefix)
+	if !strings.HasPrefix(n, g.prefix) || len(n) == len(g.prefix) {
+		return false
+	}
+	for _, o := range g.others {
+		if len(o) > len(g.prefix) && strings.HasPrefix(n, o) {
+			return false
+		}
+	}
+	return true
 }
 
 // ownAutoIndex reports whether name is the index SQLite makes for a UNIQUE or
 // PRIMARY KEY constraint of one of the plugin's own tables.
 func (g *migrationGuard) ownAutoIndex(name, table string) bool {
-	n := asciiLower(name)
-	t := asciiLower(table)
-	return g.owns(t) && strings.HasPrefix(n, "sqlite_autoindex_"+t+"_")
+	return g.owns(table) && strings.HasPrefix(asciiLower(name), "sqlite_autoindex_"+asciiLower(table)+"_")
 }
 
-// isSchemaTable names SQLite's own bookkeeping tables. DDL writes to them
-// internally; a user statement that writes to them is refused by SQLite itself.
+// ownsRow reports whether a row of sqlite_schema is the plugin's own.
+func (g *migrationGuard) ownsRow(name, table string) bool {
+	return g.owns(table) && (g.owns(name) || g.ownAutoIndex(name, table))
+}
+
+// isSchemaTable names SQLite's own bookkeeping tables of the main database.
+// DDL writes to them internally; a user statement that writes to them is
+// refused by SQLite itself.
 func isSchemaTable(name string) bool {
 	switch asciiLower(name) {
 	case "sqlite_master", "sqlite_schema":
@@ -125,18 +145,37 @@ func isSchemaTable(name string) bool {
 	return false
 }
 
+// isTempSchemaTable names the same for the temp database, which RENAME consults
+// for triggers and views that could be affected. Nothing can be created there.
+func isTempSchemaTable(name string) bool {
+	switch asciiLower(name) {
+	case "sqlite_temp_master", "sqlite_temp_schema":
+		return true
+	}
+	return false
+}
+
 // authorize is the SQLite authorizer callback. It must not touch the
 // connection. While the guard is not armed it allows everything.
-func (g *migrationGuard) authorize(action sqlite.AuthorizerActionCode, arg1, arg2, database, triggerOrView string) sqlite.AuthorizerReturnCode {
+func (g *migrationGuard) authorize(action sqlite.AuthorizerActionCode, arg1, arg2, database, _ string) sqlite.AuthorizerReturnCode {
 	if !g.armed.Load() {
 		return sqlite.AuthorizerOK
 	}
-	// Statements inside a trigger or a view are never the plugin's own text, and
-	// another database is never the plugin's to reach.
-	if triggerOrView != "" {
-		return g.deny("running inside " + triggerOrView)
-	}
-	if database != "" && database != "main" {
+	// The last argument, the trigger or view an access comes from, is not looked
+	// at: SQLite names a common table expression there as well, and the rules
+	// below hold wherever the access comes from. Triggers and views cannot be
+	// created, and the host's own fire only on tables the plugin cannot write.
+	//
+	// Another database is never the plugin's to reach. RENAME looks at the temp
+	// schema for triggers and views it might break; that and nothing else.
+	switch database {
+	case "", "main":
+	case "temp":
+		if !isTempSchemaTable(arg1) || (action != sqlite.AuthRead && action != sqlite.AuthUpdate) {
+			return g.deny("reaching the temp database")
+		}
+		return sqlite.AuthorizerOK
+	default:
 		return g.deny("reaching database " + database)
 	}
 
@@ -144,41 +183,40 @@ func (g *migrationGuard) authorize(action sqlite.AuthorizerActionCode, arg1, arg
 	case sqlite.AuthCreateTable:
 		// Only a table in the plugin's own namespace.
 		if g.owns(arg1) {
-			return g.schemaChange()
+			return sqlite.AuthorizerOK
 		}
 	case sqlite.AuthCreateIndex:
 		// An index on an own table, named in the own namespace or one of the
 		// automatic indexes of a UNIQUE or PRIMARY KEY constraint.
-		if g.owns(arg2) && (g.owns(arg1) || g.ownAutoIndex(arg1, arg2)) {
-			return g.schemaChange()
+		if g.ownsRow(arg1, arg2) {
+			return sqlite.AuthorizerOK
 		}
 	case sqlite.AuthDropTable:
 		if g.owns(arg1) {
-			return g.schemaChange()
+			return sqlite.AuthorizerOK
 		}
 	case sqlite.AuthDropIndex:
-		if g.owns(arg2) && (g.owns(arg1) || g.ownAutoIndex(arg1, arg2)) {
-			return g.schemaChange()
+		if g.ownsRow(arg1, arg2) {
+			return sqlite.AuthorizerOK
 		}
 	case sqlite.AuthAlterTable:
 		// arg2 is the table as it is named now. A rename is judged by that old
 		// name only; the new one is looked at after the statement has run.
 		if g.owns(arg2) {
-			return g.schemaChange()
+			return sqlite.AuthorizerOK
 		}
 	case sqlite.AuthReindex:
 		// CREATE INDEX asks for it on the index it has just made.
-		if g.owns(arg1) || g.ownAutoIndex(arg1, "") {
+		if g.owns(arg1) || strings.HasPrefix(asciiLower(arg1), "sqlite_autoindex_"+g.prefix) {
 			return sqlite.AuthorizerOK
 		}
 	case sqlite.AuthInsert:
 		switch {
 		case g.owns(arg1):
-			g.statement()
 			return sqlite.AuthorizerOK
 		case asciiLower(arg1) == "plugin_store":
-			// The shipped contact form copies its old messages here.
-			g.statement()
+			// The shipped contact form copies its old messages here. Whose rows
+			// they are is decided by the pre-update hook.
 			return sqlite.AuthorizerOK
 		case isSchemaTable(arg1):
 			// Every CREATE writes its own row. SQLite refuses a user statement
@@ -188,15 +226,24 @@ func (g *migrationGuard) authorize(action sqlite.AuthorizerActionCode, arg1, arg
 	case sqlite.AuthUpdate:
 		switch {
 		case g.owns(arg1):
-			g.statement()
 			return sqlite.AuthorizerOK
 		case isSchemaTable(arg1):
 			return sqlite.AuthorizerOK
+		case asciiLower(arg1) == "sqlite_sequence":
+			// A rename moves the counter of an AUTOINCREMENT table along. The
+			// counters of other tables are compared before and after, which is
+			// what keeps a statement that changes them from standing.
+			return sqlite.AuthorizerOK
 		}
 	case sqlite.AuthDelete:
-		// DROP TABLE deletes the table's rows and its entry in the schema. The
-		// statement is not told apart from a DROP here: it is already running.
-		if g.owns(arg1) || isSchemaTable(arg1) {
+		// DROP TABLE deletes the table's rows and its entries in the schema and
+		// in the sequence table. It is not told apart from a DELETE here: the
+		// rows of another table were never readable, and the sequence counters
+		// are compared before and after.
+		switch {
+		case g.owns(arg1), isSchemaTable(arg1):
+			return sqlite.AuthorizerOK
+		case asciiLower(arg1) == "sqlite_sequence":
 			return sqlite.AuthorizerOK
 		}
 	case sqlite.AuthRead:
@@ -210,7 +257,6 @@ func (g *migrationGuard) authorize(action sqlite.AuthorizerActionCode, arg1, arg
 			return sqlite.AuthorizerOK
 		}
 	case sqlite.AuthSelect, sqlite.AuthRecursive:
-		g.statement()
 		return sqlite.AuthorizerOK
 	case sqlite.AuthFunction:
 		if !deniedFunctions[asciiLower(arg2)] {
@@ -218,30 +264,6 @@ func (g *migrationGuard) authorize(action sqlite.AuthorizerActionCode, arg1, arg
 		}
 	}
 	return g.deny(describeAction(action, arg1, arg2))
-}
-
-// schemaChange notes that a schema change of an own object has been announced
-// and allows it.
-func (g *migrationGuard) schemaChange() sqlite.AuthorizerReturnCode {
-	g.mu.Lock()
-	g.inDDL = true
-	g.mu.Unlock()
-	return sqlite.AuthorizerOK
-}
-
-// statement notes that a statement that reads or writes data has begun. The
-// first thing SQLite asks about such a statement is its SELECT, INSERT or
-// UPDATE, so by the time any column is asked for the flag is already down.
-func (g *migrationGuard) statement() {
-	g.mu.Lock()
-	g.inDDL = false
-	g.mu.Unlock()
-}
-
-func (g *migrationGuard) schemaReadAllowed() bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return g.inDDL
 }
 
 // mayRead is the read allowlist.
@@ -264,15 +286,18 @@ func (g *migrationGuard) mayRead(table, column string) bool {
 		// ALTER TABLE ADD COLUMN on a STRICT table or one with rows checks the
 		// existing rows through it. It answers only with integrity messages.
 		return c == "quick_check"
-	case isSchemaTable(t):
-		// SQLite reads its schema table while it changes the schema: the row id
-		// of a new entry, and the type, name, rootpage and text of the entries
-		// a rename, an added column or a drop touches. The same read written as
-		// a query (SELECT sql FROM sqlite_master) would show the plugin the
-		// definition of every table of the host, so a column other than the row
-		// id is allowed only while such a schema change is running, and never
-		// in a statement that reads or writes data.
-		return c == "rowid" || g.schemaReadAllowed()
+	case isSchemaTable(t), t == "sqlite_sequence":
+		// Open, and known to be. ALTER TABLE, DROP TABLE and CREATE TABLE read
+		// SQLite's schema table and its counter table through the authorizer,
+		// the text of every table definition included, and a read that SQLite
+		// makes for itself cannot be told from one the plugin writes: it is the
+		// same table, the same column and the same call. Rules that guess where
+		// a statement begins fail, because the reads of a subquery come before
+		// the callback that announces it. What this shows is the definition of
+		// the host's tables, which is in its source, and how many rows were ever
+		// made in an AUTOINCREMENT table. Changing either is not open: the
+		// check after the statement compares both with what they were.
+		return true
 	}
 	return false
 }
@@ -327,6 +352,45 @@ func actionName(a sqlite.AuthorizerActionCode) string {
 	return "an unknown action"
 }
 
+// preUpdate is the pre-update hook. It sees every row SQLite writes to
+// plugin_store, with the values, which the authorizer cannot: it is asked about
+// the table, not about the row. Whatever the statement looks like, a row that is
+// not the plugin's own is recorded and the migration is refused.
+func (g *migrationGuard) preUpdate(d sqlite.SQLitePreUpdateData) {
+	if !g.armed.Load() || asciiLower(d.TableName) != "plugin_store" {
+		return
+	}
+	check := func(read func(dest ...any) error) {
+		dest := make([]any, d.Count())
+		if err := read(dest...); err != nil || len(dest) == 0 {
+			g.record("a plugin_store row that cannot be read")
+			return
+		}
+		if owner, ok := dest[0].(string); !ok || owner != g.id {
+			g.record(fmt.Sprintf("writing a plugin_store row of plugin %s", quoteForMessage(dest[0])))
+		}
+	}
+	switch d.Op {
+	case sqlite3.SQLITE_INSERT:
+		check(d.New)
+	case sqlite3.SQLITE_DELETE:
+		check(d.Old)
+	default:
+		check(d.Old)
+		check(d.New)
+	}
+}
+
+// quoteForMessage shows a value from a hostile migration without letting it
+// run on.
+func quoteForMessage(v any) string {
+	s := fmt.Sprint(v)
+	if len(s) > 60 {
+		s = s[:60] + "…"
+	}
+	return fmt.Sprintf("%q", s)
+}
+
 // install puts the guard on a driver connection. A connection that cannot take
 // it is a refusal: the migration must not run unguarded.
 func (g *migrationGuard) install(dc any) error {
@@ -334,7 +398,15 @@ func (g *migrationGuard) install(dc any) error {
 	if !ok {
 		return errors.New("the driver connection has no authorizer")
 	}
-	return reg.RegisterAuthorizer(g.authorize)
+	hooks, ok := dc.(sqlite.HookRegisterer)
+	if !ok {
+		return errors.New("the driver connection has no hooks")
+	}
+	if err := reg.RegisterAuthorizer(g.authorize); err != nil {
+		return err
+	}
+	hooks.RegisterPreUpdateHook(g.preUpdate)
+	return nil
 }
 
 // removeGuard takes every policy off a driver connection.
@@ -343,7 +415,130 @@ func removeGuard(dc any) error {
 	if !ok {
 		return errors.New("the driver connection has no authorizer")
 	}
+	if hooks, ok := dc.(sqlite.HookRegisterer); ok {
+		hooks.RegisterPreUpdateHook(nil)
+	}
 	return reg.RegisterAuthorizer(nil)
+}
+
+// schemaRow is one entry of sqlite_schema.
+type schemaRow struct{ kind, name, table string }
+
+// readSchema lists the schema through the transaction: only the connection that
+// holds an uncommitted change can see it.
+func readSchema(ctx context.Context, tx *sql.Tx) (map[schemaRow]bool, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT type, name, tbl_name FROM sqlite_schema`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[schemaRow]bool{}
+	for rows.Next() {
+		var r schemaRow
+		if err := rows.Scan(&r.kind, &r.name, &r.table); err != nil {
+			return nil, err
+		}
+		out[r] = true
+	}
+	return out, rows.Err()
+}
+
+// readSequences lists the AUTOINCREMENT counters.
+func readSequences(ctx context.Context, tx *sql.Tx) (map[string]int64, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT name, seq FROM sqlite_sequence`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var name string
+		var seq int64
+		if err := rows.Scan(&name, &seq); err != nil {
+			return nil, err
+		}
+		out[name] = seq
+	}
+	return out, rows.Err()
+}
+
+// readOtherPrefixes lists the table prefixes of the other installed plugins.
+func readOtherPrefixes(ctx context.Context, tx *sql.Tx, self string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM plugins`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		if id != self {
+			out = append(out, migrationPrefix(id))
+		}
+	}
+	return out, rows.Err()
+}
+
+// checkAfter compares the database with what it was before the migration ran.
+//
+// The authorizer judges a rename by the old name of the table only, and the
+// counters of AUTOINCREMENT tables are touched by SQLite itself when a table is
+// renamed or dropped, so neither can be decided while the statement runs. What
+// the migration left behind can: every new schema entry has to lie in the
+// plugin's own namespace, no entry of anyone else may have gone, and the
+// counters of other tables have to be what they were.
+func (g *migrationGuard) checkAfter(before, after map[schemaRow]bool, seqBefore, seqAfter map[string]int64) string {
+	var added, removed []schemaRow
+	for r := range after {
+		if !before[r] {
+			added = append(added, r)
+		}
+	}
+	for r := range before {
+		if !after[r] {
+			removed = append(removed, r)
+		}
+	}
+	// Tables before indexes, then by name, so the message does not depend on the
+	// order of a map.
+	byKind := func(a, b schemaRow) int {
+		if (a.kind == "table") != (b.kind == "table") {
+			if a.kind == "table" {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(a.name, b.name)
+	}
+	slices.SortFunc(added, byKind)
+	slices.SortFunc(removed, byKind)
+	for _, r := range added {
+		if !g.ownsRow(r.name, r.table) {
+			return fmt.Sprintf("%s lies outside the plugin's prefix", r.name)
+		}
+	}
+	for _, r := range removed {
+		if !g.ownsRow(r.name, r.table) {
+			return fmt.Sprintf("%s was removed, which is not the plugin's", r.name)
+		}
+	}
+	for name, seq := range seqBefore {
+		if g.owns(name) {
+			continue
+		}
+		if got, ok := seqAfter[name]; !ok || got != seq {
+			return fmt.Sprintf("the counter of %s was changed, which is not the plugin's", name)
+		}
+	}
+	for name := range seqAfter {
+		if _, ok := seqBefore[name]; !ok && !g.owns(name) {
+			return fmt.Sprintf("a counter for %s was added, which is not the plugin's", name)
+		}
+	}
+	return ""
 }
 
 // applyGuarded runs one migration under the guard and records it, all in one
@@ -395,6 +590,25 @@ func (s *Store) applyGuarded(ctx context.Context, id string, m Migration, sum st
 		return fmt.Errorf("migration %q of plugin %q refused: it cannot be checked: %w", m.Name, id, err)
 	}
 
+	// Disarmed, the host looks at what the migration will start from. Through
+	// the transaction, never the read pool: this connection holds the lock.
+	failed := func(err error) error {
+		return fmt.Errorf("migration %q of plugin %q failed: %w", m.Name, id, err)
+	}
+	others, err := readOtherPrefixes(ctx, tx, id)
+	if err != nil {
+		return failed(err)
+	}
+	g.others = others
+	schemaBefore, err := readSchema(ctx, tx)
+	if err != nil {
+		return failed(err)
+	}
+	seqBefore, err := readSequences(ctx, tx)
+	if err != nil {
+		return failed(err)
+	}
+
 	g.armed.Store(true)
 	_, execErr := tx.ExecContext(ctx, m.SQL)
 	g.armed.Store(false)
@@ -403,7 +617,19 @@ func (s *Store) applyGuarded(ctx context.Context, id string, m Migration, sum st
 		return fmt.Errorf("migration %q of plugin %q refused: %s", m.Name, id, why)
 	}
 	if execErr != nil {
-		return fmt.Errorf("migration %q of plugin %q failed: %w", m.Name, id, execErr)
+		return failed(execErr)
+	}
+
+	schemaAfter, err := readSchema(ctx, tx)
+	if err != nil {
+		return failed(err)
+	}
+	seqAfter, err := readSequences(ctx, tx)
+	if err != nil {
+		return failed(err)
+	}
+	if why := g.checkAfter(schemaBefore, schemaAfter, seqBefore, seqAfter); why != "" {
+		return fmt.Errorf("migration %q of plugin %q refused: %s", m.Name, id, why)
 	}
 
 	if _, err := tx.ExecContext(ctx,

@@ -282,29 +282,29 @@ func TestAFailureIsNotedAndTruncated(t *testing.T) {
 
 func TestMigrationSandbox(t *testing.T) {
 	ctx := context.Background()
+	// Each case that needs the plugin's own table creates it first, so it fails
+	// on the rule it is about.
+	const own = `CREATE TABLE plugin_eins_a (a TEXT); `
 	bad := map[string]string{
 		"attach":         `ATTACH DATABASE '/tmp/x.db' AS x;`,
 		"attach mixed":   `aTtAcH database '/tmp/x.db' as x;`,
 		"attach comment": "/* hi */ -- x\n ATTACH DATABASE 'y' AS y;",
 		"pragma":         `PRAGMA writable_schema = 1;`,
-		"vacuum":         `VACUUM INTO '/tmp/copy.db';`,
-		"extension":      `INSERT INTO plugin_eins_a SELECT load_extension('x');`,
+		"extension":      own + `INSERT INTO plugin_eins_a SELECT load_extension('x');`,
 		"core table":     `CREATE TABLE users2 (a TEXT);`,
 		"drop core":      `DROP TABLE users;`,
 		"alter core":     `ALTER TABLE users ADD COLUMN x TEXT;`,
 		"insert core":    `INSERT INTO users (id) VALUES (1);`,
 		"update core":    `UPDATE pages SET title = 'x';`,
 		"delete core":    `DELETE FROM plugin_migrations;`,
-		"read secrets":   `INSERT INTO plugin_eins_a SELECT password_hash FROM users;`,
+		"read secrets":   own + `INSERT INTO plugin_eins_a SELECT password FROM users;`,
 		"hidden second":  `CREATE TABLE plugin_eins_a (a TEXT); DROP TABLE users;`,
 		"quoted":         `DROP TABLE "users";`,
-		"trigger":        `CREATE TRIGGER plugin_eins_t AFTER INSERT ON plugin_eins_a BEGIN DELETE FROM users; END;`,
+		"trigger":        own + `CREATE TRIGGER plugin_eins_t AFTER INSERT ON plugin_eins_a BEGIN DELETE FROM users; END;`,
 		"other plugin":   `CREATE TABLE plugin_zwei_a (a TEXT);`,
 		"store foreign":  `DELETE FROM plugin_store WHERE plugin_id = 'zwei';`,
 		"store nameless": `DELETE FROM plugin_store;`,
 		"temp":           `CREATE TEMP TABLE plugin_eins_a (a TEXT);`,
-		"schema":         `DELETE FROM sqlite_master;`,
-		"unterminated":   `CREATE TABLE plugin_eins_a (a TEXT) -- ok` + "\n" + `; INSERT INTO plugin_eins_a VALUES ('x`,
 	}
 	for name, q := range bad {
 		t.Run(name, func(t *testing.T) {
@@ -323,6 +323,34 @@ func TestMigrationSandbox(t *testing.T) {
 			}
 			if n != 0 {
 				t.Errorf("%d migration(s) recorded", n)
+			}
+		})
+	}
+
+	// What SQLite refuses by itself is no refusal of the guard, but it must leave
+	// the same nothing behind.
+	byTheEngine := map[string]string{
+		"vacuum":       `VACUUM INTO '/tmp/copy.db';`,
+		"schema":       `DELETE FROM sqlite_master;`,
+		"unterminated": `CREATE TABLE plugin_eins_a (a TEXT) -- ok` + "\n" + `; INSERT INTO plugin_eins_a VALUES ('x`,
+	}
+	for name, q := range byTheEngine {
+		t.Run(name, func(t *testing.T) {
+			s, _ := neuerSpeicher(t)
+			if err := s.Install(ctx, paket("eins")); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.ApplyMigrations(ctx, "eins", []Migration{{Name: "0001.sql", SQL: q}}); err == nil {
+				t.Fatal("not stopped")
+			}
+			var n int
+			if err := s.DB.Read.QueryRowContext(ctx,
+				`SELECT (SELECT COUNT(*) FROM plugin_migrations WHERE plugin_id = 'eins') +
+				        (SELECT COUNT(*) FROM sqlite_schema WHERE name LIKE 'plugin\_eins\_%' ESCAPE '\')`).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			if n != 0 {
+				t.Errorf("%d trace(s) left", n)
 			}
 		})
 	}

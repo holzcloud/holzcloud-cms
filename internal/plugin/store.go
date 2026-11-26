@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"crypto/sha256"
@@ -18,6 +19,9 @@ const timeLayout = "2006-01-02T15:04:05Z"
 
 // ErrNotFound is returned when a plugin is not installed.
 var ErrNotFound = errors.New("plugin not installed")
+
+// ErrNamespaceTaken is returned when another plugin's table names would overlap.
+var ErrNamespaceTaken = errors.New("the table names of another plugin overlap")
 
 // ErrRouteTaken is returned when another plugin already claims a route.
 var ErrRouteTaken = errors.New("another plugin already claims that route")
@@ -74,6 +78,9 @@ func (s *Store) Install(ctx context.Context, p *Package) error {
 	if err := s.checkRoutes(ctx, p.Manifest); err != nil {
 		return err
 	}
+	if err := s.checkNamespaces(ctx, p.Manifest.ID); err != nil {
+		return err
+	}
 	raw, err := json.Marshal(p.Manifest)
 	if err != nil {
 		return err
@@ -117,6 +124,32 @@ func (s *Store) checkRoutes(ctx context.Context, m *Manifest) error {
 		}
 	}
 	return nil
+}
+
+// checkNamespaces refuses an id whose table prefix starts another installed
+// plugin's, or the other way round. Ids may contain hyphens, which become
+// underscores in the prefix: plugin_nicht_ is the beginning of
+// plugin_nicht_gefunden_, so a plugin called nicht could otherwise reach the
+// tables of nicht-gefunden by its prefix alone.
+func (s *Store) checkNamespaces(ctx context.Context, id string) error {
+	rows, err := s.DB.Read.QueryContext(ctx, `SELECT id FROM plugins WHERE id <> $1`, id)
+	if err != nil {
+		return fmt.Errorf("list plugins: %w", err)
+	}
+	defer rows.Close()
+	mine := migrationPrefix(id)
+	for rows.Next() {
+		var other string
+		if err := rows.Scan(&other); err != nil {
+			return err
+		}
+		theirs := migrationPrefix(other)
+		if strings.HasPrefix(theirs, mine) || strings.HasPrefix(mine, theirs) {
+			return fmt.Errorf("%w: plugin %q and plugin %q would share table names (%s and %s)",
+				ErrNamespaceTaken, id, other, mine, theirs)
+		}
+	}
+	return rows.Err()
 }
 
 const pluginColumns = `id, name, version, manifest, sha256, enabled, installed_at, updated_at, last_error`
@@ -381,6 +414,13 @@ func escapeLike(s string) string {
 
 // ApplyMigrations runs a plugin's SQL, once each, in name order.
 //
+// Each runs in a transaction of its own on a connection of its own, under a
+// policy given to SQLite's authorizer and a pre-update hook: the plugin may
+// create and change tables with its own prefix, read what its own tables and a
+// short list of columns of the legacy tables give it, and write plugin_store
+// rows of its own id, and nothing else. The policy is armed only around the
+// plugin's SQL and is off the connection before it goes back to the pool.
+//
 // The checksum is recorded as well as the name: a plugin that ships changed SQL
 // under a name that already ran would otherwise apply nothing and leave a
 // schema that does not match the code expecting it — the kind of mismatch that
@@ -401,10 +441,6 @@ func (s *Store) ApplyMigrations(ctx context.Context, id string, ms []Migration) 
 			return fmt.Errorf("migration %q of plugin %q has already been applied but has changed — please ship it under a new name", m.Name, id)
 		case !errors.Is(err, sql.ErrNoRows):
 			return fmt.Errorf("plugin migration lookup: %w", err)
-		}
-
-		if err := s.checkMigration(ctx, id, m.SQL); err != nil {
-			return fmt.Errorf("migration %q of plugin %q refused: %w", m.Name, id, err)
 		}
 
 		if err := s.applyGuarded(ctx, id, m, want); err != nil {
