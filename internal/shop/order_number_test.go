@@ -220,3 +220,34 @@ func TestOrderNumberSecondCollisionFailsCleanly(t *testing.T) {
 		t.Errorf("%d orders with a collided number remain", n)
 	}
 }
+
+// A hand-edited number of nineteen or more digits is clamped to the largest
+// integer by SQLite, and one more than that wraps negative. A negative suffix
+// or a huge one must neither wrap the counter nor stick every later checkout
+// on the UNIQUE index: only a suffix of one to nine digits counts.
+func TestOrderNumberIgnoresAHugeOrNegativeNumber(t *testing.T) {
+	orders, carts, products, ws := newOrders(t)
+	p := seedProduct(t, products, ws, "hocker", StatusPublished, nil)
+	orders.now = func() time.Time { return time.Date(2026, 5, 4, 10, 0, 0, 0, time.UTC) }
+
+	a := placeOne(t, orders, carts, ws, p)
+	b := placeOne(t, orders, carts, ws, p)
+	c := placeOne(t, orders, carts, ws, p)
+	renumber(t, carts, a.ID, "2026-9999999999999999999")
+	renumber(t, carts, b.ID, "2026--5")
+	renumber(t, carts, c.ID, "2026-0012")
+
+	for _, want := range []string{"2026-0013", "2026-0014", "2026-0015"} {
+		if got := placeOne(t, orders, carts, ws, p).Number; got != want {
+			t.Fatalf("order number is %s, want %s", got, want)
+		}
+	}
+
+	// With nothing sane stored, the year starts at one.
+	if _, err := carts.DB.Write.Exec(`UPDATE orders SET number = '2026-99999999999999999999' || id`); err != nil {
+		t.Fatal(err)
+	}
+	if got := placeOne(t, orders, carts, ws, p).Number; got != "2026-0001" {
+		t.Errorf("order number is %s, want 2026-0001", got)
+	}
+}

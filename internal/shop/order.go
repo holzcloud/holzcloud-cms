@@ -208,10 +208,12 @@ func (s *OrderStore) Place(ctx context.Context, websiteID int64, set Settings,
 	if isUniqueConstraint(err) {
 		// With the numeric maximum, read inside this immediate write
 		// transaction, a collision should not happen. The retry is the cheap
-		// guard for a row the maximum did not see (an imported or hand-edited
-		// number). It runs once, so a broken table cannot loop on the only
-		// write connection; SQLite aborts only the failed statement, so the
-		// transaction and its stock reservations stay.
+		// guard for a row the maximum did not see (an imported number that
+		// the maximum ignores, or a concurrent writer). It starts above the
+		// number that just failed, so it moves on and does not compute the
+		// same one again. It runs once, so a broken table cannot loop on the
+		// only write connection; SQLite aborts only the failed statement, so
+		// the transaction and its stock reservations stay.
 		if number, _, err = nextOrderNumber(ctx, tx, now, n); err != nil {
 			return nil, err
 		}
@@ -290,8 +292,14 @@ func isUniqueConstraint(err error) bool {
 // carry keep their shape.
 //
 // The range is year+"-" up to year+".", the dot being the character that sorts
-// directly after the dash, so it holds exactly that year's numbers. A suffix
-// that is not a number casts to 0 and never lowers the count.
+// directly after the dash, so it holds exactly that year's numbers.
+//
+// Only a suffix of one to nine digits counts. Anything else (letters, a minus
+// sign, nineteen digits that SQLite clamps to the largest integer) is a number
+// somebody edited by hand: it is ignored rather than allowed to wrap the
+// counter negative, which would hand out the same number to every checkout
+// from then on. The count therefore stays below a billion and n cannot
+// overflow.
 //
 // It must run inside the write transaction of Place, which is what serialises
 // the read and the insert that follows it.
@@ -300,7 +308,9 @@ func nextOrderNumber(ctx context.Context, tx *sql.Tx, now time.Time, after int) 
 	var last int
 	if err := tx.QueryRowContext(ctx,
 		`SELECT COALESCE(MAX(CAST(substr(number, 6) AS INTEGER)), 0)
-		 FROM orders WHERE number >= $1 AND number < $2`,
+		 FROM orders WHERE number >= $1 AND number < $2
+		   AND length(substr(number, 6)) BETWEEN 1 AND 9
+		   AND substr(number, 6) NOT GLOB '*[^0-9]*'`,
 		year+"-", year+".").Scan(&last); err != nil {
 		return "", 0, fmt.Errorf("read last order number: %w", err)
 	}
