@@ -470,7 +470,17 @@ rule_quotes() {
 
 rule_coverage() {
   need "$BETA" || return 2
-  local b n rec p nq nl=0 np=0 per=""
+  local b n rec p nq nl=0 np=0 per="" stray
+  # A limit the loop below cannot read must not be skipped in silence: a list item that
+  # carries the mark anywhere but as `- (0.1.5) ` at the start of the line (indented, a star
+  # bullet, the mark later in the sentence) is reported. A prose line is not a list item.
+  stray=$(grep -nE '^[[:space:]]*[-*+] .*\(0\.1\.5\)' "$BETA" | grep -vE '^[0-9]+:- \(0\.1\.5\) ')
+  while IFS= read -r b; do
+    [ -n "$b" ] || continue
+    fail "coverage: a list item carries (0.1.5) but is not a limit the rule can read (line ${b%%:*}): $(short "${b#*:}")"
+  done <<EOF_S
+$stray
+EOF_S
   while IFS= read -r b; do
     nl=$((nl + 1))
     n=$(printf '%s\n' "$b" | grep -o 'Record: deploy/' | grep -c .)
@@ -606,16 +616,23 @@ EOF_P
   [ "$RULE_FAIL" = 0 ] && ok "stable: $narea areas with a promise and a checklist, $nitems unchecked items that each name a source, $np documents named that exist, and the README links docs/stable.md"
 }
 
-# run_ok DESC PREFIX CMD... : run CMD in ROOT (in RUN_DIR when the call sets it); its last line must begin with PREFIX. With
+# run_ok DESC PREFIX CMD... : run CMD in ROOT (in RUN_DIR when the call sets it); its last
+# line must begin with PREFIX and its exit status must be 0: a driver that prints its OK line
+# and then exits non-zero (a trap, a cleanup that failed) has not ended OK (IN-04). With
 # RUN_NOSKIP=1 in the environment of the call, a last line that says a rule was skipped
 # fails too, because a driver that skipped its own record rule has proven less than asked.
 run_ok() {
-  local desc="$1" want="$2" out last
+  local desc="$1" want="$2" out last rc
   shift 2
-  out=$(cd "${RUN_DIR:-$ROOT}" && "$@" 2>&1)
+  if out=$(cd "${RUN_DIR:-$ROOT}" && "$@" 2>&1); then rc=0; else rc=$?; fi
   last=$(printf '%s\n' "$out" | tail -n 1)
   case "$last" in
     "$want"*)
+      if [ "$rc" != 0 ]; then
+        printf '%s\n' "$out" | tail -n 5
+        fail "record: $desc exited $rc after printing: $last"
+        return
+      fi
       if [ "${RUN_NOSKIP:-0}" = 1 ]; then
         case "$last" in
           *" skipped)"*)
@@ -768,7 +785,7 @@ t_e_nohead() { awk '!done && /^## / { print "- Ein Satz ohne Version."; print ""
 t_e_pre() { sed '1s/^# Changelog$/# Changes/'; }
 
 selftest() {
-  local T base tip rec less wt0 c1 c2 tipsha side at atarg
+  local T base tip rec less wt0 c1 c2 tipsha side at atarg before
   T=$(mktemp -d "$TMPROOT/st.XXXXXX")
   wt0=$(git -C "$ROOT" worktree list | grep -c .)
   cp "$BETA" "$T/good.md"
@@ -875,6 +892,14 @@ selftest() {
   st_run 'coverage: a limit marked (0.1.5) quotes what its record does not say' 1 'coverage: a limit marked (0.1.5): not in deploy/ROLLBACK-RUN.md, byte for byte: NO SUCH PHRASE 34' "BETA=$T/c-absent.md" -- coverage
   t_after '### The unit and the platform' '- (0.1.5) A limit of an older record. Why: a case of the selftest. Record: deploy/BACKUP-RUN.md, *Not tested*: "BAK-01 PASS"' < "$T/good.md" > "$T/c-old.md"
   st_run 'coverage: a limit marked (0.1.5) names a record that is not of 0.1.5' 1 "coverage: a limit marked (0.1.5) names 'deploy/BACKUP-RUN.md', which is not a record of 0.1.5" "BETA=$T/c-old.md" -- coverage
+  t_after '### The unit and the platform' '  - (0.1.5) An indented limit. Why: a case of the selftest. Record: deploy/ROLLBACK-RUN.md, *Not tested*: "x"' < "$T/good.md" > "$T/c-indent.md"
+  st_run 'coverage: a limit marked (0.1.5) written as an indented bullet is reported' 1 'coverage: a list item carries (0.1.5) but is not a limit the rule can read' "BETA=$T/c-indent.md" -- coverage
+  t_after '### The unit and the platform' '* (0.1.5) A star bullet. Why: a case of the selftest. Record: deploy/ROLLBACK-RUN.md, *Not tested*: "x"' < "$T/good.md" > "$T/c-star.md"
+  st_run 'coverage: a limit marked (0.1.5) written as a star bullet is reported' 1 'coverage: a list item carries (0.1.5) but is not a limit the rule can read' "BETA=$T/c-star.md" -- coverage
+  t_after '### The unit and the platform' '- A limit marked (0.1.5) late in the bullet. Why: a case of the selftest. Record: deploy/ROLLBACK-RUN.md, *Not tested*: "x"' < "$T/good.md" > "$T/c-late.md"
+  st_run 'coverage: a limit with (0.1.5) later in the bullet is reported' 1 'coverage: a list item carries (0.1.5) but is not a limit the rule can read' "BETA=$T/c-late.md" -- coverage
+  t_after '### The unit and the platform' 'A prose line may say that a limit marked (0.1.5) is read by the gates; it is not a list item.' < "$T/good.md" > "$T/c-prose.md"
+  st_run 'coverage: a prose line that mentions (0.1.5) is not a list item and passes' 0 'ok: coverage' "BETA=$T/c-prose.md" -- coverage
   # ledger
   st_run 'ledger: control, the page as it is' 0 'ok: ledger' "BETA=$T/good.md" -- ledger
   t_after '### Install, update and rollback' "- $LIMIT_3: the update migrated cleanly. Why: kept." < "$T/good.md" > "$T/l-bullet.md"
@@ -909,6 +934,14 @@ selftest() {
   st_run 'stable: a copy without the data contract area' 1 "stable: the heading '## Data contract' is missing" "STABLE=$T/s-noarea.md" -- stable
   grep -vF 'docs/stable.md' "$README" > "$T/readme-nolink.md"
   st_run 'stable: a README without the link' 1 'does not link docs/stable.md' "README=$T/readme-nolink.md" -- stable
+  # run_ok takes the exit status too: a driver that prints its OK line and exits 3 fails. It
+  # runs in this process, because the count of failures is what it changes.
+  before=$RULE_FAIL
+  run_ok 'selftest driver that exits 0' 'RECORD-CHECK OK (' bash -c 'echo "RECORD-CHECK OK (1 checks)"; exit 0' > "$T/runok-0.out" 2>&1
+  if [ "$RULE_FAIL" = "$before" ] && grep -q '^ok: record: selftest driver that exits 0' "$T/runok-0.out"; then st_pass 'run_ok: control, OK line and exit 0 pass'; else st_bad 'run_ok: control, OK line and exit 0 pass'; fi
+  run_ok 'selftest driver that exits 3' 'RECORD-CHECK OK (' bash -c 'echo "RECORD-CHECK OK (1 checks)"; exit 3' > "$T/runok-3.out" 2>&1
+  if [ "$RULE_FAIL" = $((before + 1)) ] && grep -q 'exited 3' "$T/runok-3.out"; then st_pass 'run_ok: an OK line with exit status 3 fails and says "exited 3"'; else st_bad 'run_ok: an OK line with exit status 3 fails and says "exited 3"'; fi
+  RULE_FAIL=$before
   # record
   mkdir -p "$T/empty-e" "$T/bad-e/mac-t34-uat"
   : > "$T/bad-e/amd64-t34-summary.txt"

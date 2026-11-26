@@ -326,7 +326,17 @@ rule_frozen() {
 rule_quotes() {
   need "$BETA" || return 2
   need "$R" || return 2
-  local id row rec cited p n np=0 nr=0 b nl=0
+  local id row rec cited p n np=0 nr=0 b nl=0 stray
+  # A limit the loop below cannot read must not be skipped in silence: a list item that
+  # carries the mark anywhere but as `- (0.1.5) ` at the start of the line (indented, a star
+  # bullet, the mark later in the sentence) is reported. A prose line is not a list item.
+  stray=$(grep -nE '^[[:space:]]*[-*+] .*\(0\.1\.5\)' "$BETA" | grep -vE '^[0-9]+:- \(0\.1\.5\) ')
+  while IFS= read -r b; do
+    [ -n "$b" ] || continue
+    fail "quotes: a list item carries (0.1.5) but is not a limit the rule can read (line ${b%%:*}): $(short "${b#*:}")"
+  done <<EOF_S
+$stray
+EOF_S
   for id in $REQUIRED_ROWS; do
     n=$(grep -c "^| $id |" "$BETA")
     if [ "$n" != 1 ]; then fail "quotes: $id: $n rows in $BETA, want exactly one"; continue; fi
@@ -591,6 +601,14 @@ selftest() {
   st_run 'quotes: a limit marked (0.1.5) of another record is left to the gate of phase 34' 0 'ok: quotes' "BETA=$T/q-other.md" "R=$R" -- quotes
   t_drop_line '- (0.1.5) Native amd64 timing of the checksum step' < "$T/good.md" > "$T/q-five.md"
   st_run 'quotes: fewer than six limits marked (0.1.5) name the record' 1 'quotes: 5 limits marked (0.1.5) name Record: deploy/BACKUP-VERIFY-RUN.md, want at least 6' "BETA=$T/q-five.md" "R=$R" -- quotes
+  t_after '- (0.1.5) Native amd64 timing of the checksum step' '  - (0.1.5) An indented limit. Why: a case of the selftest. Record: deploy/BACKUP-VERIFY-RUN.md, *Not tested*: "x"' < "$T/good.md" > "$T/q-indent.md"
+  st_run 'quotes: a limit marked (0.1.5) written as an indented bullet is reported' 1 'quotes: a list item carries (0.1.5) but is not a limit the rule can read' "BETA=$T/q-indent.md" "R=$R" -- quotes
+  t_after '- (0.1.5) Native amd64 timing of the checksum step' '* (0.1.5) A star bullet. Why: a case of the selftest. Record: deploy/BACKUP-VERIFY-RUN.md, *Not tested*: "x"' < "$T/good.md" > "$T/q-star.md"
+  st_run 'quotes: a limit marked (0.1.5) written as a star bullet is reported' 1 'quotes: a list item carries (0.1.5) but is not a limit the rule can read' "BETA=$T/q-star.md" "R=$R" -- quotes
+  t_after '- (0.1.5) Native amd64 timing of the checksum step' '- A limit marked (0.1.5) late in the bullet. Why: a case of the selftest. Record: deploy/BACKUP-VERIFY-RUN.md, *Not tested*: "x"' < "$T/good.md" > "$T/q-late.md"
+  st_run 'quotes: a limit with (0.1.5) later in the bullet is reported' 1 'quotes: a list item carries (0.1.5) but is not a limit the rule can read' "BETA=$T/q-late.md" "R=$R" -- quotes
+  t_after '- (0.1.5) Native amd64 timing of the checksum step' 'A prose line may say that a limit marked (0.1.5) is read by the gates; it is not a list item.' < "$T/good.md" > "$T/q-prose.md"
+  st_run 'quotes: a prose line that mentions (0.1.5) is not a list item and passes' 0 'ok: quotes' "BETA=$T/q-prose.md" "R=$R" -- quotes
   # ledger
   st_run 'ledger: control, the page as it is' 0 'ok: ledger' "BETA=$T/good.md" -- ledger
   t_after '### The nightly backup and a restore' "- $LIMIT_1: a flipped byte inside a data page passes both integrity readers. Why: kept." < "$T/good.md" > "$T/l-bullet.md"
