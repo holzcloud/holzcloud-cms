@@ -28,13 +28,18 @@ func TestOffsiteRedirectIsNotFollowed(t *testing.T) {
 		// A stray percent sign is not an escape and not another server: a row
 		// like this was followed before the shared rule and still is.
 		{"/f", "/aktion-50%"},
+		// Stored under the language prefix itself: this is the first lookup
+		// of lookupRedirect, before the bare address is tried.
+		{"/fr/x", "//evil.example/x"},
+		{"/fr/y", `/\evil.example`},
+		{"/fr/z", "/fr/kontakt"},
 	} {
 		if err := store.AddRedirect(ctx, ws.ID, row.from, row.to, 301); err != nil {
 			t.Fatalf("AddRedirect(%q): %v", row.from, err)
 		}
 	}
 
-	for _, from := range []string{"/a", "/b", "/c", "/fr/a", "/fr/b"} {
+	for _, from := range []string{"/a", "/b", "/c", "/fr/a", "/fr/b", "/fr/x", "/fr/y"} {
 		rec := throughMiddleware(h.HandlePage, ws, from, "slug")
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("%s answers %d; want 404", from, rec.Code)
@@ -50,6 +55,7 @@ func TestOffsiteRedirectIsNotFollowed(t *testing.T) {
 		{"/e", "https://example.com/ok"},
 		{"/f", "/aktion-50%"},
 		{"/fr/f", "/fr/aktion-50%"},
+		{"/fr/z", "/fr/kontakt"},
 	} {
 		rec := throughMiddleware(h.HandlePage, ws, c.from, "slug")
 		if rec.Code != http.StatusMovedPermanently {
