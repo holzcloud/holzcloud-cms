@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 )
 
@@ -46,14 +46,7 @@ func echoArchive(t *testing.T, anpassen func(*Manifest)) []byte {
 func neuerManager(t *testing.T) (*Manager, *Store, int64) {
 	t.Helper()
 	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "t.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatal(err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(dir, "t.sqlite"))
 	ws, err := domain.NewStore(database).CreateWebsite(context.Background(), "Velowerkstatt", "")
 	if err != nil {
 		t.Fatal(err)

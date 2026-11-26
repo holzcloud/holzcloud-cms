@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
@@ -64,14 +64,7 @@ func privacyInstallEdited(t *testing.T, dir string, edit func(*Manifest)) privac
 	}
 
 	tmp := t.TempDir()
-	database, err := db.Open(filepath.Join(tmp, "t.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(database.Close)
-	if err := db.RunMigrations(database.Write); err != nil {
-		t.Fatal(err)
-	}
+	database := dbtest.OpenAt(t, filepath.Join(tmp, "t.sqlite"))
 	ctx := context.Background()
 	sites := domain.NewStore(database)
 	a, err := sites.CreateWebsite(ctx, "Farmstand", "")
