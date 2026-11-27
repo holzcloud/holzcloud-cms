@@ -50,7 +50,8 @@ type attachmentKeeper struct {
 	dataDir  string
 	store    *media.Store
 
-	// mu serialises Keep and Close: a Keep that is reading a spool file while
+	// mu guards the state below between the request, the plugin's Keep and
+	// the keep's own goroutine: a keep that is reading a spool file while
 	// Close removes the directory would store half a file.
 	mu sync.Mutex
 	// spoolDir is this request's own directory below the spool root, made when
@@ -70,6 +71,11 @@ type attachmentKeeper struct {
 	// a plugin that asks twice gets the same ids and stores nothing further.
 	kept []plugin.KeptFile
 	done bool
+	// keeping is set while keepAll runs; a Close in that time leaves the
+	// spool and the slot to it. late is set when Keep answered the plugin
+	// before keepAll was done: what it stores after that is taken away again.
+	keeping bool
+	late    bool
 }
 
 type keptIntake struct {
@@ -86,17 +92,105 @@ var _ io.Closer = (*attachmentKeeper)(nil)
 
 func (k *attachmentKeeper) List() []plugin.AttachedFile { return k.listed }
 
+// Keep stores the files and answers the plugin with their ids.
+//
+// It runs inside the plugin's call, whose deadline is CallTimeout and whose
+// module the engine closes when that passes; a keep that overran it used to
+// fail its database work, then the whole call, and the visitor got a 404 for
+// a lost message (WR-03 of the phase 38 review). So the disk and database work
+// runs in a goroutine of its own, detached from the call's deadline and
+// bounded by keepBound, and Keep waits for it only until keepMargin before the
+// call's deadline. If it is done by then the plugin gets every file. If not,
+// the plugin gets what was stored so far and goes on to store the message
+// without the rest; the keep stops after the file it is writing, takes that
+// one away again, and the operator's log says so. A message without its
+// attachment is worse than a message with it and far better than none.
+//
+// The call's own time cannot be stopped while the host works: that would be a
+// change to the plugin runtime for one host function. This keeps the runtime
+// as it is.
 func (k *attachmentKeeper) Keep(ctx context.Context) ([]plugin.KeptFile, error) {
 	k.mu.Lock()
-	defer k.mu.Unlock()
 	if k.done || k.closed {
 		// After Close the spool is gone and nothing may be stored from it: a
 		// call that arrives late answers what it had kept, which is nothing
 		// when it never ran.
+		defer k.mu.Unlock()
 		return k.kept, nil
 	}
 	k.done = true
+	answerBy, bounded := ctx.Deadline()
+	if bounded {
+		answerBy = answerBy.Add(-keepMargin)
+		if !time.Now().Before(answerBy) {
+			// Not even the time to start: the plugin goes on without files.
+			k.late = true
+			n := len(k.intakes)
+			k.mu.Unlock()
+			k.logLate(n)
+			return nil, nil
+		}
+	}
+	k.keeping = true
+	finished := make(chan struct{})
+	k.mu.Unlock()
+
+	go k.keepAll(context.WithoutCancel(ctx), finished)
+
+	if bounded {
+		timer := time.NewTimer(time.Until(answerBy))
+		defer timer.Stop()
+		select {
+		case <-finished:
+		case <-timer.C:
+			k.mu.Lock()
+			k.late = true
+			kept := append([]plugin.KeptFile(nil), k.kept...)
+			n := len(k.intakes) - len(kept)
+			k.mu.Unlock()
+			k.logLate(n)
+			return kept, nil
+		}
+	} else {
+		<-finished
+	}
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.kept, nil
+}
+
+// keepAll stores the files one after the other, until it is done or Keep has
+// answered without it, and then hands the spool and the slot to a Close that
+// came in the meantime. It closes finished when it is over.
+func (k *attachmentKeeper) keepAll(ctx context.Context, finished chan struct{}) {
+	ctx, cancel := context.WithTimeout(ctx, keepBound)
+	defer cancel()
+	defer func() {
+		// The goroutine is the keeper's own and no caller can recover for
+		// it: a panic in a strip of a stranger's file must not end the
+		// process.
+		if p := recover(); p != nil {
+			slog.Error("public form attachment: the keep panicked", "plugin", k.pluginID, "panic", p)
+		}
+		k.mu.Lock()
+		k.keeping = false
+		if k.closed {
+			k.releaseLocked()
+		}
+		k.mu.Unlock()
+		close(finished)
+	}()
+
 	for _, in := range k.intakes {
+		k.mu.Lock()
+		late := k.late
+		k.mu.Unlock()
+		if late {
+			return
+		}
+		if keepHook != nil {
+			keepHook()
+		}
 		m, existed, err := in.intake.KeepFor(ctx, k.store, k.websiteID, k.pluginID, k.dataDir)
 		if err != nil {
 			// One file that cannot be written does not lose the others, and
@@ -104,12 +198,31 @@ func (k *attachmentKeeper) Keep(ctx context.Context) ([]plugin.KeptFile, error) 
 			// this submission is real.
 			continue
 		}
+		k.mu.Lock()
+		if k.late {
+			k.mu.Unlock()
+			// Keep has answered without it, so no message names this file:
+			// it goes again, unless it was a file already stored before.
+			if !existed {
+				if err := k.store.DeleteOwned(ctx, k.websiteID, k.pluginID, m.ID, k.dataDir); err != nil {
+					slog.Error("public form attachment: a file kept too late could not be removed",
+						"plugin", k.pluginID, "media", m.ID, "error", err)
+				}
+			}
+			return
+		}
 		k.kept = append(k.kept, plugin.KeptFile{
 			Field: in.field, MediaID: m.ID, Name: m.OriginalName,
 			Filename: m.Filename, Existed: existed,
 		})
+		k.mu.Unlock()
 	}
-	return k.kept, nil
+}
+
+// logLate tells the operator that a message went on without n of its files.
+func (k *attachmentKeeper) logLate(n int) {
+	slog.Warn("public form attachment: not kept within the plugin's call; the message goes on without it",
+		"plugin", k.pluginID, "website", k.websiteID, "files", n)
 }
 
 // Close removes the request's spool directory and everything in it and gives
@@ -123,6 +236,18 @@ func (k *attachmentKeeper) Close() error {
 		return nil
 	}
 	k.closed = true
+	if k.keeping {
+		// A keep is still writing from the spool: it removes the spool and
+		// gives the slot back itself when it ends (keepAll), so the disk it
+		// is filling stays counted until then.
+		return nil
+	}
+	return k.releaseLocked()
+}
+
+// releaseLocked removes the spool and gives the slot back. The caller holds
+// k.mu and has set closed.
+func (k *attachmentKeeper) releaseLocked() error {
 	var err error
 	if k.spoolDir != "" {
 		err = os.RemoveAll(k.spoolDir)
@@ -168,6 +293,22 @@ func attachmentBound(l media.Limits) int64 {
 // removes the spool, and for nothing else. It is nil in production and is
 // called once per part after the part was handled.
 var attachPartHook func()
+
+// keepHook exists for the test of a keep that overruns the plugin's call, and
+// for nothing else. It is nil in production and is called before each file is
+// kept.
+var keepHook func()
+
+// How long a keep may take. keepMargin is the part of the plugin's call a keep
+// leaves to the plugin, to store the message and answer, when it has to answer
+// before it is done (Keep). keepBound bounds the keep's own disk and database
+// work, which runs outside the call's deadline: a 64 MB video is written and
+// hashed in about a second on a small node, so a minute is a hang and not a
+// slow disk.
+const (
+	keepMargin = plugin.CallTimeout / 4
+	keepBound  = time.Minute
+)
 
 // whole is the refusal of a submission as a whole for the error that ended it.
 //
