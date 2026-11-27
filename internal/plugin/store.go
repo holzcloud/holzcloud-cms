@@ -77,49 +77,71 @@ const MaxKeyBytes = 200
 // collision found here is an upload that fails with a message; found later it
 // is two plugins that both believe they own /suche, one of which silently never
 // runs.
+//
+// The checks and the insert are one write transaction. Checked through the
+// read pool first, two installs at the same moment (nicht and nicht-gefunden,
+// or two plugins claiming /suche) could both pass before either was written.
 func (s *Store) Install(ctx context.Context, p *Package) error {
-	if err := s.checkRoutes(ctx, p.Manifest); err != nil {
-		return err
-	}
-	if err := s.checkNamespaces(ctx, p.Manifest.ID); err != nil {
-		return err
-	}
 	raw, err := json.Marshal(p.Manifest)
 	if err != nil {
+		return err
+	}
+	tx, err := s.DB.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := checkRoutes(ctx, tx, p.Manifest); err != nil {
+		return err
+	}
+	if err := checkNamespaces(ctx, tx, p.Manifest.ID); err != nil {
 		return err
 	}
 	now := time.Now().UTC().Format(timeLayout)
 
 	// An upgrade keeps the enabled state and the websites: an operator who
 	// updates a plugin expects it to keep working, not to switch itself off.
-	_, err = s.DB.Write.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO plugins (id, name, version, manifest, sha256, enabled, installed_at, updated_at, last_error)
 		VALUES ($1, $2, $3, $4, $5, 0, $6, $6, '')
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name, version = excluded.version,
 			manifest = excluded.manifest, sha256 = excluded.sha256,
 			updated_at = excluded.updated_at, last_error = ''`,
-		p.Manifest.ID, p.Manifest.Name, p.Manifest.Version, string(raw), p.SHA256, now)
-	return err
+		p.Manifest.ID, p.Manifest.Name, p.Manifest.Version, string(raw), p.SHA256, now); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // checkRoutes refuses a manifest whose routes another plugin already holds.
-func (s *Store) checkRoutes(ctx context.Context, m *Manifest) error {
+func checkRoutes(ctx context.Context, tx *sql.Tx, m *Manifest) error {
 	if len(m.Routes) == 0 {
 		return nil
 	}
-	others, err := s.List(ctx)
+	rows, err := tx.QueryContext(ctx, `SELECT name, manifest FROM plugins WHERE id <> $1`, m.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("list plugins: %w", err)
 	}
+	defer rows.Close()
 	claimed := map[string]string{}
-	for _, o := range others {
-		if o.ID == m.ID || o.Manifest == nil {
+	for rows.Next() {
+		var name, raw string
+		if err := rows.Scan(&name, &raw); err != nil {
+			return err
+		}
+		// A manifest that no longer parses claims nothing, as in List.
+		o, err := ParseManifest([]byte(raw))
+		if err != nil {
 			continue
 		}
-		for _, r := range o.Manifest.Routes {
-			claimed[r] = o.Name
+		for _, r := range o.Routes {
+			claimed[r] = name
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
 	}
 	for _, r := range m.Routes {
 		if by, ok := claimed[r]; ok {
@@ -134,8 +156,8 @@ func (s *Store) checkRoutes(ctx context.Context, m *Manifest) error {
 // underscores in the prefix: plugin_nicht_ is the beginning of
 // plugin_nicht_gefunden_, so a plugin called nicht could otherwise reach the
 // tables of nicht-gefunden by its prefix alone.
-func (s *Store) checkNamespaces(ctx context.Context, id string) error {
-	rows, err := s.DB.Read.QueryContext(ctx, `SELECT id FROM plugins WHERE id <> $1`, id)
+func checkNamespaces(ctx context.Context, tx *sql.Tx, id string) error {
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM plugins WHERE id <> $1`, id)
 	if err != nil {
 		return fmt.Errorf("list plugins: %w", err)
 	}

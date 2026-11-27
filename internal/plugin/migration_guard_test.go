@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -415,6 +416,36 @@ func TestPluginNamespacesDoNotOverlap(t *testing.T) {
 		// Neighbours that merely share letters do not overlap.
 		if err := s2.Install(ctx, paket("nichtig")); err != nil {
 			t.Fatalf("installing nichtig beside nicht: %v", err)
+		}
+	})
+
+	// Two installs at the same moment. The check read through the read pool
+	// and the insert came after it, so both could pass the check before either
+	// had inserted (IN-07). Check and insert are one write transaction now.
+	t.Run("two installs at once do not both pass", func(t *testing.T) {
+		s, _ := neuerSpeicher(t)
+		for round := range 40 {
+			var wg sync.WaitGroup
+			start := make(chan struct{})
+			errs := make([]error, 2)
+			for i, id := range []string{"nicht", "nicht-gefunden"} {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					<-start
+					errs[i] = s.Install(ctx, paket(id))
+				}()
+			}
+			close(start)
+			wg.Wait()
+			if errs[0] == nil && errs[1] == nil {
+				t.Fatalf("round %d: nicht and nicht-gefunden were both installed", round)
+			}
+			for _, id := range []string{"nicht", "nicht-gefunden"} {
+				if err := s.Remove(ctx, id); err != nil && !errors.Is(err, ErrNotFound) {
+					t.Fatal(err)
+				}
+			}
 		}
 	})
 
