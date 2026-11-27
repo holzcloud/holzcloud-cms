@@ -245,9 +245,10 @@ so a plugin never has to defend itself against the size of one:
 - A submission is refused as a whole, before the plugin is called, when it has
   more than 64 parts or more than 256 KB of text (413), when its body is larger
   than the bound (about 74 MiB at the default limits, 413) or ends before its
-  closing boundary (400), when a network sends more than two at once or thirty an
-  hour (429) or the server already has four inside (503). The 429 and 503 carry a
-  `Retry-After`. The visitor sees the host's plain answer in these cases; a
+  closing boundary (400), or, when it carries a file, when its network already
+  has two inside or sent thirty in the hour (429) or the server already has four
+  inside (503). A submission without a file is never counted or refused by these
+  three. The 429 and 503 carry a `Retry-After`. The visitor sees the host's plain answer in these cases; a
   plugin cannot change it.
 - When the data directory is short of free space, every file of a submission is
   listed as refused and the fields still arrive, so a form that is multipart

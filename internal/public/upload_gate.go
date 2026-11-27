@@ -43,8 +43,12 @@ const (
 // server is full and 429 when the network is, with a time to come back; a queue
 // of waiting uploads would be one more thing a stranger can fill.
 //
-// What it costs: four slow senders keep the attachments of the contact form
-// busy for up to two minutes. The rest of the site is untouched.
+// A submission enters at its first file part (takeAttachments), so a message
+// without a file is never counted here.
+//
+// What it costs: four slow senders keep the attachments of every form on the
+// server busy for up to two minutes. Messages without files and the rest of
+// the site are untouched.
 type uploadGate struct {
 	mu         sync.Mutex
 	slots      int

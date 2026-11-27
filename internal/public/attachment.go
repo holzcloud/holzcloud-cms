@@ -222,19 +222,11 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 	if key, public := h.clientIP.ThrottleKey(r); public {
 		network = key
 	}
-	// The gate before the body is touched: a full server answers at once and
-	// reads nothing, and nothing is spooled for it.
-	leave, status := h.uploads.enter(network)
-	if leave == nil {
-		return "", nil, false, &uploadRefusal{Status: status, RetryAfter: uploadRetryAfter}
-	}
-	// The keeper is made at once and carries the slot, so that the deferred
-	// Close below gives it back on every path that does not hand the keeper
-	// on: a refusal, an early return, a panic. No path releases it by hand.
-	keeper = &attachmentKeeper{websiteID: websiteID, pluginID: pluginID, dataDir: h.dataDir, store: h.mediaStore, leave: leave}
-	// Whatever happens below, the spool of this request is removed and its slot
-	// given back unless the keeper was handed on.
-	//
+	// The keeper is made at once, so that the deferred Close below removes the
+	// spool and gives back the slot, once the first file took one, on every
+	// path that does not hand the keeper on: a refusal, an early return, a
+	// panic. No path releases either by hand.
+	keeper = &attachmentKeeper{websiteID: websiteID, pluginID: pluginID, dataDir: h.dataDir, store: h.mediaStore}
 	// The deferred call holds its own copy of the keeper: the named result is
 	// set to nil by the return of a refusal before the defer runs.
 	own := keeper
@@ -245,29 +237,60 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 		}
 	}()
 
-	// The network's hourly budget, once the slot is held and the keeper will
-	// give it back. A server that was full reserved nothing above. The attempt
-	// is settled as spent at once and never refunded: the bytes are read
-	// whatever the plugin decides, and a sender who keeps being refused is
-	// still sending.
-	if network != "" {
-		attempt, wait := h.uploadNets.Reserve(network, "")
-		if attempt == nil {
-			return "", nil, false, &uploadRefusal{Status: http.StatusTooManyRequests, RetryAfter: max(wait, uploadRetryAfter)}
+	// The gate, the network's hourly budget and the free-space floor are asked
+	// at the first file part and not here (WR-01 of the phase 38 review). A
+	// form with attachments is multipart whether or not the visitor chose a
+	// file, and a message without one costs no spool: counting it would let
+	// four slow senders close every form of the installation, and a network
+	// spend its hour on messages. So a submission enters at its first file,
+	// before a byte of that file is read, and one without a file never does.
+	var (
+		admitted     bool
+		filesRefused bool
+		freeNow      uint64
+		freeErr      error
+		floor        uint64
+		warned       bool
+	)
+	admit := func() *uploadRefusal {
+		if admitted {
+			return nil
 		}
-		attempt.Fail()
+		admitted = true
+		// While the disk is low a file is refused and the message is not, and
+		// nothing is spooled, so there is nothing for the gate to count. A
+		// full disk is exactly when the form is still wanted; sessions are
+		// written to the same database, and a spool that filled the disk
+		// would stop everybody signing in. An unreadable free space counts as
+		// low.
+		freeNow, freeErr = h.freeSpace()
+		floor = h.AttachmentFloor()
+		if freeErr != nil || freeNow < floor {
+			filesRefused = true
+			return nil
+		}
+		// A full server or network answers at once, and the file is not read.
+		leave, status := h.uploads.enter(network)
+		if leave == nil {
+			return &uploadRefusal{Status: status, RetryAfter: uploadRetryAfter}
+		}
+		// The keeper carries the slot from here on: its Close gives it back.
+		// Set without the lock: the take runs on one goroutine, and nothing
+		// else holds the keeper before it is handed on.
+		keeper.leave = leave
+		// The network's hourly budget, once the slot is held. A server that
+		// was full reserved nothing. The attempt is settled as spent at once
+		// and never refunded: the bytes are read whatever the plugin decides,
+		// and a sender who keeps being refused is still sending.
+		if network != "" {
+			attempt, wait := h.uploadNets.Reserve(network, "")
+			if attempt == nil {
+				return &uploadRefusal{Status: http.StatusTooManyRequests, RetryAfter: max(wait, uploadRetryAfter)}
+			}
+			attempt.Fail()
+		}
+		return nil
 	}
-
-	// While the disk is low a file is refused and the message is not. A sender
-	// whose operator switched attachments on posts a multipart body whether or
-	// not a file is in it, so refusing the submission would stop the form
-	// altogether, and a full disk is exactly when the form is still wanted.
-	// Sessions are written to the same database: a spool that fills the disk
-	// stops everybody signing in. An unreadable free space counts as low.
-	freeNow, freeErr := h.freeSpace()
-	floor := h.AttachmentFloor()
-	filesRefused := freeErr != nil || freeNow < floor
-	warned := false
 
 	// With the ResponseWriter, so the server closes the connection after an
 	// overflow instead of reading on. The header bound sits between the two:
@@ -287,8 +310,10 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 		// from then on every part is held to the image limit (D2).
 		videoTaken bool
 	)
+	// A part is not closed here: NextPart closes the one before it, which
+	// reads what is left of it, and a submission refused whole is not read
+	// any further at all.
 	one := func(part *multipart.Part) *uploadRefusal {
-		defer part.Close()
 		name := part.FormName()
 		if name == "" {
 			return nil
@@ -319,6 +344,9 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 			return nil
 		}
 
+		if refusal := admit(); refusal != nil {
+			return refusal
+		}
 		if filesRefused {
 			// Once per submission, and only when a file is turned away: a
 			// message without one is not the operator's concern.
@@ -389,7 +417,6 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 		}
 		parts++
 		if parts > maxFormParts {
-			part.Close()
 			return "", nil, false, &uploadRefusal{Status: http.StatusRequestEntityTooLarge}
 		}
 		if refusal := one(part); refusal != nil {

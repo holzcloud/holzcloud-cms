@@ -180,9 +180,11 @@ while the volume you mounted for data stays empty.
 
 A form that answers "Service Unavailable" or "Too Many Requests" to a submission
 with a file means the upload bounds are full, not that something is broken: four
-submissions with files are taken at once on the whole server, two at once from
-one network (an IPv4 address, an IPv6 /64) and thirty an hour from one network.
-The answer carries `Retry-After` and the visitor can send again shortly. Behind
+submissions with files are taken at once on the whole server (all websites
+share them), two at once from one network (an IPv4 address, an IPv6 /64) and
+thirty an hour from one network. The answer carries `Retry-After` and the
+visitor can send again shortly. A message without a file is never counted or
+refused by these bounds. Behind
 a reverse proxy that `HOLZCLOUD_TRUSTED_PROXIES` does not name, the network
 bounds do not apply (every visitor would be one address) and only the server's
 four do.

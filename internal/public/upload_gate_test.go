@@ -36,9 +36,11 @@ func fillTheServer(t *testing.T, g *uploadGate) []func() {
 }
 
 // A server that is taking four submissions with files refuses the fifth at
-// once: a 503 that says when to come back, before a byte of its body is read,
-// and nothing is spooled for it.
-func TestAFullServerRefusesAnUploadWithoutReadingIt(t *testing.T) {
+// once: a 503 that says when to come back, at the header of its first file and
+// before a byte of that file is read, and nothing is spooled for it. The fields
+// before the file are read: whether a submission carries a file is not known
+// until its first file part arrives (WR-01 of the phase 38 review).
+func TestAFullServerRefusesAnUploadBeforeReadingItsFile(t *testing.T) {
 	h, ws := boundsCase(t, 5<<20, 50<<20)
 	leaves := fillTheServer(t, h.uploads)
 	body, ctype := rawMultipart(t, false, fld("name", "Anna"), filePart("anhang", "bild.png", bigPNG(64<<10)))
@@ -58,8 +60,10 @@ func TestAFullServerRefusesAnUploadWithoutReadingIt(t *testing.T) {
 	if refused.RetryAfter < time.Second {
 		t.Errorf("Retry-After %v, want at least one second", refused.RetryAfter)
 	}
-	if counted.n != 0 {
-		t.Errorf("%d bytes of the body were read before the refusal", counted.n)
+	// The fields and the file's header, and what the multipart reader buffers
+	// ahead (4 KB), but not the 64 KB of the file.
+	if counted.n > 8<<10 {
+		t.Errorf("%d bytes of a %d-byte body were read before the refusal: the file was read", counted.n, len(body))
 	}
 	if names := spoolEntries(t, h.dataDir); len(names) != 0 {
 		t.Errorf("the spool holds %v for a refused submission", names)

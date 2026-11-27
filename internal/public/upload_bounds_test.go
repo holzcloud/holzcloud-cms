@@ -37,12 +37,12 @@ func from(peer string) func(*http.Request) {
 	return func(r *http.Request) { r.RemoteAddr = peer }
 }
 
-// submitFiles takes a small multipart submission from the request shape prepare
-// makes. The keeper is returned open; the caller closes it or leaves it
-// inside.
+// submitFiles takes a small multipart submission with one file from the
+// request shape prepare makes. The keeper is returned open; the caller closes
+// it or leaves it inside.
 func submitFiles(t *testing.T, h *Handler, ws *domain.Website, prepare func(*http.Request)) (*attachmentKeeper, *uploadRefusal) {
 	t.Helper()
-	body, ctype := rawMultipart(t, false, fld("name", "Anna"))
+	body, ctype := rawMultipart(t, false, fld("name", "Anna"), filePart("anhang", "bild.png", bigPNG(1024)))
 	_, keeper, took, refused := takeBody(t, h, ws, body, ctype, prepare)
 	if took == (refused != nil) {
 		t.Fatalf("took=%v refused=%+v: one of the two, not both", took, refused)

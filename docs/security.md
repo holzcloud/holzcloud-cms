@@ -89,7 +89,11 @@
   At most **four** submissions with files are taken in at once on the whole
   server, **two** at once and **thirty an hour** from one network (an IPv4
   address, an IPv6 /64); the next is told to come back (503 for the server, 429
-  for a network, both with `Retry-After`) before a byte of its body is read. A
+  for a network, both with `Retry-After`) at the header of its first file,
+  before a byte of that file is read. A submission without a file is neither
+  counted nor refused by these bounds, so a message always gets through to the
+  form; the hourly budget forgets the network it saw longest ago when it holds
+  ten thousand, so filling it with fresh networks locks nobody out. A
   request that arrives through a proxy that `HOLZCLOUD_TRUSTED_PROXIES` does not
   cover names no visitor, so it meets only the server's four places and no
   per-network bound. When the free space in the data directory is below
@@ -98,9 +102,10 @@
   refused with a sentence and the message itself still arrives. The spool of a
   request is emptied when its answer is written, whatever happened, and the
   whole spool at every start and, for what is older than an hour, every hour.
-  What is accepted: four slow senders can keep a form's attachments busy for up
-  to two minutes (the server's read timeout), and the rest of the site goes on
-  working; the levers are a proxy in front of the server that limits the time
+  What is accepted: four slow senders can keep the attachments of every form
+  on the server busy for up to two minutes (the server's read timeout), since
+  the four places are shared by all websites; messages without a file and the
+  rest of the site go on working; the levers are a proxy in front of the server that limits the time
   and the rate of an upload, and a restart.
 - **An animated GIF is never decoded frame by frame.** The upload counts a GIF's
   frames by walking its blocks and skipping the picture data, so a GIF of
