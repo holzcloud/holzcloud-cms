@@ -175,6 +175,7 @@ while the volume you mounted for data stays empty.
 | `HOLZCLOUD_ARGON2_MEMORY` | `65536` | Argon2id memory cost in KB |
 | `HOLZCLOUD_ARGON2_ITERATIONS` | `1` | Argon2id time cost |
 | `HOLZCLOUD_ARGON2_PARALLELISM` | `2` | Argon2id parallelism |
+| `HOLZCLOUD_ARGON2_CONCURRENCY` | `2` | How many password checks may run at once (1 to 64); the peak memory is this times `HOLZCLOUD_ARGON2_MEMORY`. A check finding every slot busy waits up to 1.5 s (a signed-in person's own action up to 10 s), then is answered "busy, try again" and never counted as a wrong password. The start-up log line `password checks bounded` states the peak, including older hashes made with a larger memory setting |
 
 An invalid value is no longer silently replaced by the default: the process
 reports every bad setting at once and refuses to start. The effective

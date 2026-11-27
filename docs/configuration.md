@@ -20,6 +20,7 @@ no configuration file: a process with the right environment is the whole setup.
 | `HOLZCLOUD_ARGON2_MEMORY` | `65536` | Argon2id memory cost in KB (64 MB) |
 | `HOLZCLOUD_ARGON2_ITERATIONS` | `1` | Argon2id time cost |
 | `HOLZCLOUD_ARGON2_PARALLELISM` | `2` | Argon2id parallelism |
+| `HOLZCLOUD_ARGON2_CONCURRENCY` | `2` | How many password checks may run at once (1 to 64). Each uses `HOLZCLOUD_ARGON2_MEMORY`, so the peak is the product: 2 times 64 MB by default. A check that finds every slot busy waits up to 1.5 seconds (a signed-in person's own action up to 10) and is then answered "busy, try again"; it is never counted as a wrong password. The start-up log line "password checks bounded" states the peak, including older hashes made with a larger memory setting |
 | `HOLZCLOUD_SMTP_HOST` | — | Mail server. Empty means no mail is sent at all |
 | `HOLZCLOUD_SMTP_PORT` | `587` | Port of the mail server |
 | `HOLZCLOUD_SMTP_USER` | — | Login name; empty for a relay without authentication |

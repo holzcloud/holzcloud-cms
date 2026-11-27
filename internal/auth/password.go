@@ -147,6 +147,18 @@ func verify(privileged bool, password, encoded string) (bool, error) {
 	return subtle.ConstantTimeCompare(hash, expectedHash) == 1, nil
 }
 
+// HashMemoryKiB reports the memory cost, in KiB, a stored hash will use when it
+// is verified, and false when the string is not an Argon2id hash. The gate
+// counts a derivation as one slot whatever this is; the start-up sizing line
+// uses it to report the real peak.
+func HashMemoryKiB(encoded string) (uint32, bool) {
+	p, _, _, err := parseHash(encoded)
+	if err != nil {
+		return 0, false
+	}
+	return p.Memory, true
+}
+
 // parseHash reads a PHC-format Argon2id string:
 // $argon2id$v=19$m=65536,t=1,p=2$salt$hash
 func parseHash(encoded string) (p Argon2Params, salt, expectedHash []byte, err error) {
