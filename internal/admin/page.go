@@ -523,6 +523,10 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 	if data.Errors.Any() {
 		return web.RenderFormError(w, h.templates, r, "page_form", data)
 	}
+	access, err := h.prepareAccess(values)
+	if err != nil {
+		return err
+	}
 	// The same selection as in checkFields one line above. If Clean ran over the
 	// unfiltered definitions while CheckAll saw only those of this page kind, a
 	// value nobody had checked was left lying unchecked — a form built by hand
@@ -559,7 +563,7 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 	h.setLanguage(r, ws, created.ID, values)
 	h.recordMediaUsage(r, websiteID, created.ID, html)
 	h.recordTerms(r, websiteID, created.ID, values.Tags)
-	if msg := h.recordAccess(r, created.ID, values); msg != "" {
+	if msg := h.recordAccess(r, created.ID, access); msg != "" {
 		web.SetFlashError(h.sm, r.Context(), msg)
 	}
 
@@ -721,6 +725,10 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 	if data.Errors.Any() {
 		return rerender(data)
 	}
+	access, err := h.prepareAccess(values)
+	if err != nil {
+		return err
+	}
 	// The same selection as in checkFields one line above. If Clean ran over the
 	// unfiltered definitions while CheckAll saw only those of this page kind, a
 	// value nobody had checked was left lying unchecked — a form built by hand
@@ -769,7 +777,7 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 	h.setLanguage(r, ws, existing.ID, values)
 	h.recordMediaUsage(r, existing.WebsiteID, existing.ID, html)
 	h.recordTerms(r, existing.WebsiteID, existing.ID, values.Tags)
-	if msg := h.recordAccess(r, existing.ID, values); msg != "" {
+	if msg := h.recordAccess(r, existing.ID, access); msg != "" {
 		web.SetFlashError(h.sm, r.Context(), msg)
 	}
 
@@ -1027,18 +1035,30 @@ func (h *Handler) recordTerms(r *http.Request, websiteID, pageID int64, raw stri
 	}
 }
 
-// recordAccess stores the page's protection and reports a problem in words the
-// editor can act on.
+// prepareAccess hashes a new page password before the page is stored.
 //
-// The form refuses a missing or too short password before saving (checkAccess),
-// so what remains here is the net for a refusal the store itself still raises.
-// That one is a flash rather than a rejected save, because the text is already
+// Hashing is the one step of saving the protection that the server can refuse:
+// every slot of the Argon2 gate may be taken (auth.ErrBusy). It used to run
+// after the page was stored, so a busy gate left a page meant to be protected
+// stored, and published if that was asked for, without its password, with a
+// flash beside it (code review WR-01). Now the error is returned before
+// anything is written, ErrHandler answers it with 503 and Retry-After, and the
+// editor saves again a moment later. checkAccess has already refused a missing
+// or too short password, so a busy gate is what is left.
+func (h *Handler) prepareAccess(values pageValues) (page.PreparedAccess, error) {
+	return page.PrepareAccess(values.access(), h.argon2Params)
+}
+
+// recordAccess stores the page's protection, already prepared, and reports a
+// problem in words the editor can act on.
+//
+// The form refuses a missing password before saving (checkAccess), so what
+// remains here is the net for a refusal the store itself still raises. That
+// one is a flash rather than a rejected save, because the text is already
 // stored by then.
-func (h *Handler) recordAccess(r *http.Request, pageID int64, values pageValues) string {
-	err := h.pages.SetAccess(r.Context(), pageID, values.access(), h.argon2Params)
+func (h *Handler) recordAccess(r *http.Request, pageID int64, access page.PreparedAccess) string {
+	err := h.pages.ApplyAccess(r.Context(), pageID, access)
 	switch {
-	case errors.Is(err, page.ErrPagePasswordTooShort):
-		return web.Titlef(r, "The page was saved but not protected: a page password needs at least %d characters.", page.MinPagePasswordLength)
 	case errors.Is(err, page.ErrNoPagePassword):
 		return web.T(r, "The page was saved but not protected: please set a password as well.")
 	case err != nil:

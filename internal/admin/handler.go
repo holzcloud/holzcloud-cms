@@ -261,7 +261,9 @@ func NewLanguageLookup(sm *scs.SessionManager, database *db.DB) func(*http.Reque
 // gate was taken. It is answered 503 with Retry-After, a translated sentence,
 // and a Warn line. This is the backstop for every privileged caller that
 // simply returns the error (setup, user create, password change, invite and
-// reset links, page password); the anonymous callers handle ErrBusy themselves.
+// reset links, and the page password, which is hashed before the page is
+// stored so that a busy gate refuses the whole save); the anonymous callers
+// handle ErrBusy themselves.
 func (h *Handler) ErrHandler(fn func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := fn(w, r); err != nil {

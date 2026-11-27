@@ -1865,7 +1865,6 @@
 "The page is not published, so nobody can find it yet.": "La page n’est pas publiée, personne ne peut donc encore la trouver.",
 "The page is protected by a password, so search engines cannot read it.": "La page est protégée par un mot de passe, les moteurs de recherche ne peuvent donc pas la lire.",
 "The page stays publicly reachable but does not show up in search.": "La page reste accessible au public mais n'apparaît pas dans les recherches.",
-"The page was saved but not protected: a page password needs at least %d characters.": "La page a été enregistrée mais n'est pas protégée : un mot de passe de page a besoin d'au moins %d caractères.",
 "The page was saved but not protected: please set a password as well.": "La page a été enregistrée mais n'est pas protégée : il reste à définir un mot de passe.",
 "The pages below follow from the legal frameworks chosen for this website:": "Les pages ci-dessous découlent des cadres juridiques choisis pour ce site :",
 "The pages, products or snippets changed while the value was being deleted. Please try again.": "Des pages, des produits ou des blocs de texte ont changé pendant la suppression de la valeur. Veuillez réessayer.",
