@@ -219,6 +219,11 @@ func (h *Handler) HandleUnlock(w http.ResponseWriter, r *http.Request) error {
 	if pg == nil || !pg.Protected() {
 		return h.serve404(w, r, website)
 	}
+	// From here on every answer is about this page, so it is given in this
+	// page's language: the gate drawn again after a wrong password, a full
+	// throttle or a busy check carries the page's words and menus, not those of
+	// the unprefixed address the form posts to.
+	r = r.WithContext(withPageLocale(r.Context(), website, pg.Locale))
 
 	// A client has a budget per page; an address that names no visitor
 	// (loopback, a private network: what a proxy looks like when it is not in
