@@ -71,8 +71,23 @@ func (h *Handler) PluginMiddleware(next http.Handler) http.Handler {
 			// the plugin's reach, and hands over the fields as an ordinary
 			// encoded form — so a plugin written before attachments existed
 			// reads exactly what it read before.
-			if body, keeper, took := h.takeAttachments(r, website.ID, owner,
-				h.plugins.Allows(owner, plugin.PermAttach)); took {
+			body, keeper, took, refused := h.takeAttachments(w, r, website.ID, owner,
+				h.plugins.Allows(owner, plugin.PermAttach))
+			if refused != nil {
+				// A body that could not be taken whole is answered here, in
+				// the visitor's words and not the plugin's: it was not asked.
+				if refused.RetryAfter > 0 {
+					web.RetryAfter(w, refused.RetryAfter)
+				}
+				http.Error(w, http.StatusText(refused.Status), refused.Status)
+				return
+			}
+			if took {
+				// The spool of this request is removed when the middleware
+				// returns, on every path below: answered, declined, busy,
+				// held back, a panic. A keep that comes after that stores
+				// nothing.
+				defer keeper.Close()
 				in.Body = body
 				in.Files = keeper.List()
 				ctx = plugin.WithFiles(ctx, keeper)

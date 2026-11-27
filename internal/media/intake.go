@@ -89,6 +89,9 @@ type Intake struct {
 
 	content []byte
 	limit   int64
+	// spool is the path of the file CheckStream copied the bytes to. When it is
+	// set, content is empty and KeepFor reads the file instead.
+	spool string
 }
 
 // Check reads one uploaded file and says whether it may be stored.
@@ -161,7 +164,16 @@ func (in *Intake) KeepFor(ctx context.Context, store *Store, websiteID int64, pl
 	// EXIF, XMP and IPTC come off before anything reaches the disk. A photograph
 	// taken at home otherwise publishes the photographer's address, and the
 	// media route serves the stored bytes verbatim for a year.
-	source, stripErr := PrepareUpload(bytes.NewReader(in.content), in.MimeType, in.limit)
+	var input io.Reader = bytes.NewReader(in.content)
+	if in.spool != "" {
+		f, err := os.Open(in.spool)
+		if err != nil {
+			return nil, false, fmt.Errorf("upload failed: %w", err)
+		}
+		defer f.Close()
+		input = f
+	}
+	source, stripErr := PrepareUpload(input, in.MimeType, in.limit)
 	if source == nil {
 		return nil, false, fmt.Errorf("upload failed: %w", stripErr)
 	}

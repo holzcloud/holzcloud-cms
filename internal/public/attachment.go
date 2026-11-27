@@ -1,16 +1,19 @@
 package public
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
@@ -47,9 +50,17 @@ type attachmentKeeper struct {
 	dataDir  string
 	store    *media.Store
 
+	// mu serialises Keep and Close: a Keep that is reading a spool file while
+	// Close removes the directory would store half a file.
+	mu sync.Mutex
+	// spoolDir is this request's own directory below the spool root, made when
+	// the first file part arrives ("" until then). Close removes it.
+	spoolDir string
+	closed   bool
+
 	listed []plugin.AttachedFile
 	// intakes are the checked files, in the same order as listed minus the
-	// refused ones.
+	// refused ones. Each waits in a spool file; none is held in memory.
 	intakes []keptIntake
 	// kept is filled by the first Keep and answered again by any second one:
 	// a plugin that asks twice gets the same ids and stores nothing further.
@@ -62,10 +73,22 @@ type keptIntake struct {
 	intake *media.Intake
 }
 
+// plugin.FileKeeper keeps exactly its two methods, so that the plugin runtime
+// of phase 36 and the SDK stay as they are. Closing is not the plugin's
+// business: the middleware, which holds the concrete keeper, closes it when
+// the request is answered, and takeAttachments closes it itself on every path
+// that does not hand it on.
+var _ io.Closer = (*attachmentKeeper)(nil)
+
 func (k *attachmentKeeper) List() []plugin.AttachedFile { return k.listed }
 
 func (k *attachmentKeeper) Keep(ctx context.Context) ([]plugin.KeptFile, error) {
-	if k.done {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.done || k.closed {
+		// After Close the spool is gone and nothing may be stored from it: a
+		// call that arrives late answers what it had kept, which is nothing
+		// when it never ran.
 		return k.kept, nil
 	}
 	k.done = true
@@ -85,29 +108,68 @@ func (k *attachmentKeeper) Keep(ctx context.Context) ([]plugin.KeptFile, error) 
 	return k.kept, nil
 }
 
+// Close removes the request's spool directory and everything in it, once; any
+// later call does nothing, and no directory is fine.
+func (k *attachmentKeeper) Close() error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.closed {
+		return nil
+	}
+	k.closed = true
+	if k.spoolDir == "" {
+		return nil
+	}
+	return os.RemoveAll(k.spoolDir)
+}
+
+// uploadRefusal is a submission refused as a whole, before the plugin was
+// called: the status to answer and, for a refusal that comes back later, how
+// long to wait. The visitor gets the standard status text, as for a plugin
+// that is busy.
+type uploadRefusal struct {
+	Status     int
+	RetryAfter time.Duration
+}
+
 // takeAttachments parses a multipart submission for a plugin that may have one.
 //
 // It returns the fields as an ordinary encoded form and a keeper for the files.
 // A request that is not multipart, or a plugin without the permission, gets
-// nothing here and reads its body as before.
-func (h *Handler) takeAttachments(r *http.Request, websiteID int64, pluginID string, allowed bool) (body string, keeper *attachmentKeeper, ok bool) {
+// nothing here and reads its body as before. A submission that is refused as a
+// whole comes back as refused, with no keeper.
+//
+// The keeper is the caller's to Close once it is handed on; every return
+// before that closes it here.
+func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websiteID int64, pluginID string, allowed bool) (body string, keeper *attachmentKeeper, ok bool, refused *uploadRefusal) {
 	if !allowed || h.mediaStore == nil {
-		return "", nil, false
+		return "", nil, false, nil
 	}
 	kind, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || !strings.HasPrefix(kind, "multipart/form-data") || params["boundary"] == "" {
-		return "", nil, false
+		return "", nil, false, nil
 	}
 
 	limits := media.Limits{Image: h.maxMediaSize, Video: h.maxVideoSize}
 	// The outer bound on the whole request, so a sender cannot make the host
 	// read for ever: the largest single file, times the number allowed, plus
-	// room for the fields.
+	// room for the fields. With the ResponseWriter, so the server closes the
+	// connection after an overflow.
 	outer := limits.Video*MaxAttachments + int64(MaxPluginBodyBytes)
-	reader := multipart.NewReader(http.MaxBytesReader(nil, r.Body, outer), params["boundary"])
+	reader := multipart.NewReader(http.MaxBytesReader(w, r.Body, outer), params["boundary"])
 
 	fields := url.Values{}
 	keeper = &attachmentKeeper{websiteID: websiteID, pluginID: pluginID, dataDir: h.dataDir, store: h.mediaStore}
+	// Whatever happens below, the spool of this request is removed unless the
+	// keeper was handed on: a panic, a refusal or an early return needs no
+	// path of its own to remember it.
+	handedOn := false
+	defer func() {
+		if !handedOn {
+			keeper.Close()
+		}
+	}()
+	lang := i18n.Lang(r.Context())
 
 	for {
 		part, err := reader.NextPart()
@@ -138,64 +200,69 @@ func (h *Handler) takeAttachments(r *http.Request, websiteID int64, pluginID str
 		if len(keeper.intakes) >= MaxAttachments {
 			keeper.listed = append(keeper.listed, plugin.AttachedFile{
 				Field: name, Name: part.FileName(),
-				Refused: fmt.Sprintf("at most %d files", MaxAttachments),
+				Refused: i18n.Tf(lang, "at most %d files", MaxAttachments),
 			})
 			part.Close()
 			continue
 		}
 
-		// media.Check wants a multipart.File, which is what a ReadSeeker over
-		// the part gives it; the part itself cannot seek, and every check here
-		// needs to read the head twice.
-		file, header, err := bufferPart(part)
+		dir, err := h.requestSpool(keeper)
+		var in *media.Intake
+		if err == nil {
+			in, err = media.CheckStream(part, part.FileName(), limits, dir)
+		}
+		filename := part.FileName()
 		part.Close()
 		if err != nil {
-			keeper.listed = append(keeper.listed, plugin.AttachedFile{
-				Field: name, Name: part.FileName(), Refused: "the file could not be read",
-			})
-			continue
-		}
-		in, err := media.Check(file, header, limits)
-		if err != nil {
-			// In the language of the PAGE, not of the request: this is read by
-			// a visitor, and the plugin cannot look it up itself — media.Check
-			// gives out a code precisely so each caller answers its own reader.
-			keeper.listed = append(keeper.listed, plugin.AttachedFile{
-				Field: name, Name: header.Filename,
-				Refused: refusalText(r.Context(), err),
-			})
-			continue
+			var ref media.Refusal
+			switch {
+			case errors.As(err, &ref):
+				// In the language of the PAGE, not of the request: this is
+				// read by a visitor, and the plugin cannot look it up itself —
+				// the refusal is a code precisely so each caller answers its
+				// own reader.
+				keeper.listed = append(keeper.listed, plugin.AttachedFile{
+					Field: name, Name: filename, Refused: refusalText(r.Context(), err),
+				})
+				continue
+			case errors.Is(err, media.ErrSpool):
+				slog.Error("upload spool", "error", err)
+				keeper.listed = append(keeper.listed, plugin.AttachedFile{
+					Field: name, Name: filename,
+					Refused: i18n.T(lang, "The file could not be accepted."),
+				})
+				continue
+			}
+			break
 		}
 		keeper.intakes = append(keeper.intakes, keptIntake{field: name, intake: in})
 		keeper.listed = append(keeper.listed, plugin.AttachedFile{
 			Field: name, Name: in.OriginalName, MimeType: in.MimeType, Size: in.Size,
 		})
 	}
-	return fields.Encode(), keeper, true
+	handedOn = true
+	return fields.Encode(), keeper, true, nil
 }
 
-// bufferPart reads one part into memory so it can be read twice.
-//
-// Every check media.Check makes needs the head of the file and then the whole
-// of it: the magic bytes, then the SVG scan, then the bytes themselves. A
-// multipart part is a stream and cannot be rewound, so it is buffered — bounded
-// by the same reader that bounds the request, which is what stops this being
-// the memory hole the 256 KB body limit exists to prevent.
-func bufferPart(part *multipart.Part) (multipart.File, *multipart.FileHeader, error) {
-	var buf bytes.Buffer
-	n, err := io.Copy(&buf, part)
-	if err != nil {
-		return nil, nil, err
+// requestSpool makes the request's own spool directory on first use and says
+// where it is.
+func (h *Handler) requestSpool(k *attachmentKeeper) (string, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.spoolDir != "" {
+		return k.spoolDir, nil
 	}
-	return sectionFile{bytes.NewReader(buf.Bytes())},
-		&multipart.FileHeader{Filename: part.FileName(), Size: n}, nil
+	root := media.SpoolRoot(h.dataDir)
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		return "", fmt.Errorf("%w: %w", media.ErrSpool, err)
+	}
+	dir, err := os.MkdirTemp(root, "req-*")
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", media.ErrSpool, err)
+	}
+	k.spoolDir = dir
+	return dir, nil
 }
-
-// sectionFile is a bytes.Reader wearing the multipart.File interface. Close is
-// the only method it has to invent, and there is nothing to close.
-type sectionFile struct{ *bytes.Reader }
-
-func (sectionFile) Close() error { return nil }
 
 // refusalText says, in the language this page is published in, why a file was
 // not taken.
