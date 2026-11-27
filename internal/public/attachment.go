@@ -245,6 +245,19 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 		}
 	}()
 
+	// The network's hourly budget, once the slot is held and the keeper will
+	// give it back. A server that was full reserved nothing above. The attempt
+	// is settled as spent at once and never refunded: the bytes are read
+	// whatever the plugin decides, and a sender who keeps being refused is
+	// still sending.
+	if network != "" {
+		attempt, wait := h.uploadNets.Reserve(network, "")
+		if attempt == nil {
+			return "", nil, false, &uploadRefusal{Status: http.StatusTooManyRequests, RetryAfter: max(wait, uploadRetryAfter)}
+		}
+		attempt.Fail()
+	}
+
 	// With the ResponseWriter, so the server closes the connection after an
 	// overflow instead of reading on.
 	reader := multipart.NewReader(http.MaxBytesReader(w, r.Body, bound), params["boundary"])

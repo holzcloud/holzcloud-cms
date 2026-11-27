@@ -98,6 +98,11 @@ type Handler struct {
 	// uploads bounds the submissions with files that are inside at once, on
 	// the server and from one network (upload_gate.go).
 	uploads *uploadGate
+	// uploadNets is one network's hourly budget of submissions with files. It
+	// lives in memory only: a restart clears it, as every throttle of phase 37.
+	// Its keys are bounded by the throttle, and the account axis is unused
+	// (an empty key), so only the network counts.
+	uploadNets *auth.Throttle
 	// resolver supplies the canonical host. It may be nil, in which case the
 	// requested host is used.
 	resolver *domain.Resolver
@@ -133,6 +138,7 @@ func NewHandler(pageStore *page.Store, menuStore *menu.Store, mediaStore *media.
 
 		unlockThrottle: auth.NewThrottle(gateClientMax, gatePageMax, gateWindow),
 		uploads:        newUploadGate(uploadSlots, uploadNetworkSlots),
+		uploadNets:     auth.NewThrottle(uploadNetworkPerHour, 0, time.Hour),
 	}
 }
 
