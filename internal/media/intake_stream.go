@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
 )
 
 // SpoolDirName is the directory under the data directory in which a public
@@ -54,7 +52,8 @@ func (w spoolWriter) Write(p []byte) (int, error) {
 // decides the kind from the first 512 bytes, which fixes the limit that
 // applies, and then copies the rest into a file in dir through a reader that
 // stops one byte past that limit. Nothing beyond the head and a copy buffer is
-// held.
+// held, and no file is read back: the one kind that would have to be, an SVG,
+// is refused here.
 //
 // A refusal is a Refusal, as with Check. Any other error is the part's own
 // read error (a body cut short, a MaxBytesError) or an ErrSpool, both wrapped
@@ -87,6 +86,16 @@ func CheckStream(part io.Reader, filename string, limits Limits, dir string) (*I
 	if err != nil {
 		return nil, Refusal{Code: RefusedKind, Arg: err.Error()}
 	}
+	// An SVG is refused on this path, by its first bytes and before anything
+	// is written (T-38-01 of the phase 38 audit). It is markup that can pull a
+	// stylesheet or an image from another server, and the scanner that finds
+	// out builds a full DOM of the file, about thirty times its size: four spam
+	// messages with three five-megabyte SVGs each grew the process by more than
+	// a gigabyte. A visitor's message has no use for vector graphics. The
+	// operator's upload (Check) still takes one.
+	if mimeType == "image/svg+xml" {
+		return nil, Refusal{Code: RefusedKind, Arg: mimeType}
+	}
 	limit := limits.For(mimeType)
 
 	f, err := os.CreateTemp(dir, "part-*")
@@ -108,21 +117,6 @@ func CheckStream(part io.Reader, filename string, limits Limits, dir string) (*I
 		return fail(Refusal{Code: RefusedSize, Arg: limit >> 20})
 	}
 
-	// An SVG is markup and can pull a stylesheet or an image from another
-	// server. The same scanner as in Check runs, over the file just written and
-	// bounded by the limit; this is the one kind that is read back whole.
-	if mimeType == "image/svg+xml" {
-		if _, err := f.Seek(0, io.SeekStart); err != nil {
-			return fail(Refusal{Code: RefusedRead})
-		}
-		content, err := io.ReadAll(io.LimitReader(f, limit+1))
-		if err != nil {
-			return fail(Refusal{Code: RefusedRead})
-		}
-		if refs := tmplmgr.CheckExternalRefs("upload.svg", string(content)); len(refs) > 0 {
-			return fail(Refusal{Code: RefusedSVGRef, Arg: refs[0].URL})
-		}
-	}
 	if err := f.Close(); err != nil {
 		os.Remove(path)
 		return nil, fmt.Errorf("%w: %w", ErrSpool, err)

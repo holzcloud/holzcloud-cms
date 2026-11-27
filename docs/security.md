@@ -66,7 +66,10 @@
 - **Public form attachments are bounded.** A plugin that has the `attach`
   permission (the contact form, once its attachment field is switched on) takes
   files from strangers, so the host bounds what a submission may cost before the
-  plugin is called. The kind of a file is read from its first bytes; each file
+  plugin is called. The kind of a file is read from its first bytes, and an SVG
+  is refused there (checking it for external references builds a full DOM of
+  it, about thirty times its size, and a visitor's message has no use for
+  vector graphics; the editor's upload still takes one); each file
   is then written to the spool directory `.upload-spool` in the data directory,
   up to the limit for its kind and no further, and is **not held in memory**
   while it arrives and is checked. A submission may carry at most 64 parts and

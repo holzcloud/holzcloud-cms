@@ -242,3 +242,20 @@ func TestSweepSpoolEmptiesTheSpoolAndNothingElse(t *testing.T) {
 		t.Errorf("a missing spool root: %d, %v; want 0 and no error", n, err)
 	}
 }
+
+// CheckStream refuses an SVG by its kind, before a byte of it is spooled: the
+// external-reference check would have to read it back whole and build a DOM of
+// it, and a stranger's message has no use for vector graphics (T-38-01). Check,
+// the signed-in operator's path, still takes one.
+func TestCheckStreamRefusesAnSVG(t *testing.T) {
+	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>`)
+	dir := t.TempDir()
+	_, err := CheckStream(bytes.NewReader(svg), "plan.svg", Limits{Image: 1 << 20, Video: 8 << 20}, dir)
+	var ref Refusal
+	if !errors.As(err, &ref) || ref.Code != RefusedKind || ref.Arg != "image/svg+xml" {
+		t.Fatalf("err = %v, want a kind refusal naming image/svg+xml", err)
+	}
+	if names := dirEntries(t, dir); len(names) != 0 {
+		t.Errorf("the refused SVG left %v", names)
+	}
+}

@@ -233,7 +233,8 @@ so a plugin never has to defend itself against the size of one:
 - The kind of every file is read from its first bytes, and a file is held to the
   limit of its kind (the image limit for pictures and PDFs, the video limit for
   an MP4; one file per submission may use the video limit, the others the image
-  limit). A file
+  limit). An SVG is not taken from a visitor at all: checking it would mean
+  reading it back whole, and a message has no use for vector graphics. A file
   the host will not take arrives in `Files` with `Refused` set to a sentence in
   the page's language, so the form can tell the sender; it is never held and
   never kept.
