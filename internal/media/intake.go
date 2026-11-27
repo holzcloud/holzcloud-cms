@@ -84,7 +84,8 @@ type Intake struct {
 	// Filename is the name it will have here: a fresh one, so two senders
 	// cannot collide and nobody can choose a path.
 	Filename string
-	// Size is what the browser reported, for refusing early.
+	// Size is the number of bytes read, by Check or CheckStream; never what
+	// the sender claimed.
 	Size int64
 
 	content []byte

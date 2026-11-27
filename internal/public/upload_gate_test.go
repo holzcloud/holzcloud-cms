@@ -184,6 +184,8 @@ func TestAPanicInsideTheTakeGivesTheSlotBack(t *testing.T) {
 		insideAtPanic, _ = held(h.uploads)
 		panic("a part went wrong")
 	}
+	// A t.Fatal inside the hook would leave it set for every later test.
+	t.Cleanup(func() { attachPartHook = nil })
 	func() {
 		defer func() {
 			if recover() == nil {

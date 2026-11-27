@@ -39,8 +39,8 @@ import (
 // MaxAttachments bounds how many files one submission may bring.
 //
 // Three, because a form that wants more is a form that wants a folder, and a
-// folder is what a link to a file service is for. It also bounds the memory one
-// request can hold: three times the image limit and no more.
+// folder is what a link to a file service is for. It also bounds what one
+// submission may weigh (attachmentBound) and hold in the spool.
 const MaxAttachments = 3
 
 // attachmentKeeper holds one request's files and knows how to store them.
@@ -614,9 +614,12 @@ func isAddressKey(key string) bool {
 
 // requestSpool makes the request's own spool directory on first use and says
 // where it is.
+//
+// Without the keeper's lock: it is called only during the take, on the
+// request's goroutine and before the keeper is handed on, and nothing else
+// holds the keeper then; Keep, keepAll and a Close from elsewhere come only
+// after the hand-off (IN-04 of the phase 38 review).
 func (h *Handler) requestSpool(k *attachmentKeeper) (string, error) {
-	k.mu.Lock()
-	defer k.mu.Unlock()
 	if k.spoolDir != "" {
 		return k.spoolDir, nil
 	}

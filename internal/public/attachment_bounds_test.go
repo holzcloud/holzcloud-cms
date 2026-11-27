@@ -297,6 +297,8 @@ func TestAPanicInsideTheTakeRemovesTheSpool(t *testing.T) {
 		spooled = len(spoolFiles(t, h.dataDir))
 		panic("a part went wrong")
 	}
+	// A t.Fatal inside the hook would leave it set for every later test.
+	t.Cleanup(func() { attachPartHook = nil })
 	func() {
 		defer func() {
 			if recover() == nil {
