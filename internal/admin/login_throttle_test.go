@@ -72,8 +72,9 @@ func postLogin(t *testing.T, h *Handler, sm *scs.SessionManager, remote, email, 
 	return res
 }
 
-// failedLoginRows counts the protocol rows of refused sign-ins. Only an unknown
-// address writes one, and only a request that reached the password check does.
+// failedLoginRows counts the protocol rows of refused sign-ins. Every address,
+// known or not, writes one, and only a request that reached the password check
+// does.
 func failedLoginRows(t *testing.T, database *db.DB) int {
 	t.Helper()
 	n := 0
@@ -205,5 +206,32 @@ func TestABusyLoginAnswers503AndIsNotCounted(t *testing.T) {
 	}
 	if res := postLogin(t, h, sm, client, "ghost@test.local", "guess"); res.Wrong || res.Flash == "" {
 		t.Errorf("the eleventh guess was checked: the busy answers had taken part of the budget")
+	}
+}
+
+// WR-04: a refused sign-in does the same work whether the address exists or
+// not. Only the unknown address used to write a protocol row, an INSERT on the
+// one write connection that a known address skipped, so the time of the answer
+// told the two apart (the dummy hash exists to prevent exactly that), and the
+// failed sign-ins an operator most needs to see, against real accounts, were
+// not recorded at all.
+func TestARefusedSignInWritesTheSameProtocolRowForKnownAndUnknownAddresses(t *testing.T) {
+	h, sm, database := newLoginThrottleAdmin(t)
+	id := seedSecondFactorAccount(t, h, "known@test.local", user.RoleEditor)
+
+	for _, email := range []string{"ghost@test.local", "Known@test.local"} {
+		before := failedLoginRows(t, database)
+		if res := postLogin(t, h, sm, "198.51.100.31:4711", email, "wrong-wrong-wrong"); !res.Wrong {
+			t.Fatalf("%s: not refused as a wrong password: %+v", email, res)
+		}
+		if got := failedLoginRows(t, database) - before; got != 1 {
+			t.Errorf("%s: %d protocol rows for one refused sign-in, want 1 for every address", email, got)
+		}
+	}
+
+	rows := activityRows(t, database)
+	last := rows[len(rows)-1]
+	if last.Action != activity.ActionAuthLoginFail || last.ActorEmail != "known@test.local" || last.EntityID != id {
+		t.Errorf("the row of a refused sign-in to a real account is %+v, want the typed address and the account", last)
 	}
 }

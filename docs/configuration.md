@@ -17,7 +17,7 @@ no configuration file: a process with the right environment is the whole setup.
 | `HOLZCLOUD_MAX_MEDIA_SIZE` | `5242880` | Largest media file, in bytes (5 MB) |
 | `HOLZCLOUD_MAX_VIDEO_SIZE` | `67108864` | Largest video file, in bytes (64 MB) |
 | `HOLZCLOUD_MAX_MEGAPIXELS` | `24` | Largest image area decoded for scaled-down versions; the "scale down to 2560 px?" question is only offered for images within it |
-| `HOLZCLOUD_ARGON2_MEMORY` | `65536` | Argon2id memory cost in KB (64 MB) |
+| `HOLZCLOUD_ARGON2_MEMORY` | `65536` | Argon2id memory cost in KB (64 MB). Changing it, or `HOLZCLOUD_ARGON2_ITERATIONS`, leaves stored passwords at their old cost until each is changed, and until then the time of a failed sign-in tells an existing address from an unknown one |
 | `HOLZCLOUD_ARGON2_ITERATIONS` | `1` | Argon2id time cost |
 | `HOLZCLOUD_ARGON2_PARALLELISM` | `2` | Argon2id parallelism |
 | `HOLZCLOUD_ARGON2_CONCURRENCY` | `2` | How many password checks may run at once (1 to 64). Each uses `HOLZCLOUD_ARGON2_MEMORY`, so the peak is the product: 2 times 64 MB by default. A check that finds every slot busy waits up to 1.5 seconds (a signed-in person's own action up to 10) and is then answered "busy, try again"; it is never counted as a wrong password. The start-up log line "password checks bounded" states the peak, including older hashes made with a larger memory setting |

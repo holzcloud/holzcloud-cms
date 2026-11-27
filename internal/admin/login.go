@@ -64,38 +64,43 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 		"SELECT id, email, password, role FROM users WHERE email = $1", email,
 	).Scan(&id, &storedEmail, &storedPassword, &role)
 
-	if err == sql.ErrNoRows {
+	var match bool
+	switch {
+	case err == sql.ErrNoRows:
 		// Hash against a dummy password so an unknown email costs the same as a
 		// known one. Without this the response time reveals which emails exist.
 		// A busy gate is answered exactly as it is for a known address.
 		if err := auth.VerifyDummyPassword(password, h.argon2Params); errors.Is(err, auth.ErrBusy) {
 			return h.loginBusy(w, r)
 		}
+	case err != nil:
+		return err
+	default:
+		match, err = auth.VerifyPassword(password, storedPassword)
+		// Before any bookkeeping: a busy gate is neither a wrong password nor a
+		// right one, and must cost the owner no attempt.
+		if errors.Is(err, auth.ErrBusy) {
+			return h.loginBusy(w, r)
+		}
+		// A stored hash that cannot be read opens nothing.
+		match = match && err == nil
+	}
+	if !match {
 		attempt.Fail()
-		// The address that was tried and not the id: on a failed attempt there
-		// is no signed-in account, and it is precisely the address one wants to
-		// recognise later.
+		// One protocol row for every refused sign-in, written the same way for
+		// an unknown address and a known one: the dummy hash makes the two cost
+		// the same, and a write that only one of them made would tell them apart
+		// again by the time of the answer (code review WR-04). The address that
+		// was tried, because on a failed attempt there is no signed-in account
+		// and it is precisely the address one wants to recognise later; the
+		// account as well when there is one, because the failures against real
+		// accounts are the ones an operator most needs to see.
 		h.LogActivity(r, activity.Entry{
 			ActorEmail: account,
 			Action:     activity.ActionAuthLoginFail,
 			EntityType: "user",
+			EntityID:   id,
 		})
-		web.SetFlashError(h.sm, r.Context(), "Email address or password is not right")
-		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	match, err := auth.VerifyPassword(password, storedPassword)
-	// Before any bookkeeping: a busy gate is neither a wrong password nor a
-	// right one, and must cost the owner no attempt.
-	if errors.Is(err, auth.ErrBusy) {
-		return h.loginBusy(w, r)
-	}
-	if err != nil || !match {
-		attempt.Fail()
 		web.SetFlashError(h.sm, r.Context(), "Email address or password is not right")
 		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return nil
