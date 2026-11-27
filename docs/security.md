@@ -78,9 +78,9 @@
   about 74 MiB at the default limits (video + two images + 320 KB); a body that
   is larger, or that ends before its closing boundary, is refused whole (413 or
   400) and the plugin never sees it. A file the form keeps is read once more to
-  remove its metadata, which costs up to about twice its kind's limit while it
-  is kept: the worst case for four submissions at once is about 512 MB at the
-  default 64 MB video limit, and four contact-form messages that each kept a
+  remove its metadata, into a buffer of exactly its size, so it costs its own
+  size while it is kept: the worst case for four submissions at once is about
+  256 MB at the default 64 MB video limit, and four contact-form messages that each kept a
   60 MB video at the same moment measured 300 to 363 MB more resident memory
   (300, 321 and 363 MB in three runs; it depends on when the Go runtime reuses
   what the first keep freed, so it is a measurement and not a bound). A spam

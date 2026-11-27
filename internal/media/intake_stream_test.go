@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -257,5 +258,41 @@ func TestCheckStreamRefusesAnSVG(t *testing.T) {
 	}
 	if names := dirEntries(t, dir); len(names) != 0 {
 		t.Errorf("the refused SVG left %v", names)
+	}
+}
+
+// Keeping a spooled file that has to be read whole to strip its metadata reads
+// it into a buffer of its own size, once (WR-04 of the phase 38 review).
+//
+// The size is known exactly, since the spool file is the bytes CheckStream
+// counted. io.ReadAll does not know it and grows its buffer by doubling, which
+// allocated about twice the file and was the documented worst case of a keep:
+// about 128 MB for one 64 MB video, 512 MB for four at once.
+func TestKeepingASpooledVideoReadsItOnce(t *testing.T) {
+	const size = 16 << 20
+	video := append([]byte("\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom"), make([]byte, size-24)...)
+	spool := t.TempDir()
+	dataDir := t.TempDir()
+	store, websiteID := newTestStore(t)
+
+	in, err := CheckStream(bytes.NewReader(video), "film.mp4", Limits{Image: 1 << 20, Video: 32 << 20}, spool)
+	if err != nil || in.MimeType != "video/mp4" {
+		t.Fatalf("CheckStream: %v (%+v)", err, in)
+	}
+	video = nil
+
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	m, _, err := in.KeepFor(context.Background(), store, websiteID, "kontaktformular", dataDir)
+	runtime.ReadMemStats(&after)
+	if err != nil {
+		t.Fatalf("KeepFor: %v", err)
+	}
+	if grew := after.TotalAlloc - before.TotalAlloc; grew > size+size/4 {
+		t.Errorf("keeping a %d-byte video allocated %d bytes, want about its size once", size, grew)
+	}
+	if info, err := os.Stat(Path(dataDir, websiteID, m.Filename)); err != nil || info.Size() != size {
+		t.Errorf("the stored video: %v, %v", info, err)
 	}
 }

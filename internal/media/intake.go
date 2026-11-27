@@ -164,16 +164,29 @@ func (in *Intake) KeepFor(ctx context.Context, store *Store, websiteID int64, pl
 	// EXIF, XMP and IPTC come off before anything reaches the disk. A photograph
 	// taken at home otherwise publishes the photographer's address, and the
 	// media route serves the stored bytes verbatim for a year.
-	var input io.Reader = bytes.NewReader(in.content)
-	if in.spool != "" {
+	var source io.Reader
+	var stripErr error
+	switch {
+	case in.spool == "":
+		source, stripErr = PrepareUpload(bytes.NewReader(in.content), in.MimeType, in.limit)
+	case needsStrip(in.MimeType):
+		// The spool file is exactly the bytes CheckStream counted, so it is
+		// read into a buffer of its own size, once. io.ReadAll would grow one
+		// by doubling, about twice the file (WR-04 of the phase 38 review).
+		raw, err := readSpool(in.spool, in.limit)
+		if err != nil {
+			return nil, false, fmt.Errorf("upload failed: %w", err)
+		}
+		source, stripErr = prepareBytes(raw, in.MimeType)
+	default:
+		// Nothing to strip: the file streams from the spool to its place.
 		f, err := os.Open(in.spool)
 		if err != nil {
 			return nil, false, fmt.Errorf("upload failed: %w", err)
 		}
 		defer f.Close()
-		input = f
+		source = f
 	}
-	source, stripErr := PrepareUpload(input, in.MimeType, in.limit)
 	if source == nil {
 		return nil, false, fmt.Errorf("upload failed: %w", stripErr)
 	}
@@ -199,6 +212,29 @@ func (in *Intake) KeepFor(ctx context.Context, store *Store, websiteID int64, pl
 		return nil, false, fmt.Errorf("create media record: %w", err)
 	}
 	return m, false, nil
+}
+
+// readSpool reads a spool file whole into a buffer of its size, and refuses
+// one over limit: the file was written by CheckStream and is never larger, so
+// a larger one is not the file that was checked.
+func readSpool(path string, limit int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > limit {
+		return nil, fmt.Errorf("the spool file is %d bytes, over the limit of %d", info.Size(), limit)
+	}
+	raw := make([]byte, info.Size())
+	if _, err := io.ReadFull(f, raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
 }
 
 // Path is where Keep put the file, for a caller that has more to do with it.

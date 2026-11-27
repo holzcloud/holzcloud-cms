@@ -135,24 +135,33 @@ func StoreFile(file io.Reader, destPath string, maxSize int64) (int64, string, e
 // the caller logs it. Refusing an upload because a JPEG had an unusual segment
 // chain would be worse than the metadata.
 func PrepareUpload(file io.Reader, mimeType string, maxSize int64) (io.Reader, error) {
-	switch mimeType {
-	case "image/jpeg", "image/png", "image/webp":
-	case "video/mp4":
-		// The same rule as for a photo: where it was taken and on what device
-		// leave the file before it lies on the disk. See mp4.go for why nothing
-		// gets shorter in the process.
-		raw, err := io.ReadAll(io.LimitReader(file, maxSize+1))
-		if err != nil {
-			return nil, fmt.Errorf("read upload: %w", err)
-		}
-		return bytes.NewReader(StripMP4Metadata(raw)), nil
-	default:
+	if !needsStrip(mimeType) {
 		return file, nil
 	}
-
 	raw, err := io.ReadAll(io.LimitReader(file, maxSize+1))
 	if err != nil {
 		return nil, fmt.Errorf("read upload: %w", err)
+	}
+	return prepareBytes(raw, mimeType)
+}
+
+// needsStrip says whether a kind carries camera metadata that has to come off,
+// which means reading the file whole.
+func needsStrip(mimeType string) bool {
+	switch mimeType {
+	case "image/jpeg", "image/png", "image/webp", "video/mp4":
+		return true
+	}
+	return false
+}
+
+// prepareBytes is PrepareUpload for a file already in memory.
+func prepareBytes(raw []byte, mimeType string) (io.Reader, error) {
+	if mimeType == "video/mp4" {
+		// The same rule as for a photo: where it was taken and on what device
+		// leave the file before it lies on the disk. See mp4.go for why nothing
+		// gets shorter in the process; the strip works in place.
+		return bytes.NewReader(StripMP4Metadata(raw)), nil
 	}
 	stripped, err := StripMetadata(raw, mimeType)
 	if err != nil {
