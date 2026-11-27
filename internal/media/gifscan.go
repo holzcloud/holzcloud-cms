@@ -77,6 +77,7 @@ func gifFrames(r io.Reader, maxFrames int, maxPixels int64) (frames int, pixels 
 		}
 	}
 
+	var d [9]byte // one descriptor buffer for the whole walk: a ReadFull argument escapes
 	for {
 		b, err := br.ReadByte()
 		if err != nil {
@@ -93,7 +94,6 @@ func gifFrames(r io.Reader, maxFrames int, maxPixels int64) (frames int, pixels 
 				return frames, pixels, err
 			}
 		case 0x2C: // image descriptor
-			var d [9]byte
 			if _, err := io.ReadFull(br, d[:]); err != nil {
 				return frames, pixels, cut(err)
 			}
