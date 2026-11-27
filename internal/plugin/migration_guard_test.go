@@ -780,6 +780,13 @@ func TestACallerThatGivesUpDoesNotCutAMigrationShort(t *testing.T) {
 	if err := s.Install(ctx, paket("eins")); err != nil {
 		t.Fatal(err)
 	}
+	// The lookup before the migration honours the caller and reads through the
+	// read pool. Install no longer touches that pool, so its first connection
+	// would be opened inside the 10 ms below, which under -race takes longer
+	// and ends the test before the migration it is about has begun.
+	if _, err := s.Get(ctx, "eins"); err != nil {
+		t.Fatal(err)
+	}
 	// The request that triggered the install ends while the migration runs. Its
 	// context is not the migration's: a rollback from outside would come while
 	// the policy is armed.
