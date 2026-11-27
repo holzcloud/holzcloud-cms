@@ -89,3 +89,52 @@ func TestPluginAssetsAreNeverServedAsDocuments(t *testing.T) {
 		}
 	}
 }
+
+// A directory whose name carries an asset extension (the archive entry
+// assets/a.css/b.png makes one) is not a file. http.ServeFile would answer it
+// with a directory listing as text/html, over the type the table set (IN-05).
+func TestAPluginAssetDirectoryIsNotListed(t *testing.T) {
+	h, _, database, _ := newTestAdmin(t)
+	dir := t.TempDir()
+	store := plugin.NewStore(database)
+	rt, err := plugin.NewRuntime(context.Background(), store, nil)
+	if err != nil {
+		t.Fatalf("NewRuntime: %v", err)
+	}
+	mgr, err := plugin.NewManager(context.Background(), store, rt, dir, nil)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	h.SetPlugins(mgr)
+
+	sub := filepath.Join(dir, "plugins", "eins", plugin.AssetDir, "a.css")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "b.png"), []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"a.css", "a.css/"} {
+		req := httptest.NewRequest(http.MethodGet, "/plugin-assets/eins/"+path, nil)
+		req.SetPathValue("id", "eins")
+		req.SetPathValue("path", path)
+		rec := httptest.NewRecorder()
+		if err := h.HandlePluginAsset(rec, req); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "b.png") {
+			t.Errorf("%s: status %d, body %q; a directory must be a 404", path, rec.Code, rec.Body.String())
+		}
+	}
+	// The file in it is an ordinary asset.
+	req := httptest.NewRequest(http.MethodGet, "/plugin-assets/eins/a.css/b.png", nil)
+	req.SetPathValue("id", "eins")
+	req.SetPathValue("path", "a.css/b.png")
+	rec := httptest.NewRecorder()
+	if err := h.HandlePluginAsset(rec, req); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "image/png" {
+		t.Errorf("the file in the directory: status %d, Content-Type %q", rec.Code, rec.Header().Get("Content-Type"))
+	}
+}

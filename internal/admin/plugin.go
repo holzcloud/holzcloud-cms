@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -402,6 +403,12 @@ func (h *Handler) HandlePluginAsset(w http.ResponseWriter, r *http.Request) erro
 	// there as far as the web is concerned.
 	contentType, download, ok := plugin.AssetType(path)
 	if !ok {
+		return h.notFound(w, r)
+	}
+	// A file, and only a file. An archive entry assets/a.css/b.png makes a
+	// directory with an asset's extension, and ServeFile would answer it with
+	// a redirect and then a listing as text/html, over the type set below.
+	if fi, err := os.Stat(path); err != nil || !fi.Mode().IsRegular() {
 		return h.notFound(w, r)
 	}
 	// Long-lived: a plugin's assets change only when the plugin is replaced,
