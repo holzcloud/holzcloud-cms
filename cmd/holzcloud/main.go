@@ -699,7 +699,30 @@ func main() {
 				return nil
 			},
 		},
+		jobs.Job{
+			// The spool in which a public form's files wait while the form is
+			// taken in. A request removes its own; this is for the one that
+			// never returned. At start it is emptied before the job first
+			// runs (after this list), because nothing can be in flight then.
+			Name:  "upload-spool-sweep",
+			Every: time.Hour,
+			Fn: func(ctx context.Context) error {
+				n, err := media.SweepSpool(cfg.DataDir, time.Hour)
+				if n > 0 {
+					slog.Info("upload spool swept", "removed", n)
+				}
+				return err
+			},
+		},
 	)
+	// Before the listener starts nothing can be in flight, so everything in
+	// the upload spool is the leftover of a run that was killed. A failure is
+	// logged and never stops the start.
+	if n, err := media.SweepSpool(cfg.DataDir, 0); err != nil {
+		slog.Warn("upload spool sweep failed", "err", err)
+	} else if n > 0 {
+		slog.Info("upload spool swept", "removed", n)
+	}
 	runner.Start(ctx)
 
 	go func() {

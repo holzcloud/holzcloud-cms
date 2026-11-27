@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // realPNG is the smallest PNG that really decodes.
@@ -191,5 +192,53 @@ func TestCheckStreamTellsAReadErrorFromARefusal(t *testing.T) {
 	_, err := CheckStream(bytes.NewReader(png600), "bild.png", limits, filepath.Join(t.TempDir(), "fehlt"))
 	if !errors.Is(err, ErrSpool) {
 		t.Errorf("a spool directory that does not exist: err = %v, want ErrSpool", err)
+	}
+}
+
+// The sweep takes what is old enough and only that, and never touches the
+// directories beside the spool.
+func TestSweepSpoolEmptiesTheSpoolAndNothingElse(t *testing.T) {
+	dataDir := t.TempDir()
+	root := SpoolRoot(dataDir)
+	for _, d := range []string{"req-old", "req-new"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, d, "part-1"), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "stray"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	longAgo := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(filepath.Join(root, "req-old"), longAgo, longAgo); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dataDir, "media", "1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, "media", "1", "a.png"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if n, err := SweepSpool(dataDir, time.Hour); err != nil || n != 1 {
+		t.Fatalf("SweepSpool(1h) = %d, %v; want 1 (only the old directory)", n, err)
+	}
+	if names := dirEntries(t, root); len(names) != 2 {
+		t.Errorf("after the hourly sweep: %v, want req-new and stray", names)
+	}
+	if n, err := SweepSpool(dataDir, 0); err != nil || n != 2 {
+		t.Fatalf("SweepSpool(0) = %d, %v; want 2", n, err)
+	}
+	if names := dirEntries(t, root); len(names) != 0 {
+		t.Errorf("after the start sweep: %v", names)
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "media", "1", "a.png")); err != nil {
+		t.Errorf("the sweep touched media/: %v", err)
+	}
+
+	if n, err := SweepSpool(t.TempDir(), 0); err != nil || n != 0 {
+		t.Errorf("a missing spool root: %d, %v; want 0 and no error", n, err)
 	}
 }
