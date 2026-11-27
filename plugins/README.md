@@ -213,6 +213,7 @@ address, items, sum and the customer's note — until the date it was given.
 | `render` | output a public page in the website's theme | `Render` |
 | `notify` | send a notification to the operator — never to an address of its own choosing | `Notify` |
 | `log` | write to the server log | `Log`, `Logf` |
+| `attach` | receive the files of a multipart form submission, and keep them once the submission is real | `in.Files` (`AttachedFile`), `KeepFiles` |
 
 A plugin never sees drafts — not with `pages:read` either, and not on its own
 admin screen. That line is drawn by the host, not by the plugin.
@@ -224,6 +225,35 @@ script does not survive it.
 
 `notify` sends to the address in the website's settings and to no other. A plugin
 allowed to name the recipient would be a mail relay with a web interface.
+
+`attach` is for a form that takes files from visitors. Before the plugin is
+called, the host reads a multipart submission itself and holds it to its bounds,
+so a plugin never has to defend itself against the size of one:
+
+- The kind of every file is read from its first bytes, and a file is held to the
+  limit of its kind (the image limit for pictures and PDFs, the video limit for
+  an MP4; one file per submission may use the video limit, the others the image
+  limit). A file
+  the host will not take arrives in `Files` with `Refused` set to a sentence in
+  the page's language, so the form can tell the sender; it is never held and
+  never kept.
+- A file is written to a spool directory while it arrives and is not held in
+  memory. It exists only until the call returns: if the plugin does not call
+  `KeepFiles`, it is gone, and `KeepFiles` is what makes it a media file of the
+  website. The plugin never reads the bytes.
+- A submission is refused as a whole, before the plugin is called, when it has
+  more than 64 parts or more than 256 KB of text (413), when its body is larger
+  than the bound (about 74 MiB at the default limits, 413) or ends before its
+  closing boundary (400), when a network sends more than two at once or thirty an
+  hour (429) or the server already has four inside (503). The 429 and 503 carry a
+  `Retry-After`. The visitor sees the host's plain answer in these cases; a
+  plugin cannot change it.
+- When the data directory is short of free space, every file of a submission is
+  listed as refused and the fields still arrive, so a form that is multipart
+  whether or not it carries a file keeps taking messages.
+
+The bounds are the host's and not a setting of the plugin; the numbers and the
+reasons for them are in [docs/security.md](../docs/security.md).
 
 An admin screen may have several views: the plugin receives the query string and
 can link to itself. Its HTML is filtered before it is shown — forms, tables and

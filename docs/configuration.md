@@ -127,6 +127,8 @@ data/
   media/{website_id}/       uploaded media
   media-staging/{website_id}/  images waiting for the "scale down?" question;
                             cleared after an hour, not part of the backup
+  .upload-spool/            the files of a public form while it is taken in;
+                            emptied at every start, not part of the backup
   templates/{slug}/         uploaded template archives, extracted
   plugins/{name}/           installed plugin modules (plugin.json, plugin.wasm)
   sprachen/                 admin translations added at runtime (optional)
