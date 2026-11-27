@@ -22,144 +22,150 @@ func newTestLimiter(max int, window time.Duration) (*LoginLimiter, *fixedClock) 
 	return l, clock
 }
 
-func TestLoginLimiterBlocksAfterMaxFailures(t *testing.T) {
-	l, _ := newTestLimiter(3, time.Minute)
+// A wrong guess keeps its reservation, so a client is blocked after its limit
+// and nobody else is.
+func TestThrottleBlocksAClientAfterMaxFailures(t *testing.T) {
+	th, _ := newTestThrottle(3, 100, time.Minute)
 
 	for i := 0; i < 3; i++ {
-		if !l.Allowed("ip:1.2.3.4") {
+		a, _ := th.Reserve("ip:1.2.3.4", "")
+		if a == nil {
 			t.Fatalf("attempt %d was blocked before the limit", i+1)
 		}
-		l.RecordFailure("ip:1.2.3.4")
+		a.Fail()
 	}
 
-	if l.Allowed("ip:1.2.3.4") {
+	if a, _ := th.Reserve("ip:1.2.3.4", ""); a != nil {
 		t.Error("expected the key to be blocked after reaching the limit")
 	}
 	// A different client must be unaffected.
-	if !l.Allowed("ip:5.6.7.8") {
+	if a, _ := th.Reserve("ip:5.6.7.8", ""); a == nil {
 		t.Error("an unrelated key was blocked")
 	}
 }
 
-func TestLoginLimiterWindowExpires(t *testing.T) {
-	l, clock := newTestLimiter(2, time.Minute)
+func TestThrottleWindowExpires(t *testing.T) {
+	th, clock := newTestThrottle(2, 100, time.Minute)
 
-	l.RecordFailure("ip:1.2.3.4")
-	l.RecordFailure("ip:1.2.3.4")
-	if l.Allowed("ip:1.2.3.4") {
+	for i := 0; i < 2; i++ {
+		a, _ := th.Reserve("ip:1.2.3.4", "")
+		a.Fail()
+	}
+	if a, _ := th.Reserve("ip:1.2.3.4", ""); a != nil {
 		t.Fatal("expected the key to be blocked")
 	}
 
 	clock.advance(61 * time.Second)
 
-	if !l.Allowed("ip:1.2.3.4") {
+	if a, _ := th.Reserve("ip:1.2.3.4", ""); a == nil {
 		t.Error("expected the block to lift once the window passed")
 	}
 }
 
-// A successful login must clear the counters so the next typo does not lock out
-// a user who just proved they know the password.
-func TestLoginLimiterResetClearsCounters(t *testing.T) {
-	l, _ := newTestLimiter(2, time.Minute)
+// Any one axis over its limit blocks: an account hammered from rotating
+// addresses stays blocked for a fresh address.
+func TestThrottleBlocksWhenTheAccountIsOverTheLimit(t *testing.T) {
+	th, _ := newTestThrottle(10, 2, time.Minute)
 
-	l.RecordFailure("ip:1.2.3.4", "email:a@example.com")
-	l.RecordFailure("ip:1.2.3.4", "email:a@example.com")
-	if l.Allowed("ip:1.2.3.4") {
-		t.Fatal("expected the key to be blocked")
+	for _, client := range []string{"ip:1.1.1.1", "ip:2.2.2.2"} {
+		a, _ := th.Reserve(client, "victim@example.com")
+		a.Fail()
 	}
 
-	l.Reset("ip:1.2.3.4", "email:a@example.com")
-
-	if !l.Allowed("ip:1.2.3.4", "email:a@example.com") {
-		t.Error("expected Reset to unblock both keys")
+	if a, _ := th.Reserve("ip:9.9.9.9", "victim@example.com"); a != nil {
+		t.Error("expected a fresh IP to still be blocked by the account counter")
 	}
 }
 
-// Allowed takes several keys; any one of them being over the limit blocks.
-func TestLoginLimiterBlocksWhenAnyKeyIsOverLimit(t *testing.T) {
-	l, _ := newTestLimiter(2, time.Minute)
+// The refusal says how long until there is room: the oldest failure is 20s old,
+// so 40s of the 60s window remain.
+func TestThrottleRetryAfter(t *testing.T) {
+	th, clock := newTestThrottle(2, 100, time.Minute)
 
-	// The email is hammered from rotating addresses.
-	l.RecordFailure("email:victim@example.com")
-	l.RecordFailure("email:victim@example.com")
-
-	if l.Allowed("ip:9.9.9.9", "email:victim@example.com") {
-		t.Error("expected a fresh IP to still be blocked by the email counter")
-	}
-}
-
-func TestLoginLimiterRetryAfter(t *testing.T) {
-	l, clock := newTestLimiter(2, time.Minute)
-
-	if got := l.RetryAfter("ip:1.2.3.4"); got != 0 {
+	if got := th.RetryAfter("ip:1.2.3.4", ""); got != 0 {
 		t.Errorf("RetryAfter on an unused key = %v; want 0", got)
 	}
 
-	l.RecordFailure("ip:1.2.3.4")
+	a, _ := th.Reserve("ip:1.2.3.4", "")
+	a.Fail()
 	clock.advance(20 * time.Second)
-	l.RecordFailure("ip:1.2.3.4")
+	a, _ = th.Reserve("ip:1.2.3.4", "")
+	a.Fail()
 
-	// The oldest failure is 20s old, so 40s of the 60s window remain.
-	if got := l.RetryAfter("ip:1.2.3.4"); got != 40*time.Second {
+	if got := th.RetryAfter("ip:1.2.3.4", ""); got != 40*time.Second {
 		t.Errorf("RetryAfter = %v; want 40s", got)
+	}
+	a, wait := th.Reserve("ip:1.2.3.4", "")
+	if a != nil || wait != 40*time.Second {
+		t.Errorf("a refused Reserve answered %v after %v; want nil after 40s", a, wait)
 	}
 }
 
 // The per-account limit must be loose enough that a single attacker cannot lock
 // a known admin address out just by failing the client limit.
 func TestLoginThrottleClientLockoutDoesNotLockTheAccount(t *testing.T) {
-	throttle := NewLoginThrottle(3, 100, time.Minute)
+	throttle := NewLoginThrottle(3, 100, time.Minute).Login()
 
 	for i := 0; i < 3; i++ {
-		throttle.RecordFailure("1.2.3.4", "admin@example.com")
+		a, _ := throttle.Reserve("1.2.3.4", "admin@example.com")
+		a.Fail()
 	}
 
-	if throttle.Allowed("1.2.3.4", "admin@example.com") {
+	if a, _ := throttle.Reserve("1.2.3.4", "admin@example.com"); a != nil {
 		t.Error("expected the attacking client to be blocked")
 	}
 	// The legitimate admin, coming from a different address, must still get in.
-	if !throttle.Allowed("5.6.7.8", "admin@example.com") {
+	if a, _ := throttle.Reserve("5.6.7.8", "admin@example.com"); a == nil {
 		t.Error("a single attacker locked the account for everyone else")
 	}
 }
 
 // A distributed attack against one account is still caught by the account limit.
 func TestLoginThrottleBlocksAccountAfterManyFailures(t *testing.T) {
-	throttle := NewLoginThrottle(3, 10, time.Minute)
+	throttle := NewLoginThrottle(3, 10, time.Minute).Login()
 
 	for i := 0; i < 10; i++ {
 		// Every attempt from a different address, so the client limit never trips.
-		throttle.RecordFailure(string(rune('a'+i)), "admin@example.com")
+		a, _ := throttle.Reserve(string(rune('a'+i)), "admin@example.com")
+		if a == nil {
+			t.Fatalf("attempt %d was blocked before the account limit", i+1)
+		}
+		a.Fail()
 	}
 
-	if throttle.Allowed("fresh-address", "admin@example.com") {
+	if a, _ := throttle.Reserve("fresh-address", "admin@example.com"); a != nil {
 		t.Error("expected the account limit to catch a distributed attack")
 	}
-	if !throttle.Allowed("fresh-address", "other@example.com") {
+	if a, _ := throttle.Reserve("fresh-address", "other@example.com"); a == nil {
 		t.Error("an unrelated account was blocked")
 	}
 }
 
-func TestLoginThrottleResetAfterSuccess(t *testing.T) {
-	throttle := NewLoginThrottle(2, 10, time.Minute)
+// A successful login clears the account's key, so the next typo does not lock
+// out somebody who just proved they know the password.
+func TestLoginThrottleSuccessClearsTheAccount(t *testing.T) {
+	throttle := NewLoginThrottle(10, 2, time.Minute).Login()
 
-	throttle.RecordFailure("1.2.3.4", "admin@example.com")
-	throttle.RecordFailure("1.2.3.4", "admin@example.com")
-	if throttle.Allowed("1.2.3.4", "admin@example.com") {
-		t.Fatal("expected the client to be blocked")
-	}
+	a, _ := throttle.Reserve("1.2.3.4", "admin@example.com")
+	a.Fail()
+	a, _ = throttle.Reserve("5.6.7.8", "admin@example.com")
+	a.Succeed()
 
-	throttle.Reset("1.2.3.4", "admin@example.com")
-
-	if !throttle.Allowed("1.2.3.4", "admin@example.com") {
-		t.Error("a successful login did not clear the counters")
+	for i := 0; i < 2; i++ {
+		a, _ := throttle.Reserve("9.9.9.9", "admin@example.com")
+		if a == nil {
+			t.Fatalf("attempt %d after a success was blocked: the account key was not cleared", i+1)
+		}
+		a.Fail()
 	}
 }
 
 func TestLoginLimiterCleanupDropsExpiredKeys(t *testing.T) {
 	l, clock := newTestLimiter(2, time.Minute)
 
-	l.RecordFailure("ip:1.2.3.4")
+	if _, _, ok := l.reserve("ip:1.2.3.4"); !ok {
+		t.Fatal("the reservation was refused")
+	}
 	clock.advance(2 * time.Minute)
 	l.Cleanup()
 

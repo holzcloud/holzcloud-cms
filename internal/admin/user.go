@@ -490,17 +490,36 @@ func (h *Handler) handlePasswordChangePost(w http.ResponseWriter, r *http.Reques
 
 	redirect := fmt.Sprintf("/admin/users/%d/password", user.ID)
 
-	// Self-change requires current password
+	// Self-change requires current password. It is the same kind of check as the
+	// confirmation step (a signed-in session proving the password), so it shares
+	// that throttle: left open it would be a free guessing place for a stolen
+	// session, one screen over.
 	if isSelf {
-		currentPassword := r.FormValue("current_password")
-		ok, err := auth.VerifyPassword(currentPassword, user.Password)
+		client, _ := h.clientIP.ThrottleKey(r)
+		attempt, wait := h.loginThrottle.Confirm().Reserve(client, strconv.FormatInt(user.ID, 10))
+		if attempt == nil {
+			slog.Warn("password change rate limited", "user_id", user.ID, "retry_after_s", int(wait.Seconds()))
+			web.SetFlashError(h.sm, r.Context(),
+				web.Titlef(r, "Too many failed attempts. Try again in %d minutes.", int(wait.Minutes())+1))
+			return h.redirectBack(w, r, redirect)
+		}
+		// Given back unless settled below: a busy gate or an error is not a guess.
+		defer attempt.Refund()
+
+		ok, err := auth.VerifyOwnPassword(r.FormValue("current_password"), user.Password)
+		if errors.Is(err, auth.ErrBusy) {
+			web.SetFlashError(h.sm, r.Context(), "The server is busy checking other passwords. Please try again in a moment.")
+			return h.redirectBack(w, r, redirect)
+		}
 		if err != nil {
 			return err
 		}
 		if !ok {
+			attempt.Fail()
 			web.SetFlashError(h.sm, r.Context(), "The current password is not right")
 			return h.redirectBack(w, r, redirect)
 		}
+		attempt.Succeed()
 	}
 
 	newPassword := r.FormValue("new_password")

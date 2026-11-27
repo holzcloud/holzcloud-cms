@@ -196,35 +196,6 @@ func (t *LoginThrottle) SecondFactor() *Throttle { return t.secondFactor }
 // Confirm is the throttle of a signed-in person re-entering their password.
 func (t *LoginThrottle) Confirm() *Throttle { return t.confirm }
 
-// Allowed reports whether another login attempt may be made.
-//
-// Allowed, RecordFailure, Reset and RetryAfter are the check-then-record
-// interface that plan 37-02 removes with its last callers; new code reserves
-// through Login().Reserve.
-func (t *LoginThrottle) Allowed(ip, email string) bool {
-	return t.login.client.Allowed(ip) && t.login.account.Allowed(email)
-}
-
-// RecordFailure counts a failed attempt on both axes.
-func (t *LoginThrottle) RecordFailure(ip, email string) {
-	t.login.client.RecordFailure(ip)
-	t.login.account.RecordFailure(email)
-}
-
-// Reset clears both counters after a successful login.
-func (t *LoginThrottle) Reset(ip, email string) {
-	t.login.client.Reset(ip)
-	t.login.account.Reset(email)
-}
-
-// RetryAfter reports how long the caller must wait before trying again.
-func (t *LoginThrottle) RetryAfter(ip, email string) time.Duration {
-	if wait := t.login.client.RetryAfter(ip); wait > 0 {
-		return wait
-	}
-	return t.login.account.RetryAfter(email)
-}
-
 // Cleanup drops fully expired entries on every axis of every throttle.
 func (t *LoginThrottle) Cleanup() {
 	t.login.Cleanup()
@@ -377,42 +348,6 @@ func (l *LoginLimiter) recentLocked(key string, now time.Time) []time.Time {
 		return nil
 	}
 	return kept
-}
-
-// Allowed reports whether another attempt may be made for every given key.
-// Keys with no recorded failures are always allowed. It does not count.
-func (l *LoginLimiter) Allowed(keys ...string) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	now := l.now()
-	for _, key := range keys {
-		if len(l.recentLocked(storeKey(key), now)) >= l.max {
-			return false
-		}
-	}
-	return true
-}
-
-// RecordFailure counts a failed attempt against every given key.
-func (l *LoginLimiter) RecordFailure(keys ...string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	now := l.now()
-	l.sweepLocked(now)
-	for _, key := range keys {
-		key = storeKey(key)
-		l.recentLocked(key, now)
-		l.addLocked(key, now)
-	}
-}
-
-// Reset clears the counters for the given keys.
-func (l *LoginLimiter) Reset(keys ...string) {
-	for _, key := range keys {
-		l.clear(key)
-	}
 }
 
 // RetryAfter reports how long the caller must wait before the oldest recorded
