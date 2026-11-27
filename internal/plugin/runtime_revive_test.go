@@ -536,3 +536,22 @@ func TestASuccessResetsTheCount(t *testing.T) {
 		}
 	}
 }
+
+// Shutting the runtime down closes the engine under a running call. That call's
+// error is the shutdown's and not the plugin's: written to the plugin's error
+// line, it greeted the operator after the restart as a fault the plugin never
+// had (IN-06).
+func TestAShutdownIsNotRecordedAsThePluginsFault(t *testing.T) {
+	r, s := reviveRuntime(t, Limits{CallTimeout: 5 * time.Second})
+	first := async(func() error { return spin(context.Background(), r) })
+	waitFor(t, "the call to hold the plugin", holds(r))
+	if err := r.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if first() == nil {
+		t.Fatal("the endless loop ran through a shutdown")
+	}
+	if e := lastError(t, s); e != "" {
+		t.Errorf("the shutdown was recorded on the plugin: %q", e)
+	}
+}

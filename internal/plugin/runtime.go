@@ -455,6 +455,10 @@ func (r *Runtime) Dispatch(ctx context.Context, id, hook string, websiteID int64
 	answer, o, err := r.call(ctx, inst, base, hook, payload)
 	if err != nil {
 		switch {
+		case r.isClosed():
+			// The runtime was shut down under the call: the engine closed
+			// the module, which says nothing about the plugin. Recorded, it
+			// would be the first thing the operator saw after the restart.
 		case o.held:
 			r.hold(id, hook, err, o)
 		case failure(err):
