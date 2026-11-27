@@ -118,7 +118,11 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if tf != nil && tf.Enabled() {
-		h.sm.Put(r.Context(), auth.SessionKeyPendingUserID, id)
+		// A fresh nonce, and with it a fresh count of wrong codes: what an
+		// earlier pending sign-in in this browser spent does not carry over.
+		if err := auth.BeginPendingSignIn(r.Context(), h.sm, id); err != nil {
+			return err
+		}
 		http.Redirect(w, r, auth.VerifyPath, http.StatusSeeOther)
 		return nil
 	}
@@ -149,7 +153,7 @@ func (h *Handler) loginBusy(w http.ResponseWriter, r *http.Request) error {
 // It is the single place a session becomes signed in, so the password path and
 // the second-factor path cannot drift apart.
 func (h *Handler) completeLogin(r *http.Request, id int64, role, email string) {
-	h.sm.Remove(r.Context(), auth.SessionKeyPendingUserID)
+	auth.EndPendingSignIn(r.Context(), h.sm)
 	// Every sign-in starts without the single sign-on marks, and the
 	// forward-auth path sets them again after this call. scs's RenewToken keeps
 	// every value, so without these two lines a session that once came through

@@ -2,9 +2,11 @@ package admin
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -51,7 +53,9 @@ func pendingSession(t *testing.T, sm *scs.SessionManager, id int64) *http.Cookie
 	t.Helper()
 	rec := httptest.NewRecorder()
 	sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sm.Put(r.Context(), auth.SessionKeyPendingUserID, id)
+		if err := auth.BeginPendingSignIn(r.Context(), sm, id); err != nil {
+			t.Error(err)
+		}
 	})).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin/login", nil))
 	c := sessionCookie(t, sm, rec)
 	if c == nil {
@@ -77,7 +81,9 @@ func postCode(t *testing.T, h *Handler, sm *scs.SessionManager, remote string, c
 	var res stepResult
 	sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if cookie == nil {
-			sm.Put(r.Context(), auth.SessionKeyPendingUserID, id)
+			if err := auth.BeginPendingSignIn(r.Context(), sm, id); err != nil {
+				t.Error(err)
+			}
 		}
 		if err := h.HandleTwoFactorVerify(w, r); err != nil {
 			t.Errorf("HandleTwoFactorVerify: %v", err)
@@ -234,5 +240,116 @@ func TestASuccessfulCodeClearsOnlyTheAccountKey(t *testing.T) {
 			t.Fatalf("account key full after %d probes: the success did not clear it", i)
 		}
 		a.Fail()
+	}
+}
+
+// stillPending asks the second step's screen with a cookie: a pending sign-in
+// gets the form (200), an ended one is sent to the password.
+func stillPending(t *testing.T, h *Handler, sm *scs.SessionManager, cookie *http.Cookie) bool {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, auth.VerifyPath, nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := h.HandleTwoFactorVerify(w, r); err != nil {
+			t.Errorf("GET %s: %v", auth.VerifyPath, err)
+		}
+	})).ServeHTTP(rec, req)
+	return rec.Code == http.StatusOK
+}
+
+// T-37-27: the three wrong codes that end a pending sign-in were counted in the
+// session, read and written back by each request. Wrong codes sent in parallel
+// in one session all read the same count, so none of them reached three, and
+// the pending sign-in went on. The count is now reserved server-side, under the
+// pending sign-in's own nonce, before a code is looked at.
+func TestParallelWrongCodesEndThePendingSignInAfterThree(t *testing.T) {
+	h, sm, _, id := newSecondStepAdmin(t)
+	cookie := pendingSession(t, sm, id)
+	ctx := httptest.NewRequest(http.MethodGet, "/", nil)
+	wrong := flashIs(ctx, "That code is not right.")
+
+	const n = 5
+	var wg sync.WaitGroup
+	results := make([]stepResult, n)
+	start := make(chan struct{})
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			results[i] = postCode(t, h, sm, fmt.Sprintf("198.51.100.%d:1", 60+i), cookie, id, false, "000000")
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	checked := 0
+	for _, res := range results {
+		if res.SignedIn != 0 {
+			t.Fatalf("a wrong code signed in: %+v", res)
+		}
+		if res.Flash == wrong {
+			checked++
+		}
+	}
+	if checked >= auth.PendingSecondFactorFailures {
+		t.Errorf("%d codes were checked and answered as wrong with the sign-in still going; it ends with wrong code number %d", checked, auth.PendingSecondFactorFailures)
+	}
+	if stillPending(t, h, sm, cookie) {
+		t.Fatalf("after %d parallel wrong codes the session is still pending; a sign-in ends after %d", n, auth.PendingSecondFactorFailures)
+	}
+
+	// The window of the account's budget passing changes nothing: the right
+	// code in the original session no longer signs in.
+	h.loginThrottle = auth.NewLoginThrottle(10, 100, 15*time.Minute)
+	if res := postCode(t, h, sm, "198.51.100.99:1", cookie, id, false, goodCode(t)); res.SignedIn == id {
+		t.Error("the original session signed in with a right code after the pending sign-in had ended")
+	}
+}
+
+// WR-02: typing the password again starts a new pending sign-in, and that one
+// has its own three codes. The old session-held counter survived the renewed
+// token, so the misses of one pending sign-in were carried into the next one in
+// the same browser, even into one for another account.
+func TestANewPasswordSignInStartsAFreshCountOfCodes(t *testing.T) {
+	h, sm, _, id := newSecondStepAdmin(t)
+	const client = "198.51.100.24:4711"
+	ctx := httptest.NewRequest(http.MethodGet, "/", nil)
+	wrong := flashIs(ctx, "That code is not right.")
+
+	cookie := pendingSession(t, sm, id)
+	for range 2 {
+		if res := postCode(t, h, sm, client, cookie, id, false, "000000"); res.Cookie != nil {
+			cookie = res.Cookie
+		}
+	}
+
+	// The password again, in the same browser.
+	req := postForm("/admin/login", url.Values{"email": {"wer@test.local"}, "password": {loginTestPassword}}, nil)
+	req.RemoteAddr = client
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := h.HandleLogin(w, r); err != nil {
+			t.Errorf("HandleLogin: %v", err)
+		}
+	})).ServeHTTP(rec, req)
+	if rec.Header().Get("Location") != auth.VerifyPath {
+		t.Fatalf("the password sign-in went to %q, want %s", rec.Header().Get("Location"), auth.VerifyPath)
+	}
+	if c := sessionCookie(t, sm, rec); c != nil {
+		cookie = c
+	}
+
+	for i := range 2 {
+		res := postCode(t, h, sm, client, cookie, id, false, "000000")
+		if res.Location != auth.VerifyPath || res.Flash != wrong || res.Pending != id {
+			t.Fatalf("wrong code %d of the new sign-in: %d to %q, flash %q, pending %d; the earlier misses were carried over",
+				i+1, res.Code, res.Location, res.Flash, res.Pending)
+		}
+		if res.Cookie != nil {
+			cookie = res.Cookie
+		}
 	}
 }

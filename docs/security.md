@@ -36,8 +36,9 @@
 - **Throttling of every password check**, all within 15 minutes and all in memory
   only (a restart clears them): the sign-in allows 10 failures per client
   address and 100 per account; the second sign-in step 10 per client and 5 per
-  account, and a sign-in ends after 3 wrong codes, so the password has to be
-  typed again; the confirmation step ("please confirm") and the "current
+  account, and a sign-in ends after 3 wrong codes, also when they are sent in
+  parallel, so the password has to be typed again (that costs no attempt, so
+  the 5 per account are the bound on guessing a code); the confirmation step ("please confirm") and the "current
   password" field of a password change 10 per client and 5 per user; the
   password form of a protected page 10 per visitor and page and 100 per page.
   An IPv6 address counts by its /64, not as 18 quintillion budgets. A check is

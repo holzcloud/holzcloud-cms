@@ -86,12 +86,15 @@ func DestroyUserSessions(ctx context.Context, sm *scs.SessionManager, userID int
 	})
 }
 
+// SessionLifetime is the longest a session lives, however active it is.
+const SessionLifetime = 24 * time.Hour
+
 // NewSessionManager creates a configured SCS session manager.
 // Pass the SQLiteStore and the Secure flag from config.
 func NewSessionManager(store *SQLiteStore, secure bool) *scs.SessionManager {
 	sm := scs.New()
 	sm.Store = store
-	sm.Lifetime = 24 * time.Hour
+	sm.Lifetime = SessionLifetime
 	sm.IdleTimeout = 4 * time.Hour
 	sm.Cookie.Name = "holzcloud_session"
 	sm.Cookie.HttpOnly = true

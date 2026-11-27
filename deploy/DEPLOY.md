@@ -1045,7 +1045,7 @@ have their own limits, all within 15 minutes and all held in memory:
 | Check | Limit |
 |-------|-------|
 | Sign-in | 10 failures per client address, 100 per account |
-| Second step (code or recovery code) | 10 per client address, 5 per account; a sign-in ends after 3 wrong codes and the password has to be typed again |
+| Second step (code or recovery code) | 10 per client address, 5 per account; a sign-in ends after 3 wrong codes, also sent in parallel, and the password has to be typed again (which costs no attempt: the 5 per account are the bound) |
 | Confirmation ("please confirm") and the "current password" field of a password change | 10 per client address, 5 per user |
 | Password of a protected page | 10 per visitor and page, 100 per page |
 

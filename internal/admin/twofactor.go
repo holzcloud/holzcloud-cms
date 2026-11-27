@@ -87,6 +87,27 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
+	// The wrong codes of this pending sign-in are counted on the server, under
+	// the nonce the password step minted, and reserved before the code is
+	// looked at: parallel requests in one session cannot each see a count
+	// below three (T-37-27). A session without a nonce was made pending by an
+	// older version; it starts again at the password.
+	nonce := h.sm.GetString(r.Context(), auth.SessionKeyPendingNonce)
+	if nonce == "" {
+		auth.EndPendingSignIn(r.Context(), h.sm)
+		if err := h.sm.RenewToken(r.Context()); err != nil {
+			return err
+		}
+		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+		return nil
+	}
+	pendingAttempt, _ := h.loginThrottle.PendingSignIn().Reserve("", nonce)
+	if pendingAttempt == nil {
+		return h.endPendingSignIn(w, r)
+	}
+	// Given back unless settled below, like every reservation.
+	defer pendingAttempt.Refund()
+
 	// Its own budget, low per account: six digits are a small enough space that
 	// unlimited guessing would walk through them in an afternoon, and whoever is
 	// guessing them already holds the password. Reserved before the code is
@@ -117,29 +138,22 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 			return err
 		}
 		attempt.Fail()
-		failures := h.sm.GetInt(r.Context(), auth.SessionKeyPendingFailures) + 1
-		if failures >= auth.PendingSecondFactorFailures {
-			// The password has to be typed again. The token is renewed so the
-			// session that carried the pending id is not the one that goes on.
-			h.sm.Remove(r.Context(), auth.SessionKeyPendingUserID)
-			h.sm.Remove(r.Context(), auth.SessionKeyPendingFailures)
-			if err := h.sm.RenewToken(r.Context()); err != nil {
-				return err
-			}
-			web.SetFlashError(h.sm, r.Context(), "Too many wrong codes. Please sign in again.")
-			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
-			return nil
+		pendingAttempt.Fail()
+		// The count was taken when this code was reserved, so the code that
+		// fills it ends the sign-in, and so does every one sent beside it.
+		if h.loginThrottle.PendingSignIn().RetryAfter("", nonce) > 0 {
+			return h.endPendingSignIn(w, r)
 		}
-		h.sm.Put(r.Context(), auth.SessionKeyPendingFailures, failures)
 		web.SetFlashError(h.sm, r.Context(), "That code is not right.")
 		http.Redirect(w, r, verifyPathFor(recovery), http.StatusSeeOther)
 		return nil
 	}
 
+	// This pending sign-in is over; its count goes with it.
+	pendingAttempt.Succeed()
 	// The account's key is cleared and this attempt's own client reservation is
 	// given back; the client's earlier failures stand.
 	attempt.Succeed()
-	h.sm.Remove(r.Context(), auth.SessionKeyPendingFailures)
 
 	role, email, err := h.roleAndEmail(r, pending)
 	if err != nil {
@@ -159,6 +173,19 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 			"Recovery code used up. Check under “My account” how many are left.")
 	}
 	http.Redirect(w, r, auth.PopReturn(h.sm, r.Context()), http.StatusSeeOther)
+	return nil
+}
+
+// endPendingSignIn sends a pending sign-in with too many wrong codes back to
+// the password. The token is renewed so the session that carried the pending
+// id is not the one that goes on.
+func (h *Handler) endPendingSignIn(w http.ResponseWriter, r *http.Request) error {
+	auth.EndPendingSignIn(r.Context(), h.sm)
+	if err := h.sm.RenewToken(r.Context()); err != nil {
+		return err
+	}
+	web.SetFlashError(h.sm, r.Context(), "Too many wrong codes. Please sign in again.")
+	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 	return nil
 }
 

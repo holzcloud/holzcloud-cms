@@ -178,11 +178,13 @@ func (a *Attempt) Refund() {
 	}
 }
 
-// LoginThrottle owns the three throttles of the admin: the login, the second
-// step of a sign-in and the re-entering of one's own password.
+// LoginThrottle owns the throttles of the admin: the login, the second step of
+// a sign-in, the wrong codes of one pending sign-in and the re-entering of
+// one's own password.
 type LoginThrottle struct {
 	login        *Throttle
 	secondFactor *Throttle
+	pending      *Throttle
 	confirm      *Throttle
 }
 
@@ -193,6 +195,7 @@ func NewLoginThrottle(clientMax, accountMax int, window time.Duration) *LoginThr
 	return &LoginThrottle{
 		login:        NewThrottle(clientMax, accountMax, window),
 		secondFactor: NewThrottle(SecondFactorClientMax, SecondFactorAccountMax, window),
+		pending:      NewThrottle(PendingSecondFactorFailures, PendingSecondFactorFailures, PendingSignInWindow),
 		confirm:      NewThrottle(ConfirmClientMax, ConfirmUserMax, window),
 	}
 }
@@ -203,6 +206,14 @@ func (t *LoginThrottle) Login() *Throttle { return t.login }
 // SecondFactor is the throttle of the second step of a sign-in.
 func (t *LoginThrottle) SecondFactor() *Throttle { return t.secondFactor }
 
+// PendingSignIn counts the wrong codes of one pending sign-in, keyed by its
+// nonce (SessionKeyPendingNonce) on the account axis; callers pass no client
+// key. It allows PendingSecondFactorFailures within PendingSignInWindow, so
+// the limit holds as long as the session can, and a refused reservation ends
+// the pending sign-in. Only someone who has the password reaches it, and each
+// of its keys holds at most three attempts.
+func (t *LoginThrottle) PendingSignIn() *Throttle { return t.pending }
+
 // Confirm is the throttle of a signed-in person re-entering their password.
 func (t *LoginThrottle) Confirm() *Throttle { return t.confirm }
 
@@ -210,6 +221,7 @@ func (t *LoginThrottle) Confirm() *Throttle { return t.confirm }
 func (t *LoginThrottle) Cleanup() {
 	t.login.Cleanup()
 	t.secondFactor.Cleanup()
+	t.pending.Cleanup()
 	t.confirm.Cleanup()
 }
 

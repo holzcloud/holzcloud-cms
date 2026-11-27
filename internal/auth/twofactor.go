@@ -2,6 +2,9 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -18,17 +21,50 @@ import (
 // notice. Here the session simply has no user until the second factor is done.
 const SessionKeyPendingUserID = "pending_user_id"
 
-// SessionKeyPendingFailures counts the wrong codes of the pending sign-in in
-// this session. It goes away with the pending id, whichever way that ends.
-const SessionKeyPendingFailures = "pending_failures"
+// SessionKeyPendingNonce holds a random value minted for each pending sign-in.
+// The wrong codes of that sign-in are counted under it on the server (see
+// LoginThrottle.PendingSignIn), not in the session: a count kept in the
+// session is read and written back by every request, so codes sent in
+// parallel all read the same number and none of them ended the sign-in
+// (T-37-27). A new password sign-in mints a new nonce, and with it a fresh
+// count, whichever account it is for.
+const SessionKeyPendingNonce = "pending_nonce"
 
 // PendingSecondFactorFailures is how many wrong codes end a pending sign-in:
-// the visitor is sent back to the password. Per pending sign-in it is low on
-// purpose, so a phished password buys three guesses before the password has to
-// be typed again, and typing it costs a login attempt. Per account the budget is
-// SecondFactorAccountMax in a window, which a visitor who starts over cannot
-// get around.
+// the visitor is sent back to the password. It holds under parallel requests,
+// because each code reserves its place in the count before it is looked at.
+//
+// It is a reset for the person at the keyboard, not the bound on guessing:
+// typing the right password again costs no login attempt (a right password
+// clears the account's login key) and starts a new pending sign-in with three
+// more. The bound is SecondFactorAccountMax per account in a window, which a
+// visitor who starts over cannot get around.
 const PendingSecondFactorFailures = 3
+
+// PendingSignInWindow is how long the wrong codes of one pending sign-in are
+// remembered: as long as the session that carries it can live (SessionLifetime),
+// so a pending sign-in that has ended cannot come back with a fresh count. It
+// is not a deadline for the sign-in itself; the session's own timeouts are.
+const PendingSignInWindow = SessionLifetime
+
+// BeginPendingSignIn marks the session as having passed the password of id,
+// with a fresh nonce for counting its wrong codes.
+func BeginPendingSignIn(ctx context.Context, sm *scs.SessionManager, id int64) error {
+	nonce := make([]byte, 16)
+	if _, err := rand.Read(nonce); err != nil {
+		return fmt.Errorf("pending sign-in nonce: %w", err)
+	}
+	sm.Put(ctx, SessionKeyPendingUserID, id)
+	sm.Put(ctx, SessionKeyPendingNonce, hex.EncodeToString(nonce))
+	return nil
+}
+
+// EndPendingSignIn takes the pending sign-in out of the session, whichever way
+// it ended.
+func EndPendingSignIn(ctx context.Context, sm *scs.SessionManager) {
+	sm.Remove(ctx, SessionKeyPendingUserID)
+	sm.Remove(ctx, SessionKeyPendingNonce)
+}
 
 // SetupPath is where an account that must set up two-factor is sent.
 const SetupPath = "/admin/2fa/einrichten"
