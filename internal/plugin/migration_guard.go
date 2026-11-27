@@ -162,10 +162,18 @@ func isTempSchemaTable(name string) bool {
 
 // authorize is the SQLite authorizer callback. It must not touch the
 // connection. While the guard is not armed it allows everything.
-func (g *migrationGuard) authorize(action sqlite.AuthorizerActionCode, arg1, arg2, database, _ string) sqlite.AuthorizerReturnCode {
+//
+// A panic in here would unwind through the driver's C frames; it is caught and
+// answered as a denial instead, so a fault of the guard refuses the migration.
+func (g *migrationGuard) authorize(action sqlite.AuthorizerActionCode, arg1, arg2, database, _ string) (rc sqlite.AuthorizerReturnCode) {
 	if !g.armed.Load() {
 		return sqlite.AuthorizerOK
 	}
+	defer func() {
+		if p := recover(); p != nil {
+			rc = g.deny(fmt.Sprintf("the guard failed: %v", p))
+		}
+	}()
 	// The last argument, the trigger or view an access comes from, is not looked
 	// at: SQLite names a common table expression there as well, and the rules
 	// below hold wherever the access comes from. Triggers and views cannot be
@@ -364,10 +372,17 @@ func actionName(a sqlite.AuthorizerActionCode) string {
 // plugin_store, with the values, which the authorizer cannot: it is asked about
 // the table, not about the row. Whatever the statement looks like, a row that is
 // not the plugin's own is recorded and the migration is refused.
+//
+// A panic in here is caught and recorded as a refusal, as in authorize.
 func (g *migrationGuard) preUpdate(d sqlite.SQLitePreUpdateData) {
 	if !g.armed.Load() || asciiLower(d.TableName) != "plugin_store" {
 		return
 	}
+	defer func() {
+		if p := recover(); p != nil {
+			g.record(fmt.Sprintf("the guard failed: %v", p))
+		}
+	}()
 	check := func(read func(dest ...any) error) {
 		dest := make([]any, d.Count())
 		if err := read(dest...); err != nil || len(dest) == 0 {
@@ -627,6 +642,13 @@ func foreignKeyParents(ctx context.Context, tx *sql.Tx, table string) ([]string,
 	return out, rows.Err()
 }
 
+// noTransaction reports a ROLLBACK that found no transaction: SQLite rolls a
+// transaction back by itself when a write inside it is interrupted, as the
+// bound does, and the connection is then clean.
+func noTransaction(err error) bool {
+	return strings.Contains(err.Error(), "no transaction is active")
+}
+
 // applyGuarded runs one migration under the guard and records it, all in one
 // transaction on a connection of its own.
 //
@@ -662,26 +684,44 @@ func (s *Store) applyGuarded(ctx context.Context, id string, m Migration, sum st
 	committed := false
 
 	// The teardown runs on every way out, a panic included. It ends the
-	// transaction and takes the policy off the connection. When it cannot take
-	// it off it answers driver.ErrBadConn, which makes database/sql close the
-	// connection instead of handing it to the next writer; the transaction has
-	// ended by then, so the close does not wait on itself.
+	// transaction and takes the policy off the connection.
+	//
+	// It disarms first. A panic inside the plugin's statement skips the disarm
+	// after it, and ROLLBACK is a statement like any other: armed, the policy
+	// refuses it, and the connection would go back to the pool inside the
+	// plugin's open transaction.
+	//
+	// The connection is thrown away, by driver.ErrBadConn from Raw, which makes
+	// database/sql close it instead of handing it to the next writer, when the
+	// policy cannot be taken off, when the rollback failed (other than because
+	// SQLite had already ended the transaction, as it does for an interrupted
+	// write), and after a panic, which may have left the connection halfway
+	// through a statement. The transaction has ended by then, so the close does
+	// not wait on itself. A panic is raised again once all of that is done.
 	defer func() {
+		g.armed.Store(false)
+		p := recover()
+		discard := p != nil
 		if !committed {
-			_ = tx.Rollback()
+			if rerr := tx.Rollback(); rerr != nil && !errors.Is(rerr, sql.ErrTxDone) && !noTransaction(rerr) {
+				discard = true
+			}
 		}
 		remove := s.removeGuard
 		if remove == nil {
 			remove = removeGuard
 		}
 		rerr := conn.Raw(func(dc any) error {
-			if err := remove(dc); err != nil {
+			if err := remove(dc); err != nil || discard {
 				return driver.ErrBadConn
 			}
 			return nil
 		})
 		if rerr != nil && !errors.Is(rerr, sql.ErrConnDone) && !errors.Is(rerr, driver.ErrBadConn) && err == nil {
 			err = rerr
+		}
+		if p != nil {
+			panic(p)
 		}
 	}()
 

@@ -2,6 +2,8 @@ package plugin
 
 import (
 	"context"
+	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"os"
 	"strings"
@@ -10,6 +12,17 @@ import (
 
 	"modernc.org/sqlite"
 )
+
+// test_panic stands in for any panic inside the driver while the guard is
+// armed: a callback of the guard's own, or a fault in transpiled SQLite. It is
+// registered for every connection this test binary opens and called by nothing
+// but TestAPanicWhileArmedLeavesTheCoreWriting.
+func init() {
+	sqlite.MustRegisterScalarFunction("test_panic", 0,
+		func(*sqlite.FunctionContext, []driver.Value) (driver.Value, error) {
+			panic("test_panic")
+		})
+}
 
 // expectRefused applies a migration of plugin "eins" and holds the outcome to
 // what a refusal has to leave behind: an error that says refused and names the
@@ -583,6 +596,72 @@ func TestTheCoreWritesWhenTheGuardCannotBeRemoved(t *testing.T) {
 			}
 			coreWrites(t, s, "eins")
 		})
+	}
+}
+
+// A panic while the policy is armed. The teardown used to roll back with the
+// policy still armed: ROLLBACK is a statement the policy refuses, so the
+// connection went back to the one-connection write pool inside the plugin's
+// open transaction, holding its half-made changes, and every later core write
+// either failed or vanished into it (T-36-04, WR-01).
+func TestAPanicWhileArmedLeavesTheCoreWriting(t *testing.T) {
+	s, _ := neuerSpeicher(t)
+	ctx := context.Background()
+	for _, id := range []string{"eins", "zwei"} {
+		if err := s.Install(ctx, paket(id)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.DB.Write.ExecContext(ctx, `INSERT INTO sessions (token, data, expiry) VALUES ('t', x'00', 9e9)`); err != nil {
+		t.Fatal(err)
+	}
+
+	var p any
+	func() {
+		defer func() { p = recover() }()
+		_ = s.ApplyMigrations(ctx, "eins", []Migration{{Name: "0001.sql",
+			SQL: `CREATE TABLE plugin_eins_a (t TEXT); SELECT test_panic();`}})
+	}()
+	if p == nil {
+		t.Error("the panic did not reach the caller; a teardown must not swallow it")
+	}
+
+	bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	// The policy is off the write connection: the core reads what a plugin may not.
+	var n int
+	if err := s.DB.Write.QueryRowContext(bounded, `SELECT COUNT(*) FROM sessions`).Scan(&n); err != nil {
+		t.Errorf("core read of sessions through the write pool: %v", err)
+	}
+	// A core write commits and is seen from outside, so it did not land in a
+	// transaction left open on the connection.
+	if _, err := s.DB.Write.ExecContext(bounded, `UPDATE plugins SET last_error = 'after the panic' WHERE id = 'zwei'`); err != nil {
+		t.Errorf("core write: %v", err)
+	}
+	var got string
+	if err := s.DB.Read.QueryRowContext(bounded, `SELECT last_error FROM plugins WHERE id = 'zwei'`).Scan(&got); err != nil || got != "after the panic" {
+		t.Errorf("the read pool sees last_error %q (%v): the write went into an open transaction", got, err)
+	}
+	tx, err := s.DB.Write.BeginTx(bounded, nil)
+	if err != nil {
+		t.Errorf("a core transaction: %v", err)
+	} else if err := tx.Commit(); err != nil {
+		t.Errorf("committing a core transaction: %v", err)
+	}
+	// Nothing of the migration stands, on either pool.
+	for name, q := range map[string]interface {
+		QueryRowContext(context.Context, string, ...any) *sql.Row
+	}{"write": s.DB.Write, "read": s.DB.Read} {
+		if err := q.QueryRowContext(bounded, `SELECT
+			(SELECT COUNT(*) FROM sqlite_schema WHERE name = 'plugin_eins_a') +
+			(SELECT COUNT(*) FROM plugin_migrations WHERE plugin_id = 'eins')`).Scan(&n); err != nil || n != 0 {
+			t.Errorf("the %s pool sees %d trace(s) of the migration (%v)", name, n, err)
+		}
+	}
+	coreWrites(t, s, "eins")
+	if err := s.ApplyMigrations(bounded, "zwei", []Migration{{Name: "0001.sql", SQL: `CREATE TABLE plugin_zwei_a (t TEXT);`}}); err != nil {
+		t.Errorf("the next migration: %v", err)
 	}
 }
 
