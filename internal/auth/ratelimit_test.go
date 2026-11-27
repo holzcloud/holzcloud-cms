@@ -1,6 +1,10 @@
 package auth
 
 import (
+	"fmt"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -160,10 +164,269 @@ func TestLoginLimiterCleanupDropsExpiredKeys(t *testing.T) {
 	l.Cleanup()
 
 	l.mu.Lock()
-	remaining := len(l.attempts)
+	remaining := len(l.keys)
 	l.mu.Unlock()
 
 	if remaining != 0 {
 		t.Errorf("expected expired keys to be dropped, %d remain", remaining)
+	}
+}
+
+// count is how many attempts the limiter holds for key, for the tests.
+func (l *LoginLimiter) count(key string) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if el, ok := l.keys[storeKey(key)]; ok {
+		return len(el.Value.(*limitedKey).times)
+	}
+	return 0
+}
+
+// newTestThrottle builds a throttle whose two limiters share one injected
+// clock.
+func newTestThrottle(clientMax, accountMax int, window time.Duration) (*Throttle, *fixedClock) {
+	clock := &fixedClock{t: time.Unix(1_700_000_000, 0)}
+	th := NewThrottle(clientMax, accountMax, window)
+	th.client.now = clock.now
+	th.account.now = clock.now
+	return th, clock
+}
+
+// The old pair, Allowed and then RecordFailure, lets every goroutine of a burst
+// through the check before any of them has been counted. Reserve counts in the
+// same step it checks, so the limit holds however the goroutines interleave.
+func TestAParallelBurstCannotExceedTheLimit(t *testing.T) {
+	th := NewThrottle(10, 100, time.Minute)
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	var passed, refused atomic.Int64
+	for i := 0; i < 200; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			a, wait := th.Reserve("203.0.113.7", "owner@example.com")
+			if a == nil {
+				if wait <= 0 {
+					t.Errorf("a refusal reported a wait of %v", wait)
+				}
+				refused.Add(1)
+				return
+			}
+			a.Fail()
+			passed.Add(1)
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	if passed.Load() != 10 || refused.Load() != 190 {
+		t.Errorf("passed %d, refused %d; want 10 and 190", passed.Load(), refused.Load())
+	}
+}
+
+func TestASuccessClearsOnlyTheAccountKey(t *testing.T) {
+	th, _ := newTestThrottle(10, 100, time.Minute)
+
+	for i := 0; i < 9; i++ {
+		a, _ := th.Reserve("X", "b@example.com")
+		if a == nil {
+			t.Fatalf("failure %d was refused", i+1)
+		}
+		a.Fail()
+	}
+	a, _ := th.Reserve("X", "a@example.com")
+	if a == nil {
+		t.Fatal("the attempt for account A was refused")
+	}
+	a.Succeed()
+
+	tenth, _ := th.Reserve("X", "b@example.com")
+	if tenth == nil {
+		t.Fatal("the tenth attempt of client X was refused; Succeed must give back only its own reservation")
+	}
+	tenth.Fail()
+	if again, _ := th.Reserve("X", "b@example.com"); again != nil {
+		t.Error("an eleventh attempt of client X passed: Succeed cleared the client key as well")
+	}
+
+	// And what Succeed clears is the account key: five failures on account C
+	// fill it, a success on C clears it.
+	th2, _ := newTestThrottle(100, 5, time.Minute)
+	for i := 0; i < 4; i++ {
+		f, _ := th2.Reserve("Y", "c@example.com")
+		f.Fail()
+	}
+	ok, _ := th2.Reserve("Z", "c@example.com")
+	ok.Succeed()
+	if th2.account.count("c@example.com") != 0 {
+		t.Error("Succeed left the account key counted")
+	}
+	if th2.client.count("Z") != 0 {
+		t.Error("Succeed kept its own client reservation")
+	}
+	if th2.client.count("Y") != 4 {
+		t.Error("Succeed touched another client's failures")
+	}
+}
+
+func TestARefundGivesBackOnlyItsOwnReservation(t *testing.T) {
+	th, clock := newTestThrottle(10, 100, time.Minute)
+
+	for i := 0; i < 3; i++ {
+		a, _ := th.Reserve("X", "u@example.com")
+		a.Fail()
+		clock.advance(time.Second)
+	}
+	a, _ := th.Reserve("X", "u@example.com")
+	a.Refund()
+	if n := th.client.count("X"); n != 3 {
+		t.Errorf("the client key holds %d entries after a refund, want 3", n)
+	}
+
+	// Settling is once only.
+	a.Refund()
+	a.Fail()
+	a.Succeed()
+	if n := th.client.count("X"); n != 3 {
+		t.Errorf("settling a second time changed the client key to %d entries", n)
+	}
+	b, _ := th.Reserve("X", "u@example.com")
+	b.Fail()
+	b.Refund()
+	if n := th.client.count("X"); n != 4 {
+		t.Errorf("a refund after Fail took the reservation back: %d entries, want 4", n)
+	}
+
+	// An attempt never settled keeps its reservation until somebody refunds it.
+	c, _ := th.Reserve("X", "u@example.com")
+	if n := th.client.count("X"); n != 5 {
+		t.Errorf("an unsettled attempt holds %d entries, want 5", n)
+	}
+	c.Refund()
+	if n := th.client.count("X"); n != 4 {
+		t.Errorf("after Refund %d entries, want 4", n)
+	}
+}
+
+func TestAnEmptyKeyIsNotCounted(t *testing.T) {
+	th, _ := newTestThrottle(1, 1, time.Minute)
+
+	a, _ := th.Reserve("", "u@example.com")
+	a.Fail()
+	if th.client.count("") != 0 {
+		t.Error("an empty client key was counted")
+	}
+	if b, _ := th.Reserve("", "u@example.com"); b != nil {
+		t.Error("the account axis did not count")
+	}
+	c, _ := th.Reserve("X", "")
+	c.Fail()
+	if d, _ := th.Reserve("X", ""); d != nil {
+		t.Error("the client axis did not count")
+	}
+	if e, _ := th.Reserve("X", "other@example.com"); e != nil {
+		t.Error("client X should be full")
+	}
+}
+
+func TestAnAccountAxisRefusalGivesTheClientReservationBack(t *testing.T) {
+	th, _ := newTestThrottle(10, 1, time.Minute)
+	a, _ := th.Reserve("X", "u@example.com")
+	a.Fail()
+	if b, wait := th.Reserve("X", "u@example.com"); b != nil || wait <= 0 {
+		t.Fatalf("got %v, %v; want a refusal with a wait", b, wait)
+	}
+	if n := th.client.count("X"); n != 1 {
+		t.Errorf("a refused reservation left the client key at %d entries, want 1", n)
+	}
+}
+
+func TestTheLimiterForgetsTheOldestKeyPastItsCap(t *testing.T) {
+	l, _ := newTestLimiter(5, time.Hour)
+	l.maxKeys = 100
+
+	last := ""
+	for i := 0; i < 1000; i++ {
+		last = fmt.Sprintf("user%d@example.com", i)
+		if _, _, ok := l.reserve(last); !ok {
+			t.Fatalf("reservation %d refused", i)
+		}
+	}
+	l.mu.Lock()
+	held, ordered := len(l.keys), l.order.Len()
+	l.mu.Unlock()
+	if held > 100 || ordered > 100 {
+		t.Errorf("the limiter holds %d keys (%d in order), want at most 100", held, ordered)
+	}
+	if l.count(last) != 1 {
+		t.Error("the key reserved most recently is no longer counted")
+	}
+	if l.count("user0@example.com") != 0 {
+		t.Error("the oldest key is still held")
+	}
+}
+
+func TestALongKeyIsStoredShort(t *testing.T) {
+	l, _ := newTestLimiter(5, time.Hour)
+	long1 := strings.Repeat("a", 10*1024)
+	long2 := strings.Repeat("a", 10*1024-1) + "b"
+	for _, k := range []string{long1, long2, "short@example.com", strings.Repeat("c", 64)} {
+		if _, _, ok := l.reserve(k); !ok {
+			t.Fatalf("reservation refused for a key of %d bytes", len(k))
+		}
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if len(l.keys) != 4 {
+		t.Errorf("%d keys held, want 4 (two long keys must stay two keys)", len(l.keys))
+	}
+	for k := range l.keys {
+		if len(k) > 71 {
+			t.Errorf("a key of %d bytes is stored", len(k))
+		}
+	}
+	if _, ok := l.keys["short@example.com"]; !ok {
+		t.Error("a short key was not stored as given")
+	}
+	if _, ok := l.keys[strings.Repeat("c", 64)]; !ok {
+		t.Error("a key of exactly 64 bytes was not stored as given")
+	}
+}
+
+func TestExpiredKeysAreSweptOnReservation(t *testing.T) {
+	l, clock := newTestLimiter(5, time.Minute)
+	for i := 0; i < 50; i++ {
+		l.reserve(fmt.Sprintf("k%d", i))
+	}
+	clock.advance(2 * time.Minute)
+	if _, _, ok := l.reserve("fresh"); !ok {
+		t.Fatal("reservation refused")
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if len(l.keys) != 1 {
+		t.Errorf("%d keys held after one reservation past the window, want 1", len(l.keys))
+	}
+}
+
+func TestTheSecondFactorAndConfirmationHaveTheirOwnLimits(t *testing.T) {
+	lt := NewLoginThrottle(10, 100, time.Minute)
+
+	for name, th := range map[string]*Throttle{"second factor": lt.SecondFactor(), "confirmation": lt.Confirm()} {
+		for i := 0; i < 5; i++ {
+			a, _ := th.Reserve(fmt.Sprintf("10.0.0.%d", i), "one@example.com")
+			if a == nil {
+				t.Fatalf("%s: failure %d was refused", name, i+1)
+			}
+			a.Fail()
+		}
+		if a, _ := th.Reserve("10.0.0.99", "one@example.com"); a != nil {
+			t.Errorf("%s: the sixth failure of one account passed", name)
+		}
+	}
+	if a, _ := lt.Login().Reserve("10.0.0.99", "one@example.com"); a == nil {
+		t.Error("the second step or the confirmation used up the login's budget")
 	}
 }

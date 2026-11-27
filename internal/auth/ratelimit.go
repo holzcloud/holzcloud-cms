@@ -1,98 +1,393 @@
 package auth
 
 import (
+	"container/list"
+	"crypto/sha256"
+	"encoding/hex"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// LoginThrottle limits failed login attempts on two axes.
+// The limits of the throttles that are not the login. The login's own are given
+// to NewLoginThrottle by main (10 per client, 100 per account, 15 minutes).
+const (
+	// SecondFactorClientMax is how many second-step guesses one client may make
+	// in a window.
+	SecondFactorClientMax = 10
+
+	// SecondFactorAccountMax is how many second-step guesses an account takes
+	// in a window. It is low because the code has six digits and whoever is
+	// guessing it already holds the password. It is not lower because whoever
+	// holds the password can spend the budget and lock the owner's second step
+	// for the window; a restart clears it, and deploy/DEPLOY.md says so.
+	SecondFactorAccountMax = 5
+
+	// ConfirmClientMax is how many wrong re-entered passwords one client may
+	// make in a window, and ConfirmUserMax how many one signed-in person's own
+	// confirmations take.
+	ConfirmClientMax = 10
+	ConfirmUserMax   = 5
+)
+
+// DefaultMaxKeys is how many keys a limiter keeps. Each key holds at most its
+// limit of timestamps, so the bound is a few megabytes per limiter. An attacker
+// flooding distinct keys evicts the coldest keys first, and a key under attack
+// stays hot because every attempt touches it.
+const DefaultMaxKeys = 10000
+
+// maxStoredKey is the longest key kept as given. A longer one is stored as a
+// short digest, so a submitted e-mail address cannot make a map key as large as
+// the request body allows.
+const maxStoredKey = 64
+
+// storeKey is the form of key the limiter keeps. Callers pass account keys
+// already lower-cased.
+func storeKey(key string) string {
+	if len(key) <= maxStoredKey {
+		return key
+	}
+	sum := sha256.Sum256([]byte(key))
+	return "sha256:" + hex.EncodeToString(sum[:])[:32]
+}
+
+// Throttle limits one kind of attempt on two axes, the client and the account.
 //
 // A strict per-client limit stops an individual attacker quickly. A much looser
-// per-account limit catches a distributed attack against one mailbox without
+// per-account limit catches a distributed attack against one account without
 // handing anyone an easy lockout: if the account limit were as strict as the
 // client limit, a stranger could disable a known admin account with a handful of
 // requests from a single machine.
-type LoginThrottle struct {
-	perClient  *LoginLimiter
-	perAccount *LoginLimiter
+//
+// An attempt is reserved before any work is done: Reserve checks and counts in
+// one step under the lock, so a parallel burst of N requests against a limit of
+// M passes at most M. The caller then settles what it reserved (see Attempt).
+type Throttle struct {
+	client  *LoginLimiter
+	account *LoginLimiter
 }
 
-// NewLoginThrottle builds the two-tier throttle. clientMax should be small
+// NewThrottle builds the two-axis throttle. clientMax should be small
 // (individual attacker), accountMax considerably larger (distributed attack).
-func NewLoginThrottle(clientMax, accountMax int, window time.Duration) *LoginThrottle {
-	return &LoginThrottle{
-		perClient:  NewLoginLimiter(clientMax, window),
-		perAccount: NewLoginLimiter(accountMax, window),
+func NewThrottle(clientMax, accountMax int, window time.Duration) *Throttle {
+	return &Throttle{
+		client:  NewLoginLimiter(clientMax, window),
+		account: NewLoginLimiter(accountMax, window),
 	}
 }
 
+// Reserve counts one attempt for the client and the account, or refuses.
+//
+// It returns an Attempt to settle, or nil and how long to wait when either axis
+// is full; a refusal counts nothing. An empty key skips its axis. The caller
+// should defer attempt.Refund() right away, so that every exit that does not
+// settle the attempt gives its reservation back.
+func (t *Throttle) Reserve(client, account string) (*Attempt, time.Duration) {
+	a := &Attempt{t: t, client: client, account: account}
+	if client != "" {
+		at, wait, ok := t.client.reserve(client)
+		if !ok {
+			if account != "" {
+				wait = max(wait, t.account.RetryAfter(account))
+			}
+			return nil, wait
+		}
+		a.clientAt, a.hasClient = at, true
+	}
+	if account != "" {
+		at, wait, ok := t.account.reserve(account)
+		if !ok {
+			if a.hasClient {
+				t.client.refund(client, a.clientAt)
+			}
+			return nil, wait
+		}
+		a.accountAt, a.hasAccount = at, true
+	}
+	return a, 0
+}
+
+// RetryAfter reports how long the caller must wait before an attempt may be
+// reserved again. Zero when neither axis is full.
+func (t *Throttle) RetryAfter(client, account string) time.Duration {
+	return max(t.client.RetryAfter(client), t.account.RetryAfter(account))
+}
+
+// Cleanup drops fully expired entries on both axes.
+func (t *Throttle) Cleanup() {
+	t.client.Cleanup()
+	t.account.Cleanup()
+}
+
+// Attempt is one reservation. It is settled once; later calls do nothing.
+//
+//   - Fail keeps the reservations: the attempt was a wrong guess.
+//   - Succeed gives back this attempt's client reservation and clears the
+//     account key. The account's owner proved the password; the client's
+//     earlier failures stand, so a thief who owns one account cannot reset
+//     their own budget by logging in to it between guesses at another.
+//   - Refund gives back both reservations: the attempt was not a guess (a busy
+//     gate, a server error, a cancelled request).
+type Attempt struct {
+	t          *Throttle
+	client     string
+	account    string
+	clientAt   time.Time
+	accountAt  time.Time
+	hasClient  bool
+	hasAccount bool
+	settled    atomic.Bool
+}
+
+// Fail keeps the reservations.
+func (a *Attempt) Fail() { a.settled.Store(true) }
+
+// Succeed settles the attempt as a right password.
+func (a *Attempt) Succeed() {
+	if !a.settled.CompareAndSwap(false, true) {
+		return
+	}
+	if a.hasClient {
+		a.t.client.refund(a.client, a.clientAt)
+	}
+	if a.account != "" {
+		a.t.account.clear(a.account)
+	}
+}
+
+// Refund gives back both reservations.
+func (a *Attempt) Refund() {
+	if !a.settled.CompareAndSwap(false, true) {
+		return
+	}
+	if a.hasClient {
+		a.t.client.refund(a.client, a.clientAt)
+	}
+	if a.hasAccount {
+		a.t.account.refund(a.account, a.accountAt)
+	}
+}
+
+// LoginThrottle owns the three throttles of the admin: the login, the second
+// step of a sign-in and the re-entering of one's own password.
+type LoginThrottle struct {
+	login        *Throttle
+	secondFactor *Throttle
+	confirm      *Throttle
+}
+
+// NewLoginThrottle builds the throttles. clientMax and accountMax are the
+// login's limits; the second step and the confirmation have their own (the
+// constants above), all on the same window.
+func NewLoginThrottle(clientMax, accountMax int, window time.Duration) *LoginThrottle {
+	return &LoginThrottle{
+		login:        NewThrottle(clientMax, accountMax, window),
+		secondFactor: NewThrottle(SecondFactorClientMax, SecondFactorAccountMax, window),
+		confirm:      NewThrottle(ConfirmClientMax, ConfirmUserMax, window),
+	}
+}
+
+// Login is the throttle of the sign-in form.
+func (t *LoginThrottle) Login() *Throttle { return t.login }
+
+// SecondFactor is the throttle of the second step of a sign-in.
+func (t *LoginThrottle) SecondFactor() *Throttle { return t.secondFactor }
+
+// Confirm is the throttle of a signed-in person re-entering their password.
+func (t *LoginThrottle) Confirm() *Throttle { return t.confirm }
+
 // Allowed reports whether another login attempt may be made.
+//
+// Allowed, RecordFailure, Reset and RetryAfter are the check-then-record
+// interface that plan 37-02 removes with its last callers; new code reserves
+// through Login().Reserve.
 func (t *LoginThrottle) Allowed(ip, email string) bool {
-	return t.perClient.Allowed(ip) && t.perAccount.Allowed(email)
+	return t.login.client.Allowed(ip) && t.login.account.Allowed(email)
 }
 
 // RecordFailure counts a failed attempt on both axes.
 func (t *LoginThrottle) RecordFailure(ip, email string) {
-	t.perClient.RecordFailure(ip)
-	t.perAccount.RecordFailure(email)
+	t.login.client.RecordFailure(ip)
+	t.login.account.RecordFailure(email)
 }
 
-// Reset clears both counters after a successful login, so a user who just
-// proved they know the password is not locked out by their earlier typos.
+// Reset clears both counters after a successful login.
 func (t *LoginThrottle) Reset(ip, email string) {
-	t.perClient.Reset(ip)
-	t.perAccount.Reset(email)
+	t.login.client.Reset(ip)
+	t.login.account.Reset(email)
 }
 
 // RetryAfter reports how long the caller must wait before trying again.
 func (t *LoginThrottle) RetryAfter(ip, email string) time.Duration {
-	if wait := t.perClient.RetryAfter(ip); wait > 0 {
+	if wait := t.login.client.RetryAfter(ip); wait > 0 {
 		return wait
 	}
-	return t.perAccount.RetryAfter(email)
+	return t.login.account.RetryAfter(email)
 }
 
-// Cleanup drops fully expired entries on both axes.
+// Cleanup drops fully expired entries on every axis of every throttle.
 func (t *LoginThrottle) Cleanup() {
-	t.perClient.Cleanup()
-	t.perAccount.Cleanup()
+	t.login.Cleanup()
+	t.secondFactor.Cleanup()
+	t.confirm.Cleanup()
 }
 
-// LoginLimiter throttles repeated failed login attempts.
+// LoginLimiter throttles repeated attempts by key.
 //
-// It is a plain in-memory sliding-window counter — appropriate for a
-// single-binary, single-host deployment. Only failures count, so a legitimate
-// user is never limited by someone else's successful traffic.
+// It is a plain in-memory sliding-window counter, appropriate for a
+// single-binary, single-host deployment, and it is bounded: it keeps at most
+// maxKeys keys, the key reserved longest ago forgotten first, and sweeps the
+// keys whose window has passed on every reservation. A restart clears it.
 type LoginLimiter struct {
-	mu       sync.Mutex
-	attempts map[string][]time.Time
+	mu    sync.Mutex
+	keys  map[string]*list.Element // of *limitedKey
+	order *list.List               // most recently touched at the front
 
-	max    int
-	window time.Duration
+	max     int
+	maxKeys int
+	window  time.Duration
 
 	// now is injectable for tests.
 	now func() time.Time
 }
 
-// NewLoginLimiter creates a limiter allowing max failures per key within window.
+// limitedKey is one key's attempts in the window, oldest first.
+type limitedKey struct {
+	key   string
+	times []time.Time
+}
+
+// NewLoginLimiter creates a limiter allowing max attempts per key within window.
 func NewLoginLimiter(max int, window time.Duration) *LoginLimiter {
 	return &LoginLimiter{
-		attempts: make(map[string][]time.Time),
-		max:      max,
-		window:   window,
-		now:      time.Now,
+		keys:    make(map[string]*list.Element),
+		order:   list.New(),
+		max:     max,
+		maxKeys: DefaultMaxKeys,
+		window:  window,
+		now:     time.Now,
 	}
 }
 
+// reserve counts an attempt for key when there is room and reports the moment
+// it was counted at; otherwise it counts nothing and reports how long until
+// there will be room. The check and the count are one step under the lock.
+func (l *LoginLimiter) reserve(key string) (at time.Time, wait time.Duration, ok bool) {
+	key = storeKey(key)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := l.now()
+	l.sweepLocked(now)
+	times := l.recentLocked(key, now)
+	if l.max <= 0 {
+		return time.Time{}, l.window, false
+	}
+	if len(times) >= l.max {
+		return time.Time{}, times[0].Add(l.window).Sub(now), false
+	}
+	l.addLocked(key, now)
+	return now, 0, true
+}
+
+// refund removes exactly one reservation made at the given moment, and forgets
+// a key left with none.
+func (l *LoginLimiter) refund(key string, at time.Time) {
+	key = storeKey(key)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	el, ok := l.keys[key]
+	if !ok {
+		return
+	}
+	k := el.Value.(*limitedKey)
+	for i := len(k.times) - 1; i >= 0; i-- {
+		if k.times[i].Equal(at) {
+			k.times = append(k.times[:i], k.times[i+1:]...)
+			break
+		}
+	}
+	if len(k.times) == 0 {
+		l.forgetLocked(el)
+	}
+}
+
+// clear forgets a key altogether.
+func (l *LoginLimiter) clear(key string) {
+	key = storeKey(key)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if el, ok := l.keys[key]; ok {
+		l.forgetLocked(el)
+	}
+}
+
+// addLocked records an attempt at now and makes key the most recently touched.
+func (l *LoginLimiter) addLocked(key string, now time.Time) {
+	if el, ok := l.keys[key]; ok {
+		k := el.Value.(*limitedKey)
+		k.times = append(k.times, now)
+		l.order.MoveToFront(el)
+	} else {
+		l.keys[key] = l.order.PushFront(&limitedKey{key: key, times: []time.Time{now}})
+	}
+	for l.order.Len() > l.maxKeys {
+		l.forgetLocked(l.order.Back())
+	}
+}
+
+func (l *LoginLimiter) forgetLocked(el *list.Element) {
+	delete(l.keys, el.Value.(*limitedKey).key)
+	l.order.Remove(el)
+}
+
+// sweepLocked forgets the keys at the back of the order whose newest attempt
+// the window has passed. It stops at the first key still in the window:
+// everything in front of it was touched later.
+func (l *LoginLimiter) sweepLocked(now time.Time) {
+	cutoff := now.Add(-l.window)
+	for el := l.order.Back(); el != nil; el = l.order.Back() {
+		k := el.Value.(*limitedKey)
+		if len(k.times) > 0 && k.times[len(k.times)-1].After(cutoff) {
+			return
+		}
+		l.forgetLocked(el)
+	}
+}
+
+// recentLocked drops the expired attempts of key and returns the remaining
+// ones; a key with none left is forgotten.
+func (l *LoginLimiter) recentLocked(key string, now time.Time) []time.Time {
+	el, ok := l.keys[key]
+	if !ok {
+		return nil
+	}
+	k := el.Value.(*limitedKey)
+	cutoff := now.Add(-l.window)
+	kept := k.times[:0]
+	for _, t := range k.times {
+		if t.After(cutoff) {
+			kept = append(kept, t)
+		}
+	}
+	k.times = kept
+	if len(kept) == 0 {
+		l.forgetLocked(el)
+		return nil
+	}
+	return kept
+}
+
 // Allowed reports whether another attempt may be made for every given key.
-// Keys with no recorded failures are always allowed.
+// Keys with no recorded failures are always allowed. It does not count.
 func (l *LoginLimiter) Allowed(keys ...string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	cutoff := l.now().Add(-l.window)
+	now := l.now()
 	for _, key := range keys {
-		if len(l.pruneLocked(key, cutoff)) >= l.max {
+		if len(l.recentLocked(storeKey(key), now)) >= l.max {
 			return false
 		}
 	}
@@ -105,33 +400,31 @@ func (l *LoginLimiter) RecordFailure(keys ...string) {
 	defer l.mu.Unlock()
 
 	now := l.now()
-	cutoff := now.Add(-l.window)
+	l.sweepLocked(now)
 	for _, key := range keys {
-		l.attempts[key] = append(l.pruneLocked(key, cutoff), now)
+		key = storeKey(key)
+		l.recentLocked(key, now)
+		l.addLocked(key, now)
 	}
 }
 
-// Reset clears the counters for the given keys, called after a successful login.
+// Reset clears the counters for the given keys.
 func (l *LoginLimiter) Reset(keys ...string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	for _, key := range keys {
-		delete(l.attempts, key)
+		l.clear(key)
 	}
 }
 
 // RetryAfter reports how long the caller must wait before the oldest recorded
-// failure for key falls out of the window. Zero when the key is not limited.
+// attempt for key falls out of the window. Zero when the key is not limited.
 func (l *LoginLimiter) RetryAfter(keys ...string) time.Duration {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	now := l.now()
-	cutoff := now.Add(-l.window)
 	var longest time.Duration
 	for _, key := range keys {
-		times := l.pruneLocked(key, cutoff)
+		times := l.recentLocked(storeKey(key), now)
 		if len(times) < l.max {
 			continue
 		}
@@ -142,32 +435,16 @@ func (l *LoginLimiter) RetryAfter(keys ...string) time.Duration {
 	return longest
 }
 
-// pruneLocked drops expired attempts for key and returns the remaining ones.
-// The caller must hold l.mu.
-func (l *LoginLimiter) pruneLocked(key string, cutoff time.Time) []time.Time {
-	times := l.attempts[key]
-	kept := times[:0]
-	for _, t := range times {
-		if t.After(cutoff) {
-			kept = append(kept, t)
-		}
-	}
-	if len(kept) == 0 {
-		delete(l.attempts, key)
-		return nil
-	}
-	l.attempts[key] = kept
-	return kept
-}
-
 // Cleanup drops all entries whose attempts have fully expired. Call periodically
-// so keys that are never retried do not accumulate.
+// so keys that are never retried do not accumulate beyond the sweep.
 func (l *LoginLimiter) Cleanup() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	cutoff := l.now().Add(-l.window)
-	for key := range l.attempts {
-		l.pruneLocked(key, cutoff)
+	now := l.now()
+	for el := l.order.Back(); el != nil; {
+		prev := el.Prev()
+		l.recentLocked(el.Value.(*limitedKey).key, now)
+		el = prev
 	}
 }
