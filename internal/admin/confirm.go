@@ -1,8 +1,11 @@
 package admin
 
 import (
+	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
-	"strings"
+	"strconv"
 
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
@@ -43,19 +46,47 @@ func (h *Handler) HandleConfirmPassword(w http.ResponseWriter, r *http.Request) 
 			return nil
 		}
 
-		ok, err := auth.VerifyPassword(strings.TrimSpace(r.FormValue("password")), person.Password)
-		if err != nil || !ok {
-			// No hint about which part was wrong, and no throttling here: this
-			// is somebody who is already signed in, and the password is the
-			// same one the login screen already protects.
-			data := confirmData{
-				LayoutData: web.NewLayoutData(r, h.sm, "Please confirm"),
-				FormState:  web.NewFormState(),
-				Back:       back,
-			}
+		// Throttled per user and per client, like the login. This is a session
+		// proving the password again, and a stolen session could otherwise guess
+		// the password here without limit. Reserved before anything is hashed.
+		client, _ := h.clientIP.ThrottleKey(r)
+		attempt, wait := h.loginThrottle.Confirm().Reserve(client, strconv.FormatInt(userID, 10))
+		if attempt == nil {
+			slog.Warn("password confirmation rate limited", "user_id", userID, "retry_after_s", int(wait.Seconds()))
+			web.RetryAfter(w, wait)
+			data := h.confirmForm(r, back)
+			data.Errors.Add("password", "Too many failed attempts. Please wait a moment.")
+			return web.RenderAdminStatus(w, h.templates, r, "confirm", data, http.StatusTooManyRequests)
+		}
+		// Every exit that does not settle the attempt gives it back: a busy
+		// gate and a server error are not guesses.
+		defer attempt.Refund()
+
+		// The submitted value exactly as it arrived. Login does not trim, so a
+		// password that ends in a space is a different password, and this check
+		// has to agree with the one that set it.
+		ok, err := auth.VerifyOwnPassword(r.FormValue("password"), person.Password)
+		if errors.Is(err, auth.ErrBusy) {
+			web.RetryAfter(w, auth.BusyRetryAfter)
+			data := h.confirmForm(r, back)
+			data.Errors.Add("password", "The server is busy checking other passwords. Please try again in a moment.")
+			return web.RenderAdminStatus(w, h.templates, r, "confirm", data, http.StatusServiceUnavailable)
+		}
+		if err != nil {
+			// A stored hash that cannot be read is the server's fault, not a
+			// wrong password: the deferred Refund gives the attempt back, as
+			// the password change does with the same throttle (code review
+			// IN-05).
+			return fmt.Errorf("verify own password: %w", err)
+		}
+		if !ok {
+			attempt.Fail()
+			// No hint about which part was wrong.
+			data := h.confirmForm(r, back)
 			data.Errors.Add("password", "That password is wrong")
 			return web.RenderFormError(w, h.templates, r, "confirm", data)
 		}
+		attempt.Succeed()
 
 		auth.MarkElevated(h.sm, r.Context())
 		web.SetFlashSuccess(h.sm, r.Context(),
@@ -70,4 +101,16 @@ func (h *Handler) HandleConfirmPassword(w http.ResponseWriter, r *http.Request) 
 		Back:       back,
 	}
 	return web.RenderAdmin(w, h.templates, r, "confirm", data)
+}
+
+// confirmForm is the confirmation form with nothing said yet. A refusal puts its
+// reason on the password field as a catalogue key, at the call site: the
+// template translates it, and the collector only finds a key written where
+// Errors.Add is called.
+func (h *Handler) confirmForm(r *http.Request, back string) confirmData {
+	return confirmData{
+		LayoutData: web.NewLayoutData(r, h.sm, "Please confirm"),
+		FormState:  web.NewFormState(),
+		Back:       back,
+	}
 }

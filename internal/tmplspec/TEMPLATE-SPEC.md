@@ -459,7 +459,7 @@ style `mark`).
 | Field | Type | Notes |
 |---|---|---|
 | `.Gate.Hint` | string | The operator's note above the field, may be empty |
-| `.Gate.Path` | string | The page being unlocked |
+| `.Gate.Path` | string | The address of the page being unlocked, with its language prefix in a further language (`/tarifs`, `/fr/tarifs`) |
 | `.Gate.Wrong` | bool | True after a failed attempt — say so, with `role="alert"` |
 
 ### `.Preview` — a page reached through a share link
@@ -820,6 +820,16 @@ field renders perfectly and submits nothing the server can use.
   <button type="submit">Weiter</button>
 </form>
 ```
+
+In `gate.html`, `{{.Page.Slug}}` is the address of the page being unlocked
+without its leading slash: `tarifs`, or `fr/tarifs` in a further language. Post
+it unchanged as `seite` — the server reads the page's language from the prefix.
+
+Changing a page's password ends every earlier unlock of that page. A visitor who
+tries too often is answered with the same `gate.html`, status 429 (too many
+attempts) or 503 (the server is busy), and `.Gate.Wrong` is false in both: nothing
+was checked, so do not say the password was wrong. A dedicated field for the
+wait is future work.
 
 **product.html** — the buy form:
 

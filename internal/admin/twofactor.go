@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
@@ -87,16 +88,47 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
-	// The same throttle as the password: six digits is a small enough space
-	// that unlimited guessing would walk through it in an afternoon.
-	ip := h.clientIP.ClientIP(r)
-	accountKey := "2fa:" + strings.ToLower(h.emailFor(r, pending))
-	if !h.loginThrottle.Allowed(ip, accountKey) {
-		web.SetFlashError(h.sm, r.Context(),
-			"Too many failed attempts. Please wait a moment.")
-		http.Redirect(w, r, auth.VerifyPath, http.StatusSeeOther)
+	// The wrong codes of this pending sign-in are counted on the server, under
+	// the nonce the password step minted, and reserved before the code is
+	// looked at: parallel requests in one session cannot each see a count
+	// below three (T-37-27). A session without a nonce was made pending by an
+	// older version; it starts again at the password.
+	nonce := h.sm.GetString(r.Context(), auth.SessionKeyPendingNonce)
+	if nonce == "" {
+		auth.EndPendingSignIn(r.Context(), h.sm)
+		if err := h.sm.RenewToken(r.Context()); err != nil {
+			return err
+		}
+		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return nil
 	}
+	pendingAttempt, _ := h.loginThrottle.PendingSignIn().Reserve("", nonce)
+	if pendingAttempt == nil {
+		return h.endPendingSignIn(w, r)
+	}
+	// Given back unless settled below, like every reservation.
+	defer pendingAttempt.Refund()
+
+	// Its own budget, low per account: six digits are a small enough space that
+	// unlimited guessing would walk through them in an afternoon, and whoever is
+	// guessing them already holds the password. Reserved before the code is
+	// looked at, so a parallel burst cannot pass the limit. Recovery codes count
+	// on the same key as the digits: they are guessed at the same place.
+	//
+	// The account is the pending id, which the session already holds: no
+	// lookup that could fail and leave the account's budget out, and no key
+	// that a changed e-mail address would start afresh (code review WR-03).
+	client, _ := h.clientIP.ThrottleKey(r)
+	attempt, _ := h.loginThrottle.SecondFactor().Reserve(client, strconv.FormatInt(pending, 10))
+	if attempt == nil {
+		web.SetFlashError(h.sm, r.Context(),
+			"Too many failed attempts. Please wait a moment.")
+		http.Redirect(w, r, verifyPathFor(recovery), http.StatusSeeOther)
+		return nil
+	}
+	// A reservation that is not settled (a database error, a cancelled request)
+	// is given back: it was not a guess.
+	defer attempt.Refund()
 
 	submitted := strings.TrimSpace(r.FormValue("code"))
 	var err error
@@ -109,13 +141,23 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 		if !errors.Is(err, user.ErrBadCode) && !errors.Is(err, user.ErrNoSecondFactor) {
 			return err
 		}
-		h.loginThrottle.RecordFailure(ip, accountKey)
+		attempt.Fail()
+		pendingAttempt.Fail()
+		// The count was taken when this code was reserved, so the code that
+		// fills it ends the sign-in, and so does every one sent beside it.
+		if h.loginThrottle.PendingSignIn().RetryAfter("", nonce) > 0 {
+			return h.endPendingSignIn(w, r)
+		}
 		web.SetFlashError(h.sm, r.Context(), "That code is not right.")
 		http.Redirect(w, r, verifyPathFor(recovery), http.StatusSeeOther)
 		return nil
 	}
 
-	h.loginThrottle.Reset(ip, accountKey)
+	// This pending sign-in is over; its count goes with it.
+	pendingAttempt.Succeed()
+	// The account's key is cleared and this attempt's own client reservation is
+	// given back; the client's earlier failures stand.
+	attempt.Succeed()
 
 	role, email, err := h.roleAndEmail(r, pending)
 	if err != nil {
@@ -135,6 +177,19 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 			"Recovery code used up. Check under “My account” how many are left.")
 	}
 	http.Redirect(w, r, auth.PopReturn(h.sm, r.Context()), http.StatusSeeOther)
+	return nil
+}
+
+// endPendingSignIn sends a pending sign-in with too many wrong codes back to
+// the password. The token is renewed so the session that carried the pending
+// id is not the one that goes on.
+func (h *Handler) endPendingSignIn(w http.ResponseWriter, r *http.Request) error {
+	auth.EndPendingSignIn(r.Context(), h.sm)
+	if err := h.sm.RenewToken(r.Context()); err != nil {
+		return err
+	}
+	web.SetFlashError(h.sm, r.Context(), "Too many wrong codes. Please sign in again.")
+	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 	return nil
 }
 
@@ -363,15 +418,6 @@ func (h *Handler) roleAndEmail(r *http.Request, userID int64) (role, email strin
 		return "", "", nil
 	}
 	return role, email, err
-}
-
-// emailFor is roleAndEmail when only the address is wanted.
-func (h *Handler) emailFor(r *http.Request, userID int64) string {
-	_, email, err := h.roleAndEmail(r, userID)
-	if err != nil {
-		return ""
-	}
-	return email
 }
 
 // issuerName is what the authenticator app lists the account under.

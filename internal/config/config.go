@@ -58,6 +58,10 @@ type Config struct {
 	Argon2Memory      uint32 // HOLZCLOUD_ARGON2_MEMORY — KB, default 65536 (64MB)
 	Argon2Iterations  uint32 // HOLZCLOUD_ARGON2_ITERATIONS — default 1
 	Argon2Parallelism uint8  // HOLZCLOUD_ARGON2_PARALLELISM — default 2
+	// Argon2Concurrency is HOLZCLOUD_ARGON2_CONCURRENCY: how many password
+	// checks may derive a key at once, default 2. Each uses
+	// HOLZCLOUD_ARGON2_MEMORY, so the peak is the product.
+	Argon2Concurrency int
 
 	// TrustedProxies are the peer addresses whose X-Forwarded-For header may be
 	// believed. HOLZCLOUD_TRUSTED_PROXIES, comma-separated CIDR list.
@@ -352,6 +356,13 @@ func Load() (Config, error) {
 	if cfg.Argon2Parallelism == 0 {
 		errs = append(errs, errors.New("HOLZCLOUD_ARGON2_PARALLELISM must be at least 1"))
 	}
+
+	concurrency := envUint32("HOLZCLOUD_ARGON2_CONCURRENCY", 2, &errs)
+	if concurrency < 1 || concurrency > 64 {
+		errs = append(errs, fmt.Errorf("HOLZCLOUD_ARGON2_CONCURRENCY: %d is outside 1 to 64", concurrency))
+		concurrency = 2
+	}
+	cfg.Argon2Concurrency = int(concurrency)
 
 	cfg.TrustedProxies, err = parsePrefixes(getEnv("HOLZCLOUD_TRUSTED_PROXIES", defaultTrustedProxies))
 	if err != nil {
@@ -649,6 +660,7 @@ func (c Config) LogValue() slog.Value {
 		slog.Uint64("argon2_memory_kb", uint64(c.Argon2Memory)),
 		slog.Uint64("argon2_iterations", uint64(c.Argon2Iterations)),
 		slog.Uint64("argon2_parallelism", uint64(c.Argon2Parallelism)),
+		slog.Int("argon2_concurrency", c.Argon2Concurrency),
 		slog.Uint64("min_free_bytes", c.MinFreeBytes),
 		// The instance name is not a secret; the key is, and is never logged —
 		// not even truncated. A log file goes to places a key must not.

@@ -86,3 +86,18 @@ func TestPasswordInvalidHash(t *testing.T) {
 		t.Error("VerifyPassword should return error for invalid hash format")
 	}
 }
+
+func TestHashMemoryKiBReadsTheStoredCost(t *testing.T) {
+	hash, err := HashPassword("geheim-geheim", Argon2Params{Memory: 8, Iterations: 1, Parallelism: 1, SaltLength: 16, KeyLength: 32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := HashMemoryKiB(hash); !ok || got != 8 {
+		t.Errorf("HashMemoryKiB = %d, %v; want 8, true", got, ok)
+	}
+	for _, bad := range []string{"", "plain", "$bcrypt$x$y$z$w", "$argon2id$v=19$m=x,t=1,p=1$AAAA$AAAA"} {
+		if _, ok := HashMemoryKiB(bad); ok {
+			t.Errorf("HashMemoryKiB(%q) reported ok", bad)
+		}
+	}
+}

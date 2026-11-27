@@ -3,6 +3,8 @@ package user
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -331,5 +333,51 @@ func TestBeginTwoFactorReplacesThePendingSecret(t *testing.T) {
 	old, _ := totp.Code(first, time.Now())
 	if _, err := s.ConfirmTwoFactor(ctx, id, old); !errors.Is(err, ErrBadCode) {
 		t.Errorf("the discarded enrolment still confirms: %v", err)
+	}
+}
+
+// Two requests can both read the old step before either writes it, so the
+// read in VerifyCode cannot be what keeps a code single-use: the UPDATE has to
+// be the check, and only the request whose UPDATE changed the row may succeed.
+func TestTheSameCodeCannotBeUsedTwiceInParallel(t *testing.T) {
+	s, _ := newTestUserStore(t)
+	ctx := context.Background()
+	id := seedUser(t, s, "admin@example.de", RoleAdmin)
+	secret, _ := enrol(t, s, id)
+
+	const submitters = 16
+	for i := 2; i < 22; i++ {
+		at := time.Now().Add(time.Duration(i) * totp.Period)
+		advance(s, time.Duration(i)*totp.Period)
+		code, err := totp.Code(secret, at)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var start, done sync.WaitGroup
+		start.Add(1)
+		var accepted, refused atomic.Int32
+		for range submitters {
+			done.Add(1)
+			go func() {
+				defer done.Done()
+				start.Wait()
+				switch err := s.VerifyCode(ctx, id, code); {
+				case err == nil:
+					accepted.Add(1)
+				case errors.Is(err, ErrBadCode):
+					refused.Add(1)
+				default:
+					t.Errorf("step %d: unexpected error: %v", i, err)
+				}
+			}()
+		}
+		start.Done()
+		done.Wait()
+
+		if accepted.Load() != 1 || refused.Load() != submitters-1 {
+			t.Fatalf("step %d: %d accepted and %d refused, want exactly one accepted of %d submitting the same code",
+				i, accepted.Load(), refused.Load(), submitters)
+		}
 	}
 }

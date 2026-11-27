@@ -2,6 +2,7 @@ package page
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -39,7 +40,55 @@ type AccessUpdate struct {
 // password: a page password is typed by a person, so it is guessable, and the
 // only thing standing between a copied database file and every protected page
 // is the work factor.
+//
+// It is PrepareAccess followed by ApplyAccess. A caller that saves a page and
+// its protection together calls the two halves itself, on either side of
+// storing the page.
 func (s *Store) SetAccess(ctx context.Context, id int64, u AccessUpdate, params auth.Argon2Params) error {
+	prepared, err := PrepareAccess(u, params)
+	if err != nil {
+		return err
+	}
+	return s.ApplyAccess(ctx, id, prepared)
+}
+
+// PreparedAccess is an AccessUpdate whose new password, if it brings one, is
+// already hashed, so storing it can no longer be refused by the Argon2 gate.
+// Only PrepareAccess makes one; the zero value switches protection off, as the
+// zero AccessUpdate does.
+type PreparedAccess struct {
+	update AccessUpdate
+	hash   string
+}
+
+// PrepareAccess is the half of SetAccess that can be refused: it checks the
+// length of a new password and hashes it.
+//
+// It writes nothing. The editor calls it BEFORE the page itself is stored,
+// because hashing can find every slot of the Argon2 gate taken (auth.ErrBusy).
+// Done after, as it was, a busy gate left a page that was meant to be
+// protected stored, and published if that was asked for, without its password
+// (code review WR-01). Done before, a busy gate refuses the whole save and
+// nothing is stored.
+func PrepareAccess(u AccessUpdate, params auth.Argon2Params) (PreparedAccess, error) {
+	prepared := PreparedAccess{update: u}
+	if !u.Protected || u.Password == "" {
+		return prepared, nil
+	}
+	if len(u.Password) < MinPagePasswordLength {
+		return PreparedAccess{}, ErrPagePasswordTooShort
+	}
+	hash, err := auth.HashPassword(u.Password, params)
+	if err != nil {
+		return PreparedAccess{}, fmt.Errorf("hash page password: %w", err)
+	}
+	prepared.hash = hash
+	return prepared, nil
+}
+
+// ApplyAccess stores a page's protection as PrepareAccess prepared it.
+func (s *Store) ApplyAccess(ctx context.Context, id int64, prepared PreparedAccess) error {
+	u := prepared.update
 	if !u.Protected {
 		// Switching it off clears the hash rather than leaving it behind: a
 		// password that no longer guards anything is a secret with no purpose
@@ -52,8 +101,8 @@ func (s *Store) SetAccess(ctx context.Context, id int64, u AccessUpdate, params 
 		return nil
 	}
 
-	if u.Password == "" {
-		// Keep the existing hash and update only the hint.
+	if prepared.hash == "" {
+		// No new password: keep the existing hash and update only the hint.
 		res, err := s.DB.Write.ExecContext(ctx,
 			`UPDATE pages SET access = 'password', access_hint = $1
 			 WHERE id = $2 AND access_password <> ''`, u.Hint, id)
@@ -66,16 +115,9 @@ func (s *Store) SetAccess(ctx context.Context, id int64, u AccessUpdate, params 
 		return nil
 	}
 
-	if len(u.Password) < MinPagePasswordLength {
-		return ErrPagePasswordTooShort
-	}
-	hash, err := auth.HashPassword(u.Password, params)
-	if err != nil {
-		return fmt.Errorf("hash page password: %w", err)
-	}
 	if _, err := s.DB.Write.ExecContext(ctx,
 		`UPDATE pages SET access = 'password', access_password = $1, access_hint = $2 WHERE id = $3`,
-		hash, u.Hint, id); err != nil {
+		prepared.hash, u.Hint, id); err != nil {
 		return fmt.Errorf("set page access: %w", err)
 	}
 	return nil
@@ -95,12 +137,22 @@ var ErrNoPagePassword = fmt.Errorf("this page has no password yet")
 var ErrPagePasswordTooShort = fmt.Errorf("a page password needs at least %d characters", MinPagePasswordLength)
 
 // CheckPagePassword reports whether a submitted password opens a page.
-func CheckPagePassword(p *Page, submitted string) bool {
+//
+// The error is only ever auth.ErrBusy: every Argon2 derivation waits for a slot
+// and a server that has none free says so instead of guessing. A busy check is
+// not a wrong password, so it is neither a "false, nil" nor counted against
+// anyone; the caller answers "try again". Every other failure to verify (a
+// stored hash that cannot be read) stays what it always was: this password
+// does not open the page.
+func CheckPagePassword(p *Page, submitted string) (bool, error) {
 	if p == nil || !p.Protected() {
-		return false
+		return false, nil
 	}
 	match, err := auth.VerifyPassword(submitted, p.AccessPassword)
-	return err == nil && match
+	if errors.Is(err, auth.ErrBusy) {
+		return false, err
+	}
+	return err == nil && match, nil
 }
 
 // HasProtected reports whether a website has at least one live page behind a

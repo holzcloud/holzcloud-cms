@@ -471,3 +471,51 @@ func TestConfigLogValueCarriesTheSSOBlockButNotTheSecret(t *testing.T) {
 		t.Errorf("a prefix of the shared secret is in the startup log: %s", rendered)
 	}
 }
+
+// --- Argon2 concurrency -------------------------------------------------------
+
+func TestArgon2ConcurrencyDefaultsToTwo(t *testing.T) {
+	t.Setenv("HOLZCLOUD_DATA_DIR", t.TempDir())
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Argon2Concurrency != 2 {
+		t.Errorf("Argon2Concurrency = %d, want 2", cfg.Argon2Concurrency)
+	}
+	if rendered := slog.AnyValue(cfg).Resolve().String(); !strings.Contains(rendered, "argon2_concurrency") {
+		t.Errorf("startup log is missing argon2_concurrency: %s", rendered)
+	}
+}
+
+func TestArgon2ConcurrencyIsRefusedOutsideItsRange(t *testing.T) {
+	for _, bad := range []string{"0", "65", "zwei"} {
+		t.Run(bad, func(t *testing.T) {
+			t.Setenv("HOLZCLOUD_DATA_DIR", t.TempDir())
+			t.Setenv("HOLZCLOUD_ARGON2_CONCURRENCY", bad)
+			// A second bad value: the refusals are collected, not first-come.
+			t.Setenv("HOLZCLOUD_ARGON2_ITERATIONS", "0")
+
+			_, err := config.Load()
+			if err == nil {
+				t.Fatalf("HOLZCLOUD_ARGON2_CONCURRENCY=%q was accepted", bad)
+			}
+			for _, want := range []string{"HOLZCLOUD_ARGON2_CONCURRENCY", "HOLZCLOUD_ARGON2_ITERATIONS"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error should name %s: %v", want, err)
+				}
+			}
+		})
+	}
+	for good, want := range map[string]int{"1": 1, "64": 64} {
+		t.Setenv("HOLZCLOUD_DATA_DIR", t.TempDir())
+		t.Setenv("HOLZCLOUD_ARGON2_CONCURRENCY", good)
+		cfg, err := config.Load()
+		if err != nil {
+			t.Fatalf("HOLZCLOUD_ARGON2_CONCURRENCY=%s refused: %v", good, err)
+		}
+		if cfg.Argon2Concurrency != want {
+			t.Errorf("Argon2Concurrency = %d, want %d", cfg.Argon2Concurrency, want)
+		}
+	}
+}

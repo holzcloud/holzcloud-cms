@@ -84,6 +84,24 @@ func withPageLang(ctx context.Context, tag string) context.Context {
 	return i18n.WithLang(ctx, tag)
 }
 
+// withPageLocale puts a page's own language into ctx, the way LocaleMiddleware
+// does for an address under that language's prefix: "" for the main language,
+// the tag for a further one.
+//
+// For a handler whose address carries no prefix although the page it answers
+// for has one. /freischalten is the case: the gate posts there from every
+// language, so the request arrives in the main language, and every answer that
+// draws the gate again (a wrong password, a full throttle, a busy server) would
+// otherwise come out with the main language's words, menus and lang attribute
+// in front of a French page.
+func withPageLocale(ctx context.Context, website *domain.Website, tag string) context.Context {
+	ctx = context.WithValue(ctx, localeKey{}, tag)
+	if tag == "" {
+		return withPageLang(ctx, website.Locale)
+	}
+	return withPageLang(ctx, tag)
+}
+
 // pageWords translates a word this program mints into the language of the page
 // being served.
 //

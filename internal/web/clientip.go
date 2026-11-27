@@ -1,9 +1,11 @@
 package web
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
+	"sync"
 )
 
 // ClientIPResolver turns a request into the address rate limiting keys on.
@@ -15,6 +17,10 @@ import (
 // lets any client rotate its bucket per request and defeats the limit outright.
 type ClientIPResolver struct {
 	trusted []netip.Prefix
+
+	// untrustedPeerNoted makes the log line about a proxy this resolver does
+	// not trust appear once, not once per request.
+	untrustedPeerNoted sync.Once
 }
 
 // NewClientIPResolver builds a resolver trusting the given proxy prefixes.
@@ -147,4 +153,58 @@ func ThrottleKey(ip string) string {
 		return addr.String()
 	}
 	return netip.PrefixFrom(addr, 64).Masked().String()
+}
+
+// ThrottleKey is the key the request is counted under, and whether the client
+// address it was made from names a visitor at all.
+//
+// A nil resolver uses the peer address. public is false for loopback, private,
+// unspecified and link-local addresses and for anything that does not parse:
+// those are what a reverse proxy looks like when HOLZCLOUD_TRUSTED_PROXIES does
+// not name it, and a throttle on them would be one budget for every visitor.
+// The public page gate skips its client axis then (it keeps the page's own
+// budget); the admin throttles key them anyway, because an operator on
+// loopback or a LAN must still be throttled.
+//
+// It logs once per resolver when the peer itself is a private, loopback or
+// link-local address that the trusted proxies do not cover.
+func (r *ClientIPResolver) ThrottleKey(req *http.Request) (key string, public bool) {
+	ip := hostOnly(req.RemoteAddr)
+	if r != nil {
+		r.noteUntrustedPeer(ip)
+		ip = r.ClientIP(req)
+	}
+	return ThrottleKey(ip), isPublicAddress(ip)
+}
+
+// noteUntrustedPeer says once, in the log, that visitors are arriving as one
+// address because the proxy in front of this program is not trusted.
+func (r *ClientIPResolver) noteUntrustedPeer(peer string) {
+	addr, err := netip.ParseAddr(peer)
+	if err != nil {
+		return
+	}
+	addr = addr.Unmap().WithZone("")
+	// Link-local too: a proxy on the same link (fe80::/10, 169.254.0.0/16)
+	// hides its visitors exactly as a private one does. Trust is asked of the
+	// address without its zone, which a configured prefix never carries.
+	if !(addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast()) || r.isTrusted(addr.String()) {
+		return
+	}
+	r.untrustedPeerNoted.Do(func() {
+		slog.Warn("requests arrive from a private, loopback or link-local address that HOLZCLOUD_TRUSTED_PROXIES does not cover; "+
+			"every visitor then shares this one address and one throttle budget. If a reverse proxy is in front, add it to HOLZCLOUD_TRUSTED_PROXIES",
+			"peer", peer)
+	})
+}
+
+// isPublicAddress reports whether ip is an address a visitor can have: not
+// loopback, private, unspecified or link-local, and readable at all.
+func isPublicAddress(ip string) bool {
+	addr, err := netip.ParseAddr(hostOnly(ip))
+	if err != nil {
+		return false
+	}
+	addr = addr.Unmap().WithZone("")
+	return !(addr.IsLoopback() || addr.IsPrivate() || addr.IsUnspecified() || addr.IsLinkLocalUnicast())
 }

@@ -38,8 +38,12 @@ func testFS() fstest.MapFS {
 		// The password form in front of a protected page. Shipped themes carry
 		// one; without it here a protected page cannot be asked for at all, and
 		// the rule about what a shared cache may keep could not be tested.
+		// It prints the language it is drawn in, which is what decides the
+		// theme's own words, so a test can see which one that was.
 		"gate.html": &fstest.MapFile{Data: []byte(
-			`{{define "content"}}<form class="gate" method="POST" action="{{.Gate.Path}}">` +
+			`{{define "content"}}<p class="gate-lang">{{.Site.Locale}}</p>{{if .Gate.Wrong}}<p class="gate-error" role="alert">falsches Passwort</p>{{end}}` +
+				`<form class="gate" method="POST" action="/freischalten">` +
+				`<input type="hidden" name="seite" value="{{.Page.Slug}}">` +
 				`<p>{{.Gate.Hint}}</p><input type="password" name="passwort"></form>{{end}}`)},
 		"search.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<section class="suche">{{range .Search.Results}}` +

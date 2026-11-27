@@ -172,9 +172,10 @@ while the volume you mounted for data stays empty.
 | `HOLZCLOUD_MAX_TEMPLATE_SIZE` | `10485760` | Max template archive size in bytes |
 | `HOLZCLOUD_MAX_MEDIA_SIZE` | `5242880` | Max media file size in bytes |
 | `HOLZCLOUD_MAX_MEGAPIXELS` | `24` | Pixel budget for the variant pipeline; a byte limit is not a pixel limit |
-| `HOLZCLOUD_ARGON2_MEMORY` | `65536` | Argon2id memory cost in KB |
+| `HOLZCLOUD_ARGON2_MEMORY` | `65536` | Argon2id memory cost in KB. Changing it, or `HOLZCLOUD_ARGON2_ITERATIONS`, leaves every stored password at its old cost until that password is changed; until then a wrong password for an existing address takes a different time than one for an unknown address, which tells the two apart |
 | `HOLZCLOUD_ARGON2_ITERATIONS` | `1` | Argon2id time cost |
 | `HOLZCLOUD_ARGON2_PARALLELISM` | `2` | Argon2id parallelism |
+| `HOLZCLOUD_ARGON2_CONCURRENCY` | `2` | How many password checks may run at once (1 to 64); the peak memory is this times `HOLZCLOUD_ARGON2_MEMORY`. A check finding every slot busy waits up to 1.5 s (a signed-in person's own action up to 10 s), then is answered "busy, try again" and never counted as a wrong password. The start-up log line `password checks bounded` states the peak, including older hashes made with a larger memory setting |
 
 An invalid value is no longer silently replaced by the default: the process
 reports every bad setting at once and refuses to start. The effective
@@ -1038,7 +1039,30 @@ sudo journalctl -u holzcloud --since today # Today's logs
 ### Locked out of the admin interface
 
 The login throttle is per client address; ten failures from one address block it
-for 15 minutes. There is no reset link and `/admin/setup` returns 404 once a user
+for 15 minutes (an IPv6 address counts by its /64). The other password checks
+have their own limits, all within 15 minutes and all held in memory:
+
+| Check | Limit |
+|-------|-------|
+| Sign-in | 10 failures per client address, 100 per account |
+| Second step (code or recovery code) | 10 per client address, 5 per account; a sign-in ends after 3 wrong codes, also sent in parallel, and the password has to be typed again (which costs no attempt: the 5 per account are the bound) |
+| Confirmation ("please confirm") and the "current password" field of a password change | 10 per client address, 5 per user |
+| Password of a protected page | 10 per visitor and page, 100 per page |
+
+The second step locks an account for 15 minutes after five wrong codes, and the
+confirmation step a user after five wrong passwords: whoever knows an account's
+password can use that to keep its owner out of the second step for a quarter of
+an hour. That is accepted, not prevented (T-37-13); restarting the service is the
+way back in at once.
+
+Each of these limits remembers at most 10,000 client addresses or accounts. One
+that is still counting is never forgotten to make room, because a flood of
+invented addresses would otherwise give an account under attack a fresh budget.
+So in the unlikely case that all 10,000 are still counting, a new address or
+account is refused with the same "too many attempts" answer until the oldest
+leaves its 15 minutes. Restarting the service clears that too.
+
+There is no reset link and `/admin/setup` returns 404 once a user
 exists, so recovery goes through the binary:
 
 ```bash
@@ -1052,7 +1076,31 @@ echo -n 'a new password' | sudo -u holzcloud HOLZCLOUD_DATA_DIR=/opt/holzcloud/d
 The password is read from stdin so it never reaches the shell history. If no
 admin account exists at all, create one with `holzcloud user create -email … -role admin`.
 
-Restarting the service clears the throttle, since it is held in memory.
+Restarting the service clears every throttle at once, since they are held in
+memory. That is the break-glass for all the cases in this section.
+
+**"Busy" answers (503 with `Retry-After`).** The sign-in, the confirmation and the
+form of a protected page answer "the server is busy checking other passwords" when
+every password check is in use (`HOLZCLOUD_ARGON2_CONCURRENCY` of them run at
+once, two by default, each taking `HOLZCLOUD_ARGON2_MEMORY`). While the pool is
+saturated nobody can sign in, the owner included. Nothing is counted against
+anybody in that case, so trying again a moment later costs no attempt. A signed-in
+administrator's own actions (setting a password, confirming their own) wait up to
+10 seconds instead of 1.5 and get through a flood. Raise
+`HOLZCLOUD_ARGON2_CONCURRENCY` only with the memory for it (the start-up line
+`password checks bounded` states the peak in MB), and stop a sustained flood at the
+proxy, not here.
+
+**The journal line naming `HOLZCLOUD_TRUSTED_PROXIES`.** It means requests arrive
+from a private, loopback or link-local address that `HOLZCLOUD_TRUSTED_PROXIES` does not cover,
+that is, the proxy in front of the service is not trusted and every visitor
+arrives as that one address. The admin's throttles (sign-in, second step,
+confirmation) then count everybody together: ten wrong sign-ins from anyone close
+the sign-in for everyone for 15 minutes. The gate of a protected page has no
+budget per visitor in that case and meets only the page's 100 per 15 minutes, so
+one stranger closes it for everyone after 100 wrong attempts. This is accepted,
+not prevented (T-37-06, T-37-18). The fix is to list the proxy in
+`HOLZCLOUD_TRUSTED_PROXIES`; the line appears once per start.
 
 ### Restore from a backup
 

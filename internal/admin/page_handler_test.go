@@ -14,6 +14,7 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/alexedwards/scs/v2/memstore"
+	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/config"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/db/dbtest"
@@ -28,6 +29,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/term"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
 	"github.com/holzcloud/holzcloud-cms/internal/value"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 	"github.com/holzcloud/holzcloud-cms/internal/wording"
 )
 
@@ -76,7 +78,9 @@ func newTestAdmin(t *testing.T) (*Handler, *scs.SessionManager, *db.DB, *domain.
 		term.NewStore(database),
 		sharelink.New([]byte("test")),
 		loader,
-		cfg, nil, nil)
+		// The brakes a password check goes through, as main.go builds them: a
+		// handler without them cannot answer a wrong password at all.
+		cfg, auth.NewLoginThrottle(10, 100, 15*time.Minute), web.NewClientIPResolver(nil))
 	h.SetWording(wordingStore)
 	// The real wiring, as main.go has it, so a test of the values screen or a
 	// preview that resolves values does not meet a nil store.

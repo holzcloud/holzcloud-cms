@@ -31,13 +31,39 @@ var DefaultParams = Argon2Params{
 	KeyLength:   32,
 }
 
-// HashPassword returns a PHC-format Argon2id hash string.
+// argon2Key is the key-derivation function, a variable so a test can count and
+// hold derivations. derive is the only place it is called.
+var argon2Key = argon2.IDKey
+
+// derive runs one Argon2id derivation inside the gate. privileged picks the
+// longer wait: hashing a new password and a signed-in person re-entering their
+// own are privileged, a stranger's check is anonymous. It returns ErrBusy,
+// unwrapped, when the gate stayed full; no key is derived then.
+func derive(privileged bool, password string, salt []byte, p Argon2Params) ([]byte, error) {
+	g := argon2Gate.Load()
+	wait := g.anonymous
+	if privileged {
+		wait = g.privilege
+	}
+	release, err := g.Acquire(wait)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	return argon2Key([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength), nil
+}
+
+// HashPassword returns a PHC-format Argon2id hash string. It is a privileged
+// derivation: a new password is only ever set by somebody entitled to set it.
 func HashPassword(password string, p Argon2Params) (string, error) {
 	salt := make([]byte, p.SaltLength)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("generate salt: %w", err)
 	}
-	hash := argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
+	hash, err := derive(true, password, salt, p)
+	if err != nil {
+		return "", err
+	}
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version, p.Memory, p.Iterations, p.Parallelism,
 		base64.RawStdEncoding.EncodeToString(salt),
@@ -65,7 +91,10 @@ var dummySalt = []byte("holzcloud-dummy!")
 // refuses zero iterations and zero parallelism, collecting all three as errors
 // rather than quietly defaulting. This is for every other caller — a partially
 // filled struct is easy to write and the compiler has nothing to say about it.
-func VerifyDummyPassword(password string, p Argon2Params) {
+//
+// It returns nil, or ErrBusy when the gate refused: the caller then answers
+// "busy" exactly as for a known address.
+func VerifyDummyPassword(password string, p Argon2Params) error {
 	if p.KeyLength == 0 {
 		p.KeyLength = DefaultParams.KeyLength
 	}
@@ -78,48 +107,84 @@ func VerifyDummyPassword(password string, p Argon2Params) {
 	if p.Parallelism == 0 {
 		p.Parallelism = DefaultParams.Parallelism
 	}
-	hash := argon2.IDKey([]byte(password), dummySalt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
+	hash, err := derive(false, password, dummySalt, p)
+	if err != nil {
+		return err
+	}
 	// Compare against itself so the compiler cannot elide the derivation.
 	_ = subtle.ConstantTimeCompare(hash, hash)
+	return nil
 }
 
 // MinPasswordLength is the minimum accepted password length, enforced anywhere
 // a password is set: initial setup, user creation and password change.
 const MinPasswordLength = 8
 
-// VerifyPassword checks a password against a PHC-format Argon2id hash.
-// Parameters are parsed from the hash so old hashes remain verifiable after param changes.
+// VerifyPassword checks a password against a PHC-format Argon2id hash, as an
+// anonymous caller: it waits briefly for a slot and returns ErrBusy when none
+// is free. Parameters are parsed from the hash so old hashes remain verifiable
+// after param changes.
 func VerifyPassword(password, encoded string) (bool, error) {
-	// PHC format: $argon2id$v=19$m=65536,t=1,p=2$salt$hash
+	return verify(false, password, encoded)
+}
+
+// VerifyOwnPassword is VerifyPassword for a signed-in person re-entering their
+// own password (a confirmation, a password change). It waits as long as a
+// privileged action does. The password is compared exactly as typed.
+func VerifyOwnPassword(password, encoded string) (bool, error) {
+	return verify(true, password, encoded)
+}
+
+func verify(privileged bool, password, encoded string) (bool, error) {
+	p, salt, expectedHash, err := parseHash(encoded)
+	if err != nil {
+		return false, err
+	}
+	hash, err := derive(privileged, password, salt, p)
+	if err != nil {
+		return false, err
+	}
+	return subtle.ConstantTimeCompare(hash, expectedHash) == 1, nil
+}
+
+// HashMemoryKiB reports the memory cost, in KiB, a stored hash will use when it
+// is verified, and false when the string is not an Argon2id hash. The gate
+// counts a derivation as one slot whatever this is; the start-up sizing line
+// uses it to report the real peak.
+func HashMemoryKiB(encoded string) (uint32, bool) {
+	p, _, _, err := parseHash(encoded)
+	if err != nil {
+		return 0, false
+	}
+	return p.Memory, true
+}
+
+// parseHash reads a PHC-format Argon2id string:
+// $argon2id$v=19$m=65536,t=1,p=2$salt$hash
+func parseHash(encoded string) (p Argon2Params, salt, expectedHash []byte, err error) {
 	parts := strings.Split(encoded, "$")
 	if len(parts) != 6 {
-		return false, fmt.Errorf("invalid hash format: expected 6 parts, got %d", len(parts))
+		return p, nil, nil, fmt.Errorf("invalid hash format: expected 6 parts, got %d", len(parts))
 	}
 	if parts[1] != "argon2id" {
-		return false, fmt.Errorf("invalid hash format: unsupported algorithm %q", parts[1])
+		return p, nil, nil, fmt.Errorf("invalid hash format: unsupported algorithm %q", parts[1])
 	}
 
 	var version int
 	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil {
-		return false, fmt.Errorf("invalid hash format: %w", err)
+		return p, nil, nil, fmt.Errorf("invalid hash format: %w", err)
 	}
-
-	var p Argon2Params
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &p.Memory, &p.Iterations, &p.Parallelism); err != nil {
-		return false, fmt.Errorf("invalid hash format: %w", err)
+		return p, nil, nil, fmt.Errorf("invalid hash format: %w", err)
 	}
-
-	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
+	salt, err = base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
-		return false, fmt.Errorf("invalid hash format: decode salt: %w", err)
+		return p, nil, nil, fmt.Errorf("invalid hash format: decode salt: %w", err)
 	}
-
-	expectedHash, err := base64.RawStdEncoding.DecodeString(parts[5])
+	expectedHash, err = base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
-		return false, fmt.Errorf("invalid hash format: decode hash: %w", err)
+		return p, nil, nil, fmt.Errorf("invalid hash format: decode hash: %w", err)
 	}
 	p.KeyLength = uint32(len(expectedHash))
-
-	hash := argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
-	return subtle.ConstantTimeCompare(hash, expectedHash) == 1, nil
+	return p, salt, expectedHash, nil
 }

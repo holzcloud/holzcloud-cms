@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"embed"
 	"errors"
 	"fmt"
@@ -292,6 +293,12 @@ func main() {
 		SaltLength:  16,
 		KeyLength:   32,
 	}
+	// Every Argon2 derivation runs in one bounded gate (PWD-01). The default
+	// gate already holds two slots; this installs the configured size, and the
+	// log line says what the peak memory then is, older stored hashes included.
+	auth.SetArgon2Gate(auth.NewGate(cfg.Argon2Concurrency, auth.AnonymousWait, auth.PrivilegedWait))
+	logPasswordChecksBounded(context.Background(), database.Read, cfg.Argon2Concurrency, cfg.Argon2Memory)
+
 	// Login throttling per 15 minutes: 10 failures from one client address, and
 	// 100 against one account. The account limit is deliberately loose — a strict
 	// one would let anyone lock out a known admin address on demand.
@@ -1873,4 +1880,54 @@ func pluginLocales(ws *domain.Website) []plugin.Locale {
 		out = append(out, plugin.Locale{Tag: tag, Name: locale.Native(tag)})
 	}
 	return out
+}
+
+// largestStoredArgon2Memory is the largest m= (KiB) of the password hashes in
+// the database: the accounts' and the pages'. A hash made under an older, larger
+// HOLZCLOUD_ARGON2_MEMORY costs its own memory to check, whatever is configured
+// now.
+func largestStoredArgon2Memory(ctx context.Context, q interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}) (uint32, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT password FROM users WHERE password != ''
+		UNION ALL
+		SELECT access_password FROM pages WHERE access_password != ''`)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	var largest uint32
+	for rows.Next() {
+		var encoded string
+		if err := rows.Scan(&encoded); err != nil {
+			return 0, err
+		}
+		if m, ok := auth.HashMemoryKiB(encoded); ok && m > largest {
+			largest = m
+		}
+	}
+	return largest, rows.Err()
+}
+
+// logPasswordChecksBounded writes the one start-up line that sizes the gate:
+// slots, configured memory, the largest stored memory and the worst case, which
+// is the slots times the larger of the two. It warns when stored hashes cost
+// more than the configured memory. A read error is logged and stops nothing.
+func logPasswordChecksBounded(ctx context.Context, q interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, slots int, memoryKiB uint32) {
+	stored, err := largestStoredArgon2Memory(ctx, q)
+	if err != nil {
+		slog.Error("password checks bounded: cannot read stored hashes", "err", err)
+		stored = 0
+	}
+	worst := max(memoryKiB, stored)
+	peakMB := (uint64(slots)*uint64(worst) + 1023) / 1024
+	attrs := []any{"slots", slots, "memory_kb", memoryKiB, "largest_stored_kb", stored, "peak_mb", peakMB}
+	if stored > memoryKiB {
+		slog.Warn("password checks bounded; checks against older hashes cost their own, larger memory until those passwords are changed", attrs...)
+		return
+	}
+	slog.Info("password checks bounded", attrs...)
 }
