@@ -18,6 +18,18 @@ import (
 // notice. Here the session simply has no user until the second factor is done.
 const SessionKeyPendingUserID = "pending_user_id"
 
+// SessionKeyPendingFailures counts the wrong codes of the pending sign-in in
+// this session. It goes away with the pending id, whichever way that ends.
+const SessionKeyPendingFailures = "pending_failures"
+
+// PendingSecondFactorFailures is how many wrong codes end a pending sign-in:
+// the visitor is sent back to the password. Per pending sign-in it is low on
+// purpose, so a phished password buys three guesses before the password has to
+// be typed again, and typing it costs a login attempt. Per account the budget is
+// SecondFactorAccountMax in a window, which a visitor who starts over cannot
+// get around.
+const PendingSecondFactorFailures = 3
+
 // SetupPath is where an account that must set up two-factor is sent.
 const SetupPath = "/admin/2fa/einrichten"
 

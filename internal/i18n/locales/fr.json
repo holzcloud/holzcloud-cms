@@ -2073,6 +2073,7 @@
 "Too many failed attempts. Please wait a moment.": "Trop de tentatives échouées. Veuillez patienter un instant.",
 "Too many failed attempts. Try again in %d minutes.": "Trop de tentatives échouées. Réessayez dans %d minutes.",
 "Too many requests at the moment. Please try again in an hour.": "Trop de demandes en ce moment. Merci de réessayer dans une heure.",
+"Too many wrong codes. Please sign in again.": "Trop de codes erronés. Veuillez vous reconnecter.",
 "Total": "Total",
 "Total: %s %s": "Total : %s %s",
 "Total: could not be worked out – please check.": "Total : impossible à calculer – merci de vérifier.",

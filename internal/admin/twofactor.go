@@ -87,16 +87,23 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
-	// The same throttle as the password: six digits is a small enough space
-	// that unlimited guessing would walk through it in an afternoon.
-	ip := h.clientIP.ClientIP(r)
-	accountKey := "2fa:" + strings.ToLower(h.emailFor(r, pending))
-	if !h.loginThrottle.Allowed(ip, accountKey) {
+	// Its own budget, low per account: six digits are a small enough space that
+	// unlimited guessing would walk through them in an afternoon, and whoever is
+	// guessing them already holds the password. Reserved before the code is
+	// looked at, so a parallel burst cannot pass the limit. Recovery codes count
+	// on the same key as the digits: they are guessed at the same place.
+	client, _ := h.clientIP.ThrottleKey(r)
+	account := strings.ToLower(h.emailFor(r, pending))
+	attempt, _ := h.loginThrottle.SecondFactor().Reserve(client, account)
+	if attempt == nil {
 		web.SetFlashError(h.sm, r.Context(),
 			"Too many failed attempts. Please wait a moment.")
-		http.Redirect(w, r, auth.VerifyPath, http.StatusSeeOther)
+		http.Redirect(w, r, verifyPathFor(recovery), http.StatusSeeOther)
 		return nil
 	}
+	// A reservation that is not settled (a database error, a cancelled request)
+	// is given back: it was not a guess.
+	defer attempt.Refund()
 
 	submitted := strings.TrimSpace(r.FormValue("code"))
 	var err error
@@ -109,13 +116,30 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 		if !errors.Is(err, user.ErrBadCode) && !errors.Is(err, user.ErrNoSecondFactor) {
 			return err
 		}
-		h.loginThrottle.RecordFailure(ip, accountKey)
+		attempt.Fail()
+		failures := h.sm.GetInt(r.Context(), auth.SessionKeyPendingFailures) + 1
+		if failures >= auth.PendingSecondFactorFailures {
+			// The password has to be typed again. The token is renewed so the
+			// session that carried the pending id is not the one that goes on.
+			h.sm.Remove(r.Context(), auth.SessionKeyPendingUserID)
+			h.sm.Remove(r.Context(), auth.SessionKeyPendingFailures)
+			if err := h.sm.RenewToken(r.Context()); err != nil {
+				return err
+			}
+			web.SetFlashError(h.sm, r.Context(), "Too many wrong codes. Please sign in again.")
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return nil
+		}
+		h.sm.Put(r.Context(), auth.SessionKeyPendingFailures, failures)
 		web.SetFlashError(h.sm, r.Context(), "That code is not right.")
 		http.Redirect(w, r, verifyPathFor(recovery), http.StatusSeeOther)
 		return nil
 	}
 
-	h.loginThrottle.Reset(ip, accountKey)
+	// The account's key is cleared and this attempt's own client reservation is
+	// given back; the client's earlier failures stand.
+	attempt.Succeed()
+	h.sm.Remove(r.Context(), auth.SessionKeyPendingFailures)
 
 	role, email, err := h.roleAndEmail(r, pending)
 	if err != nil {

@@ -196,10 +196,20 @@ func (s *Store) VerifyCode(ctx context.Context, userID int64, code string) error
 		return ErrBadCode
 	}
 
-	if _, err := s.DB.Write.ExecContext(ctx,
+	// The UPDATE is the check. The read above is not enough: two requests can
+	// both read the old step before either has written, and both would pass it.
+	// Only the request whose UPDATE changed the row spent this code; one that
+	// finds the step already recorded by another request, or a later one, lost.
+	res, err := s.DB.Write.ExecContext(ctx,
 		`UPDATE users SET totp_last_step = $1 WHERE id = $2 AND totp_last_step < $1`,
-		step, userID); err != nil {
+		step, userID)
+	if err != nil {
 		return fmt.Errorf("record used step: %w", err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return fmt.Errorf("record used step: %w", err)
+	} else if n == 0 {
+		return ErrBadCode
 	}
 	return nil
 }
