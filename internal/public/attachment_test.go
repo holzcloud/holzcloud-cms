@@ -70,7 +70,10 @@ func TestNothingIsWrittenUntilThePluginKeepsIt(t *testing.T) {
 	req := httptest.NewRequest("POST", "/formular", strings.NewReader(body))
 	req.Header.Set("Content-Type", ctype)
 
-	fields, keeper, took := h.takeAttachments(req, ws.ID, "kontaktformular", true)
+	fields, keeper, took, refused := h.takeAttachments(httptest.NewRecorder(), req, ws.ID, "kontaktformular", true)
+	if refused != nil {
+		t.Fatalf("the submission was refused: %+v", refused)
+	}
 	if !took {
 		t.Fatal("the multipart submission was not taken")
 	}
@@ -82,6 +85,7 @@ func TestNothingIsWrittenUntilThePluginKeepsIt(t *testing.T) {
 			t.Errorf("the fields do not carry %q: %s", want, fields)
 		}
 	}
+	defer keeper.Close()
 	if len(keeper.List()) != 1 {
 		t.Fatalf("%d files listed, want 1", len(keeper.List()))
 	}
@@ -138,10 +142,14 @@ func TestARefusedFileIsNamedAndNotHeld(t *testing.T) {
 	req := httptest.NewRequest("POST", "/formular", strings.NewReader(body))
 	req.Header.Set("Content-Type", ctype)
 
-	_, keeper, took := h.takeAttachments(req, ws.ID, "kontaktformular", true)
+	_, keeper, took, refused := h.takeAttachments(httptest.NewRecorder(), req, ws.ID, "kontaktformular", true)
+	if refused != nil {
+		t.Fatalf("the submission was refused: %+v", refused)
+	}
 	if !took {
 		t.Fatal("not taken")
 	}
+	defer keeper.Close()
 	listed := keeper.List()
 	if len(listed) != 1 || listed[0].Refused == "" {
 		t.Fatalf("listed = %+v, want one with a reason", listed)
@@ -164,7 +172,7 @@ func TestWithoutThePermissionTheBodyIsUnchanged(t *testing.T) {
 	req := httptest.NewRequest("POST", "/formular", strings.NewReader(body))
 	req.Header.Set("Content-Type", ctype)
 
-	if _, _, took := h.takeAttachments(req, ws.ID, "kontaktformular", false); took {
+	if _, _, took, _ := h.takeAttachments(httptest.NewRecorder(), req, ws.ID, "kontaktformular", false); took {
 		t.Error("a plugin without the permission was given the files")
 	}
 }
@@ -187,7 +195,8 @@ func TestTooManyFilesAreNamed(t *testing.T) {
 	req := httptest.NewRequest("POST", "/formular", strings.NewReader(body))
 	req.Header.Set("Content-Type", ctype)
 
-	_, keeper, _ := h.takeAttachments(req, ws.ID, "kontaktformular", true)
+	_, keeper, _, _ := h.takeAttachments(httptest.NewRecorder(), req, ws.ID, "kontaktformular", true)
+	defer keeper.Close()
 	listed := keeper.List()
 	if len(listed) != len(files) {
 		t.Fatalf("%d listed, want all %d named", len(listed), len(files))
@@ -225,10 +234,11 @@ func TestAKeptAttachmentIsThePluginsOwn(t *testing.T) {
 		body, ctype := multipartBody(t, map[string]string{"name": "Anna"}, map[string][]byte{"bild.png": onePixel(t)})
 		req := httptest.NewRequest("POST", "/formular", strings.NewReader(body))
 		req.Header.Set("Content-Type", ctype)
-		_, keeper, took := h.takeAttachments(req, ws.ID, pluginID, true)
+		_, keeper, took, _ := h.takeAttachments(httptest.NewRecorder(), req, ws.ID, pluginID, true)
 		if !took {
 			t.Fatal("not taken")
 		}
+		defer keeper.Close()
 		kept, err := keeper.Keep(ctx)
 		if err != nil || len(kept) != 1 {
 			t.Fatalf("kept = %+v, %v", kept, err)

@@ -13,7 +13,13 @@ import (
 	"golang.org/x/image/draw"
 
 	// Registering the decoders is what makes image.DecodeConfig recognise the
-	// formats; WebP is decode-only, which is all that is needed here.
+	// formats; WebP is decode-only, which is all that is needed here. GIF is
+	// imported for its decoder alone: nothing here calls into image/gif any
+	// more (the frames are counted by gifscan.go), and without the import
+	// every GIF would fail DecodeConfig. decoders_test.go holds the program to
+	// it, since a test binary links what its own test files import.
+	_ "image/gif"
+
 	_ "golang.org/x/image/webp"
 )
 

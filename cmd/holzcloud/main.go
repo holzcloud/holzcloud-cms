@@ -699,7 +699,30 @@ func main() {
 				return nil
 			},
 		},
+		jobs.Job{
+			// The spool in which a public form's files wait while the form is
+			// taken in. A request removes its own; this is for the one that
+			// never returned. At start it is emptied before the job first
+			// runs (after this list), because nothing can be in flight then.
+			Name:  "upload-spool-sweep",
+			Every: time.Hour,
+			Fn: func(ctx context.Context) error {
+				n, err := media.SweepSpool(cfg.DataDir, time.Hour)
+				if n > 0 {
+					slog.Info("upload spool swept", "removed", n)
+				}
+				return err
+			},
+		},
 	)
+	// Before the listener starts nothing can be in flight, so everything in
+	// the upload spool is the leftover of a run that was killed. A failure is
+	// logged and never stops the start.
+	if n, err := media.SweepSpool(cfg.DataDir, 0); err != nil {
+		slog.Warn("upload spool sweep failed", "err", err)
+	} else if n > 0 {
+		slog.Info("upload spool swept", "removed", n)
+	}
 	runner.Start(ctx)
 
 	go func() {
@@ -1715,6 +1738,22 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// attaches to a form must not be allowed to be larger than one the operator
 	// chooses themselves.
 	publicHandler.SetUploadLimits(cfg.MaxMediaSize, cfg.MaxVideoSize)
+	// The floor /readyz reports against, which a public form's attachments
+	// now respect too: below it plus room for the largest submissions that may
+	// be inside at once, a form refuses files and still takes the message. Said
+	// at start so an operator of a small server can see why attachments stop.
+	publicHandler.SetMinFreeBytes(cfg.MinFreeBytes)
+	{
+		free, freeErr := web.FreeBytes(cfg.DataDir)
+		attrs := []any{
+			"floor_mb", publicHandler.AttachmentFloor() >> 20,
+			"free_mb", free >> 20,
+		}
+		if freeErr != nil {
+			attrs = append(attrs, "error", freeErr)
+		}
+		slog.Info("public form attachments need free space", attrs...)
+	}
 	// Two host functions need the public handler: reading pages and rendering a
 	// page in the website's theme. Only here does it exist, and a plugin calls
 	// them inside a hook at the earliest anyway.

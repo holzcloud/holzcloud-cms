@@ -9,6 +9,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"os"
+	"runtime"
 	"testing"
 )
 
@@ -244,5 +245,39 @@ func TestWebPDecodesForScaling(t *testing.T) {
 		if hasTransparency(img) != wantTransparent {
 			t.Errorf("%s: transparency = %v, want %v", name, !wantTransparent, wantTransparent)
 		}
+	}
+}
+
+// manyFrameGIF: a 2600x1000 logical screen with frames full-screen frames
+// sharing one bitmap while the file is built; the file is a few kilobytes and
+// a decoder that keeps every frame holds frames x 2.6 MB.
+func manyFrameGIF(t *testing.T, frames int) []byte {
+	t.Helper()
+	frame := image.NewPaletted(image.Rect(0, 0, 2600, 1000), color.Palette{color.Black, color.White})
+	g := &gif.GIF{}
+	for range frames {
+		g.Image = append(g.Image, frame)
+		g.Delay = append(g.Delay, 5)
+	}
+	var buf bytes.Buffer
+	if err := gif.EncodeAll(&buf, g); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// Finding M6: recognising an animated GIF decoded every frame.
+func TestOversizeOfAManyFrameGIFDecodesNoFrame(t *testing.T) {
+	in := intakeOf("image/gif", "film.gif", manyFrameGIF(t, 40))
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	_, _, ok := in.Oversize(0)
+	runtime.ReadMemStats(&after)
+	if ok {
+		t.Error("an animated GIF was offered")
+	}
+	if grown := after.TotalAlloc - before.TotalAlloc; grown > 16<<20 {
+		t.Errorf("Oversize allocated %d bytes, want under 16 MB: the frames were decoded", grown)
 	}
 }

@@ -103,5 +103,13 @@ AmbientCapabilities=
 # service user only. Caddy talks to the port and never reads the data directory.
 UMask=0077
 
+# A memory ceiling, off by default because only you know the machine. Every
+# request path already bounds what it holds; these catch what a bound missed.
+# GOMEMLIMIT makes the Go runtime collect harder as the heap nears it, MemoryMax
+# ends the process beyond it and Restart=on-failure brings it back. On a 1 GB
+# server, for example:
+#Environment=GOMEMLIMIT=600MiB
+#MemoryMax=900M
+
 [Install]
 WantedBy=multi-user.target
