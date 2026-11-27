@@ -95,6 +95,9 @@ type Handler struct {
 	// unlockThrottle limits the password form of a protected page, per client
 	// and page and per page (access.go).
 	unlockThrottle *auth.Throttle
+	// uploads bounds the submissions with files that are inside at once, on
+	// the server and from one network (upload_gate.go).
+	uploads *uploadGate
 	// resolver supplies the canonical host. It may be nil, in which case the
 	// requested host is used.
 	resolver *domain.Resolver
@@ -129,6 +132,7 @@ func NewHandler(pageStore *page.Store, menuStore *menu.Store, mediaStore *media.
 		optoutNets:   newNetBudget(optoutNetsMax, time.Hour),
 
 		unlockThrottle: auth.NewThrottle(gateClientMax, gatePageMax, gateWindow),
+		uploads:        newUploadGate(uploadSlots, uploadNetworkSlots),
 	}
 }
 

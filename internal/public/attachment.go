@@ -57,6 +57,10 @@ type attachmentKeeper struct {
 	// the first file part arrives ("" until then). Close removes it.
 	spoolDir string
 	closed   bool
+	// leave gives back the submission's slot in the upload gate (upload_gate.go).
+	// It lives here so that the one thing that ends a keeper, Close, also ends
+	// the slot: no exit path has a release of its own to forget.
+	leave func()
 
 	listed []plugin.AttachedFile
 	// intakes are the checked files, in the same order as listed minus the
@@ -108,8 +112,10 @@ func (k *attachmentKeeper) Keep(ctx context.Context) ([]plugin.KeptFile, error) 
 	return k.kept, nil
 }
 
-// Close removes the request's spool directory and everything in it, once; any
-// later call does nothing, and no directory is fine.
+// Close removes the request's spool directory and everything in it and gives
+// the submission's slot back, once; any later call does nothing, and no
+// directory is fine. The slot goes back after the files are gone, so a slot
+// that is free is also a slot whose disk is.
 func (k *attachmentKeeper) Close() error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -117,10 +123,14 @@ func (k *attachmentKeeper) Close() error {
 		return nil
 	}
 	k.closed = true
-	if k.spoolDir == "" {
-		return nil
+	var err error
+	if k.spoolDir != "" {
+		err = os.RemoveAll(k.spoolDir)
 	}
-	return os.RemoveAll(k.spoolDir)
+	if k.leave != nil {
+		k.leave()
+	}
+	return err
 }
 
 // uploadRefusal is a submission refused as a whole, before the plugin was
@@ -196,19 +206,34 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 	limits := media.Limits{Image: h.maxMediaSize, Video: h.maxVideoSize}
 	bound := attachmentBound(limits)
 	// A body that says it is over the bound is refused before a byte of it is
-	// read. A chunked one (-1) says nothing and goes on to the reader.
+	// read, and before it takes a slot: it costs nothing and counts for
+	// nothing. A chunked one (-1) says nothing and goes on to the reader.
 	if r.ContentLength > bound {
 		return "", nil, false, &uploadRefusal{Status: http.StatusRequestEntityTooLarge}
 	}
-	// With the ResponseWriter, so the server closes the connection after an
-	// overflow instead of reading on.
-	reader := multipart.NewReader(http.MaxBytesReader(w, r.Body, bound), params["boundary"])
 
-	fields := url.Values{}
-	keeper = &attachmentKeeper{websiteID: websiteID, pluginID: pluginID, dataDir: h.dataDir, store: h.mediaStore}
-	// Whatever happens below, the spool of this request is removed unless the
-	// keeper was handed on: a panic, a refusal or an early return needs no
-	// path of its own to remember it.
+	// A network that names a visitor shares a bound with that network only. An
+	// address that names none (loopback, private, link-local: a proxy that
+	// HOLZCLOUD_TRUSTED_PROXIES does not cover) meets the server bound alone:
+	// every visitor would share it, and one stranger would close the form for
+	// everyone. ThrottleKey writes the once-only warning that names the
+	// remedy.
+	network := ""
+	if key, public := h.clientIP.ThrottleKey(r); public {
+		network = key
+	}
+	// The gate before the body is touched: a full server answers at once and
+	// reads nothing, and nothing is spooled for it.
+	leave, status := h.uploads.enter(network)
+	if leave == nil {
+		return "", nil, false, &uploadRefusal{Status: status, RetryAfter: uploadRetryAfter}
+	}
+	// The keeper is made at once and carries the slot, so that the deferred
+	// Close below gives it back on every path that does not hand the keeper
+	// on: a refusal, an early return, a panic. No path releases it by hand.
+	keeper = &attachmentKeeper{websiteID: websiteID, pluginID: pluginID, dataDir: h.dataDir, store: h.mediaStore, leave: leave}
+	// Whatever happens below, the spool of this request is removed and its slot
+	// given back unless the keeper was handed on.
 	//
 	// The deferred call holds its own copy of the keeper: the named result is
 	// set to nil by the return of a refusal before the defer runs.
@@ -219,6 +244,11 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 			own.Close()
 		}
 	}()
+
+	// With the ResponseWriter, so the server closes the connection after an
+	// overflow instead of reading on.
+	reader := multipart.NewReader(http.MaxBytesReader(w, r.Body, bound), params["boundary"])
+	fields := url.Values{}
 	lang := i18n.Lang(r.Context())
 
 	var (
