@@ -66,54 +66,68 @@
 - **Public form attachments are bounded.** A plugin that has the `attach`
   permission (the contact form, once its attachment field is switched on) takes
   files from strangers, so the host bounds what a submission may cost before the
-  plugin is called. The kind of a file is read from its first bytes, and an SVG
-  is refused there (checking it for external references builds a full DOM of
-  it, about thirty times its size, and a visitor's message has no use for
-  vector graphics; the editor's upload still takes one); each file
-  is then written to the spool directory `.upload-spool` in the data directory,
-  up to the limit for its kind and no further, and is **not held in memory**
-  while it arrives and is checked. A submission may carry at most 64 parts and
-  256 KB of text, at most three files, and only one of them may use the video
-  limit (the others are held to the image limit), so the whole body is at most
-  about 74 MiB at the default limits (video + two images + 320 KB); a body that
-  is larger, or that ends before its closing boundary, is refused whole (413 or
-  400) and the plugin never sees it. A file the form keeps is read once more to
-  remove its metadata, into a buffer of exactly its size, so it costs its own
-  size while it is kept: the worst case for four submissions at once is about
-  256 MB at the default 64 MB video limit, and four contact-form messages that each kept a
-  60 MB video at the same moment measured 300 to 363 MB more resident memory
-  (300, 321 and 363 MB in three runs; it depends on when the Go runtime reuses
-  what the first keep freed, so it is a measurement and not a bound). A spam
-  message that keeps nothing costs no memory to speak of: four at once with 60
-  MB attachments grew the process by 1 MB, against 700 to 811 MB on 0.1.5.
+  plugin is called. The kind of a file is read from its first bytes. An SVG is
+  refused there: checking it for external references builds a full DOM of it,
+  about thirty times its size, and a visitor's message has no use for vector
+  graphics (the editor's upload still takes one). Every other file is written
+  to the spool directory `.upload-spool` in the data directory, up to the limit
+  for its kind and no further, and is **not held in memory** while it arrives
+  and is checked. A submission may carry at most 64 parts, 256 KB of text and
+  16 KB of headers per part, at most three files, and only one of them may use
+  the video limit (the others are held to the image limit), so the whole body
+  is at most about 74 MiB at the default limits (video + two images + 320 KB).
+  A body that is larger, a part whose headers are longer, or a body that ends
+  before its closing boundary is refused whole (413 or 400) and the plugin never
+  sees it; a body that ends exactly after a part delimiter is read as complete
+  (a cut connection does not produce that shape). A browser that is still
+  sending a body over the bound often shows a reset connection instead of the
+  413.
+  A file the form keeps is read once more to remove its metadata, into a buffer
+  of exactly its size, so it costs its own size while it is kept: the worst case
+  for four submissions at once is about 256 MB at the default 64 MB video limit,
+  and four contact-form messages that each kept a 60 MB video at the same moment
+  measured 174 MB more resident memory, against 300 to 363 MB while the keep
+  still grew its buffer by doubling (it depends on when the Go runtime reuses
+  what the first keep freed, so it is a measurement and not a bound). The keep runs outside the plugin's call deadline: if it is not done
+  half a second before the call's limit, the plugin is answered with what was
+  stored so far and stores the message without the rest, the file still being
+  written is removed again, and the log says so.
+  A spam message that keeps nothing costs no memory to speak of: four at once
+  with 60 MB attachments grew the process by 0 to 1 MB (700 to 811 MB on
+  0.1.5), four at once with three 5 MB SVGs each by 1 MB (1239 to 1370 MB
+  before SVGs were refused), and four at once with seven 9.9 MB part headers
+  each by 0 MB (851 to 904 MB before the header bound).
   At most **four** submissions with files are taken in at once on the whole
   server, **two** at once and **thirty an hour** from one network (an IPv4
   address, an IPv6 /64); the next is told to come back (503 for the server, 429
   for a network, both with `Retry-After`) at the header of its first file,
   before a byte of that file is read. A submission without a file is neither
   counted nor refused by these bounds, so a message always gets through to the
-  form; the hourly budget forgets the network it saw longest ago when it holds
-  ten thousand, so filling it with fresh networks locks nobody out. A
-  request that arrives through a proxy that `HOLZCLOUD_TRUSTED_PROXIES` does not
-  cover names no visitor, so it meets only the server's four places and no
-  per-network bound. When the free space in the data directory is below
-  `HOLZCLOUD_MIN_FREE_BYTES` plus room for four uploads (the floor plus twice
-  the largest submission four times, for the spool and the kept copy that lies
-  beside it until the spool file is removed: about 1107 MiB at the defaults), files are
+  form. The hourly budget forgets the network it saw longest ago when it holds
+  ten thousand, so filling it with fresh networks locks nobody out. A request
+  that arrives through a proxy that `HOLZCLOUD_TRUSTED_PROXIES` does not cover
+  names no visitor, so it meets only the server's four places and no
+  per-network bound; one whose trusted proxy forwards something that is no
+  address at all counts under one shared network.
+  When the free space in the data directory is below `HOLZCLOUD_MIN_FREE_BYTES`
+  plus room for four uploads (the floor plus twice the largest submission for
+  each of the four places, for the spool file and the kept copy that lies beside
+  it until the spool file is removed: about 1107 MiB at the defaults), files are
   refused with a sentence and the message itself still arrives. The spool of a
   request is emptied when its answer is written, whatever happened, and the
   whole spool at every start and, for what is older than an hour, every hour.
-  What is accepted: four slow senders can keep the attachments of every form
-  on the server busy for up to two minutes (the server's read timeout), since
-  the four places are shared by all websites; messages without a file and the
-  rest of the site go on working; the levers are a proxy in front of the server that limits the time
-  and the rate of an upload, and a restart.
+  What is accepted: four slow senders can keep the attachments of every form on
+  the server busy for up to two minutes (the server's read timeout), since the
+  four places are shared by all websites; messages without a file and the rest
+  of the site go on working. The levers are a proxy in front of the server that
+  limits the time and the rate of an upload, and a restart.
 - **An animated GIF is never decoded frame by frame.** The upload counts a GIF's
   frames by walking its blocks and skipping the picture data, so a GIF of
   hundreds of frames costs no more memory to upload than one of two (a 240-frame
   GIF of 2600 by 1300 pixels grew the process by 2 to 4 MB, against 720 to 743 MB
   on 0.1.5). An animated or unreadable GIF is stored as it is and is not offered for
-  scaling.
+  scaling; a still GIF over the pixel bound is offered for scaling, as every
+  other picture is.
 
 ## No runtime dependencies on third parties
 

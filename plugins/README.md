@@ -242,14 +242,23 @@ so a plugin never has to defend itself against the size of one:
   memory. It exists only until the call returns: if the plugin does not call
   `KeepFiles`, it is gone, and `KeepFiles` is what makes it a media file of the
   website. The plugin never reads the bytes.
+- `KeepFiles` answers before the plugin's call runs out of time. A keep that is
+  not done half a second before the call's limit answers with the files stored
+  so far, and the plugin goes on and stores its message without the rest; the
+  file still being written is removed again and the operator's log says so. A
+  form should therefore store whatever `KeepFiles` returned, not what `Files`
+  listed.
 - A submission is refused as a whole, before the plugin is called, when it has
-  more than 64 parts or more than 256 KB of text (413), when its body is larger
-  than the bound (about 74 MiB at the default limits, 413) or ends before its
-  closing boundary (400), or, when it carries a file, when its network already
-  has two inside or sent thirty in the hour (429) or the server already has four
-  inside (503). A submission without a file is never counted or refused by these
-  three. The 429 and 503 carry a `Retry-After`. The visitor sees the host's plain answer in these cases; a
-  plugin cannot change it.
+  more than 64 parts or more than 256 KB of text (413), when one part's headers
+  are longer than 16 KB (413), when its body is larger than the bound (about 74
+  MiB at the default limits, 413) or ends before its closing boundary (400; a
+  body that ends exactly after a part delimiter is read as complete), and, when
+  it carries a file, when its network already has two inside or sent thirty in
+  the hour (429) or the server already has four inside (503). A submission
+  without a file is never counted or refused by these last three. The 429 and
+  503 carry a `Retry-After`. The visitor sees the host's plain answer in these
+  cases; a plugin cannot change it. A browser that is still sending a body over
+  the bound often shows a reset connection instead of the 413.
 - When the data directory is short of free space, every file of a submission is
   listed as refused and the fields still arrive, so a form that is multipart
   whether or not it carries a file keeps taking messages.
