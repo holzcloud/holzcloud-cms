@@ -3,8 +3,11 @@ package media
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/png"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -93,5 +96,100 @@ func TestKeepForReadsASpooledIntake(t *testing.T) {
 	in.Discard()
 	if names := dirEntries(t, spool); len(names) != 0 {
 		t.Errorf("Discard left %v", names)
+	}
+}
+
+// endlessPNG yields a PNG signature and then zeros for ever, counting what it
+// gave out.
+type endlessPNG struct {
+	sent int64
+}
+
+func (e *endlessPNG) Read(p []byte) (int, error) {
+	n := 0
+	sig := []byte("\x89PNG\r\n\x1a\n")
+	for n < len(p) {
+		if e.sent < int64(len(sig)) {
+			p[n] = sig[e.sent]
+		} else {
+			p[n] = 0
+		}
+		n++
+		e.sent++
+	}
+	return n, nil
+}
+
+// The part is not read past its limit and one byte, whatever the sender keeps
+// sending, and nothing is left on the disk.
+func TestCheckStreamReadsNoFurtherThanTheLimit(t *testing.T) {
+	dir := t.TempDir()
+	src := &endlessPNG{}
+	_, err := CheckStream(src, "unendlich.png", Limits{Image: 1 << 20, Video: 8 << 20}, dir)
+	var ref Refusal
+	if !errors.As(err, &ref) || ref.Code != RefusedSize || ref.Arg != int64(1) {
+		t.Fatalf("err = %v, want a size refusal of 1 MB", err)
+	}
+	if src.sent > 1<<20+1 {
+		t.Errorf("%d bytes were read from the part, want at most %d", src.sent, 1<<20+1)
+	}
+	if names := dirEntries(t, dir); len(names) != 0 {
+		t.Errorf("the refused file left %v", names)
+	}
+}
+
+// failingPart gives out its bytes and then an error of the test's choosing.
+type failingPart struct {
+	data []byte
+	err  error
+}
+
+func (f *failingPart) Read(p []byte) (int, error) {
+	if len(f.data) == 0 {
+		return 0, f.err
+	}
+	n := copy(p, f.data)
+	f.data = f.data[n:]
+	return n, nil
+}
+
+// A read error of the part is not a refusal and stays recognisable; a spool
+// that cannot be written is told apart from both.
+func TestCheckStreamTellsAReadErrorFromARefusal(t *testing.T) {
+	png600 := append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 592)...)
+	limits := Limits{Image: 1 << 20, Video: 8 << 20}
+	var tooBig *http.MaxBytesError
+
+	for name, c := range map[string]struct {
+		part  io.Reader
+		check func(error) bool
+	}{
+		"a cut body": {
+			&failingPart{data: png600, err: io.ErrUnexpectedEOF},
+			func(err error) bool { return errors.Is(err, io.ErrUnexpectedEOF) },
+		},
+		"a cut inside the head": {
+			&failingPart{data: png600[:100], err: io.ErrUnexpectedEOF},
+			func(err error) bool { return errors.Is(err, io.ErrUnexpectedEOF) },
+		},
+		"a body over the bound": {
+			&failingPart{data: png600, err: &http.MaxBytesError{Limit: 10}},
+			func(err error) bool { return errors.As(err, &tooBig) },
+		},
+	} {
+		dir := t.TempDir()
+		_, err := CheckStream(c.part, "bild.png", limits, dir)
+		var ref Refusal
+		if err == nil || errors.As(err, &ref) || errors.Is(err, ErrSpool) || !c.check(err) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+		if names := dirEntries(t, dir); len(names) != 0 {
+			t.Errorf("%s: left %v", name, names)
+		}
+	}
+
+	_, err := CheckStream(bytes.NewReader(png600), "bild.png", limits, filepath.Join(t.TempDir(), "fehlt"))
+	if !errors.Is(err, ErrSpool) {
+		t.Errorf("a spool directory that does not exist: err = %v, want ErrSpool", err)
 	}
 }

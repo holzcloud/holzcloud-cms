@@ -132,13 +132,56 @@ type uploadRefusal struct {
 	RetryAfter time.Duration
 }
 
+// The bounds of one submission. Each number is the least that lets an honest
+// form through; everything above it is a body nobody filled in by hand.
+const (
+	// maxFormParts counts every part, named or not, file or field. A contact
+	// form of twenty assembled fields with its hidden fields and three files
+	// needs about thirty; more than twice that is a sender probing.
+	maxFormParts = 64
+	// multipartSlack is room for the boundaries and part headers on top of the
+	// content the other bounds count.
+	multipartSlack = 64 << 10
+)
+
+// attachmentBound is the most one submission may weigh: the largest single
+// file, two images, the field text and the framing.
+//
+// At most one part may use the video limit (owner decision D2), so the largest
+// honest submission is one video and two images plus the text. The bound that
+// stood here before counted three videos, nearly 192 MB at the default limits.
+func attachmentBound(l media.Limits) int64 {
+	return max(l.Video, l.Image) + (MaxAttachments-1)*l.Image + MaxPluginBodyBytes + multipartSlack
+}
+
+// attachPartHook exists for the test that proves a panic inside the take
+// removes the spool, and for nothing else. It is nil in production and is
+// called once per part after the part was handled.
+var attachPartHook func()
+
+// whole is the refusal of a submission as a whole for the error that ended it.
+//
+// A body over the bound is 413. Any other read error is 400: a body cut short
+// is not a shorter form, and a stored partial file would look like a finished
+// upload.
+func whole(err error) *uploadRefusal {
+	var tooBig *http.MaxBytesError
+	if errors.As(err, &tooBig) {
+		return &uploadRefusal{Status: http.StatusRequestEntityTooLarge}
+	}
+	return &uploadRefusal{Status: http.StatusBadRequest}
+}
+
 // takeAttachments parses a multipart submission for a plugin that may have one.
 //
 // It returns the fields as an ordinary encoded form and a keeper for the files.
 // A request that is not multipart, or a plugin without the permission, gets
 // nothing here and reads its body as before. A submission that is refused as a
-// whole comes back as refused, with no keeper.
+// whole comes back as refused, with no keeper and with ok false: the plugin is
+// not called and nothing stays in the spool.
 //
+// Each file part is checked and copied to the request's spool as it arrives,
+// no further than its kind's limit and one byte; no part is held in memory.
 // The keeper is the caller's to Close once it is handed on; every return
 // before that closes it here.
 func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websiteID int64, pluginID string, allowed bool) (body string, keeper *attachmentKeeper, ok bool, refused *uploadRefusal) {
@@ -151,68 +194,82 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 	}
 
 	limits := media.Limits{Image: h.maxMediaSize, Video: h.maxVideoSize}
-	// The outer bound on the whole request, so a sender cannot make the host
-	// read for ever: the largest single file, times the number allowed, plus
-	// room for the fields. With the ResponseWriter, so the server closes the
-	// connection after an overflow.
-	outer := limits.Video*MaxAttachments + int64(MaxPluginBodyBytes)
-	reader := multipart.NewReader(http.MaxBytesReader(w, r.Body, outer), params["boundary"])
+	bound := attachmentBound(limits)
+	// A body that says it is over the bound is refused before a byte of it is
+	// read. A chunked one (-1) says nothing and goes on to the reader.
+	if r.ContentLength > bound {
+		return "", nil, false, &uploadRefusal{Status: http.StatusRequestEntityTooLarge}
+	}
+	// With the ResponseWriter, so the server closes the connection after an
+	// overflow instead of reading on.
+	reader := multipart.NewReader(http.MaxBytesReader(w, r.Body, bound), params["boundary"])
 
 	fields := url.Values{}
 	keeper = &attachmentKeeper{websiteID: websiteID, pluginID: pluginID, dataDir: h.dataDir, store: h.mediaStore}
 	// Whatever happens below, the spool of this request is removed unless the
 	// keeper was handed on: a panic, a refusal or an early return needs no
 	// path of its own to remember it.
+	//
+	// The deferred call holds its own copy of the keeper: the named result is
+	// set to nil by the return of a refusal before the defer runs.
+	own := keeper
 	handedOn := false
 	defer func() {
 		if !handedOn {
-			keeper.Close()
+			own.Close()
 		}
 	}()
 	lang := i18n.Lang(r.Context())
 
-	for {
-		part, err := reader.NextPart()
-		if err != nil {
-			break
-		}
+	var (
+		parts      int
+		fileParts  int
+		fieldBytes int
+		// videoTaken is set once a part was accepted under the video limit:
+		// from then on every part is held to the image limit (D2).
+		videoTaken bool
+	)
+	one := func(part *multipart.Part) *uploadRefusal {
+		defer part.Close()
 		name := part.FormName()
 		if name == "" {
-			part.Close()
-			continue
+			return nil
 		}
-		if part.FileName() == "" {
-			// An ordinary field. Bounded like the body it is replacing.
-			var sb strings.Builder
-			buf := make([]byte, 4096)
-			for sb.Len() < MaxPluginBodyBytes {
-				n, err := part.Read(buf)
-				sb.Write(buf[:n])
-				if err != nil {
-					break
-				}
+		filename := part.FileName()
+		if filename == "" {
+			// An ordinary field. The text of all of them together is bounded
+			// by what one body was bounded by before attachments existed.
+			remaining := MaxPluginBodyBytes - fieldBytes
+			text, err := io.ReadAll(io.LimitReader(part, int64(remaining)+1))
+			if err != nil {
+				return whole(err)
 			}
-			fields.Add(name, sb.String())
-			part.Close()
-			continue
+			if len(text) > remaining {
+				return &uploadRefusal{Status: http.StatusRequestEntityTooLarge}
+			}
+			fieldBytes += len(text)
+			fields.Add(name, string(text))
+			return nil
 		}
 
-		if len(keeper.intakes) >= MaxAttachments {
+		fileParts++
+		if fileParts > MaxAttachments {
 			keeper.listed = append(keeper.listed, plugin.AttachedFile{
-				Field: name, Name: part.FileName(),
+				Field: name, Name: filename,
 				Refused: i18n.Tf(lang, "at most %d files", MaxAttachments),
 			})
-			part.Close()
-			continue
+			return nil
 		}
 
+		partLimits := limits
+		if videoTaken {
+			partLimits.Video = min(limits.Video, limits.Image)
+		}
 		dir, err := h.requestSpool(keeper)
 		var in *media.Intake
 		if err == nil {
-			in, err = media.CheckStream(part, part.FileName(), limits, dir)
+			in, err = media.CheckStream(part, filename, partLimits, dir)
 		}
-		filename := part.FileName()
-		part.Close()
 		if err != nil {
 			var ref media.Refusal
 			switch {
@@ -224,21 +281,49 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 				keeper.listed = append(keeper.listed, plugin.AttachedFile{
 					Field: name, Name: filename, Refused: refusalText(r.Context(), err),
 				})
-				continue
+				return nil
 			case errors.Is(err, media.ErrSpool):
 				slog.Error("upload spool", "error", err)
 				keeper.listed = append(keeper.listed, plugin.AttachedFile{
 					Field: name, Name: filename,
 					Refused: i18n.T(lang, "The file could not be accepted."),
 				})
-				continue
+				return nil
 			}
-			break
+			return whole(err)
+		}
+		if in.MimeType == "video/mp4" && limits.Video > limits.Image {
+			videoTaken = true
 		}
 		keeper.intakes = append(keeper.intakes, keptIntake{field: name, intake: in})
 		keeper.listed = append(keeper.listed, plugin.AttachedFile{
 			Field: name, Name: in.OriginalName, MimeType: in.MimeType, Size: in.Size,
 		})
+		return nil
+	}
+
+	for {
+		part, err := reader.NextPart()
+		// Identity, not errors.Is: a body that ends before its closing
+		// boundary comes back as a wrapped io.EOF, for which errors.Is is
+		// true. Only the bare io.EOF is the end of a finished form.
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", nil, false, whole(err)
+		}
+		parts++
+		if parts > maxFormParts {
+			part.Close()
+			return "", nil, false, &uploadRefusal{Status: http.StatusRequestEntityTooLarge}
+		}
+		if refusal := one(part); refusal != nil {
+			return "", nil, false, refusal
+		}
+		if attachPartHook != nil {
+			attachPartHook()
+		}
 	}
 	handedOn = true
 	return fields.Encode(), keeper, true, nil
