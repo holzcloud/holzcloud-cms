@@ -62,3 +62,23 @@ func TestExtremeLimitsDoNotOverflowTheBounds(t *testing.T) {
 		t.Errorf("took=%v refused=%+v fields=%q", took, refused, fields)
 	}
 }
+
+// Behind a trusted proxy that passes X-Forwarded-For on without appending to
+// it, a sender can put anything there. An address of their choice is a
+// network of their choice, as for any spoofed header; but a value that is no
+// address at all used to name no network and met only the server's bound
+// (I-2 of the phase 38 security audit). All such values now share one network
+// and its bounds.
+func TestAnUnreadableForwardedAddressSharesOneNetwork(t *testing.T) {
+	h, ws := behindAProxy(t)
+	for i, xff := range []string{"garbage", "nonsense"} {
+		if _, refused := submitFiles(t, h, ws, via(xff)); refused != nil {
+			t.Fatalf("unreadable sender %d: refused=%+v", i+1, refused)
+		}
+	}
+	if _, refused := submitFiles(t, h, ws, via("still-not-an-address")); refused == nil || refused.Status != 429 {
+		t.Fatalf("a third unreadable sender at once: refused=%+v, want 429", refused)
+	}
+	// A peer that is no proxy and names no visitor is unchanged: it meets the
+	// server bound alone (TestAnAddressThatNamesNoVisitorMeetsOnlyTheServerBound).
+}

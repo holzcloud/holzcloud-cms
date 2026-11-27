@@ -10,6 +10,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"strings"
@@ -383,6 +384,12 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 	network := ""
 	if key, public := h.clientIP.ThrottleKey(r); public {
 		network = key
+	} else if h.clientIP != nil && h.clientIP.IsTrustedPeer(r) && !isAddressKey(key) {
+		// A trusted proxy forwarded something that is no address at all:
+		// one that passes X-Forwarded-For on without appending. Whatever the
+		// sender wrote there, it shares one network and its bounds (I-2 of
+		// the phase 38 audit) rather than meeting only the server's.
+		network = unreadableNetwork
 	}
 	// The keeper is made at once, so that the deferred Close below removes the
 	// spool and gives back the slot, once the first file took one, on every
@@ -590,6 +597,19 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 	}
 	handedOn = true
 	return fields.Encode(), keeper, true, nil
+}
+
+// unreadableNetwork is the network key of every request whose forwarded
+// address does not read as one.
+const unreadableNetwork = "unreadable-forwarded-address"
+
+// isAddressKey reports whether a throttle key names an address or a network.
+func isAddressKey(key string) bool {
+	if _, err := netip.ParseAddr(key); err == nil {
+		return true
+	}
+	_, err := netip.ParsePrefix(key)
+	return err == nil
 }
 
 // requestSpool makes the request's own spool directory on first use and says
