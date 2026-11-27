@@ -451,21 +451,29 @@ func readSchema(ctx context.Context, tx *sql.Tx) (map[schemaRow]bool, error) {
 	return out, rows.Err()
 }
 
-// readSequences lists the AUTOINCREMENT counters.
-func readSequences(ctx context.Context, tx *sql.Tx) (map[string]int64, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT name, seq FROM sqlite_sequence`)
+// counter is one row of sqlite_sequence.
+type counter struct {
+	name string
+	seq  int64
+}
+
+// readSequences lists the AUTOINCREMENT counters by rowid. Not by name: nothing
+// keeps two rows from carrying the same name, and SQLite reads the first one it
+// finds, so a comparison by name can be shown one row while SQLite uses another.
+func readSequences(ctx context.Context, tx *sql.Tx) (map[int64]counter, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT rowid, name, seq FROM sqlite_sequence`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := map[string]int64{}
+	out := map[int64]counter{}
 	for rows.Next() {
-		var name string
-		var seq int64
-		if err := rows.Scan(&name, &seq); err != nil {
+		var rowid int64
+		var c counter
+		if err := rows.Scan(&rowid, &c.name, &c.seq); err != nil {
 			return nil, err
 		}
-		out[name] = seq
+		out[rowid] = c
 	}
 	return out, rows.Err()
 }
@@ -498,7 +506,7 @@ func readOtherPrefixes(ctx context.Context, tx *sql.Tx, self string) ([]string, 
 // the migration left behind can: every new schema entry has to lie in the
 // plugin's own namespace, no entry of anyone else may have gone, and the
 // counters of other tables have to be what they were.
-func (g *migrationGuard) checkAfter(before, after map[schemaRow]bool, seqBefore, seqAfter map[string]int64) string {
+func (g *migrationGuard) checkAfter(before, after map[schemaRow]bool, seqBefore, seqAfter map[int64]counter) string {
 	var added, removed []schemaRow
 	for r := range after {
 		if !before[r] {
@@ -533,17 +541,34 @@ func (g *migrationGuard) checkAfter(before, after map[schemaRow]bool, seqBefore,
 			return fmt.Sprintf("%s was removed, which is not the plugin's", r.name)
 		}
 	}
-	for name, seq := range seqBefore {
-		if g.owns(name) {
-			continue
-		}
-		if got, ok := seqAfter[name]; !ok || got != seq {
-			return fmt.Sprintf("the counter of %s was changed, which is not the plugin's", name)
+	// A counter row may change only where it is the plugin's, before and after:
+	// a row of a core table that is renamed, reset or deleted, a row of the
+	// plugin's that takes a core table's name, and a new row with such a name
+	// are all refused. Rowids, so a second row with a core table's name cannot
+	// stand in for the first.
+	rowids := make([]int64, 0, len(seqBefore)+len(seqAfter))
+	for rowid := range seqBefore {
+		rowids = append(rowids, rowid)
+	}
+	for rowid := range seqAfter {
+		if _, ok := seqBefore[rowid]; !ok {
+			rowids = append(rowids, rowid)
 		}
 	}
-	for name := range seqAfter {
-		if _, ok := seqBefore[name]; !ok && !g.owns(name) {
-			return fmt.Sprintf("a counter for %s was added, which is not the plugin's", name)
+	slices.Sort(rowids)
+	for _, rowid := range rowids {
+		was, had := seqBefore[rowid]
+		is, has := seqAfter[rowid]
+		if had && has && was == is {
+			continue
+		}
+		switch {
+		case had && !g.owns(was.name):
+			return fmt.Sprintf("the counter of %s was changed, which is not the plugin's", was.name)
+		case has && !had && !g.owns(is.name):
+			return fmt.Sprintf("a counter for %s was added, which is not the plugin's", is.name)
+		case has && !g.owns(is.name):
+			return fmt.Sprintf("a counter of the plugin was moved to %s, which is not the plugin's", is.name)
 		}
 	}
 	return ""

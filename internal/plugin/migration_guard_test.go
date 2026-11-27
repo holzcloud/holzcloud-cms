@@ -249,6 +249,63 @@ INSERT INTO plugin_eins_b VALUES (1);`
 	}
 }
 
+// The counters were compared by name, through a map. A plugin could then rename
+// its own counter row to a core table's name, carrying the right value, and
+// zero the original: the map saw "users" unchanged, SQLite read the zeroed row,
+// and the next account got the id of a deleted one, whose session cookie may
+// still be around (T-36-03). The rows are compared by rowid now.
+func TestAMigrationCannotMoveACounterOntoACoreTable(t *testing.T) {
+	type core struct{ table, insert string }
+	tables := []core{
+		{"users", `INSERT INTO users (name, email, password, role) VALUES ('n', 'u' || abs(random()) || '@example.org', 'h', 'editor')`},
+		{"websites", `INSERT INTO websites (name, created_at, updated_at) VALUES ('w', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`},
+	}
+	own := `CREATE TABLE plugin_eins_x (id INTEGER PRIMARY KEY AUTOINCREMENT, v TEXT);
+INSERT INTO plugin_eins_x (v) VALUES ('x');
+`
+	for _, tb := range tables {
+		for _, c := range []struct{ name, sql string }{
+			{"copied and zeroed", own + `UPDATE sqlite_sequence SET name = '` + tb.table + `', seq = (SELECT seq FROM sqlite_sequence WHERE name = '` + tb.table + `') WHERE name = 'plugin_eins_x';
+UPDATE sqlite_sequence SET seq = 0 WHERE rowid = (SELECT min(rowid) FROM sqlite_sequence WHERE name = '` + tb.table + `');`},
+			{"a second row of the name", own + `UPDATE sqlite_sequence SET name = '` + tb.table + `', seq = 0 WHERE name = 'plugin_eins_x';`},
+			{"the core row taken over", own + `UPDATE sqlite_sequence SET name = 'plugin_eins_y' WHERE name = '` + tb.table + `';
+UPDATE sqlite_sequence SET name = '` + tb.table + `', seq = 0 WHERE name = 'plugin_eins_x';`},
+		} {
+			t.Run(tb.table+"/"+c.name, func(t *testing.T) {
+				s, _ := neuerSpeicher(t)
+				ctx := context.Background()
+				if err := s.Install(ctx, paket("eins")); err != nil {
+					t.Fatal(err)
+				}
+				// Two rows, the second deleted: the counter is ahead of max(id),
+				// which is what makes resetting it worth anything.
+				for range 2 {
+					if _, err := s.DB.Write.ExecContext(ctx, tb.insert); err != nil {
+						t.Fatal(err)
+					}
+				}
+				var deleted int64
+				if err := s.DB.Write.QueryRowContext(ctx, `SELECT max(id) FROM `+tb.table).Scan(&deleted); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := s.DB.Write.ExecContext(ctx, `DELETE FROM `+tb.table+` WHERE id = $1`, deleted); err != nil {
+					t.Fatal(err)
+				}
+
+				expectRefused(t, s, c.sql, tb.table)
+
+				res, err := s.DB.Write.ExecContext(ctx, tb.insert)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if id, _ := res.LastInsertId(); id <= deleted {
+					t.Errorf("the next row of %s got id %d, the deleted one had %d", tb.table, id, deleted)
+				}
+			})
+		}
+	}
+}
+
 func TestARenameOutOfThePrefixIsRefused(t *testing.T) {
 	for _, c := range []struct{ name, sql, word string }{
 		{"to a core name", `CREATE TABLE plugin_eins_a (a TEXT); ALTER TABLE plugin_eins_a RENAME TO users2;`, "users2"},
