@@ -258,6 +258,17 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 		attempt.Fail()
 	}
 
+	// While the disk is low a file is refused and the message is not. A sender
+	// whose operator switched attachments on posts a multipart body whether or
+	// not a file is in it, so refusing the submission would stop the form
+	// altogether, and a full disk is exactly when the form is still wanted.
+	// Sessions are written to the same database: a spool that fills the disk
+	// stops everybody signing in. An unreadable free space counts as low.
+	freeNow, freeErr := h.freeSpace()
+	floor := h.AttachmentFloor()
+	filesRefused := freeErr != nil || freeNow < floor
+	warned := false
+
 	// With the ResponseWriter, so the server closes the connection after an
 	// overflow instead of reading on.
 	reader := multipart.NewReader(http.MaxBytesReader(w, r.Body, bound), params["boundary"])
@@ -300,6 +311,22 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 			keeper.listed = append(keeper.listed, plugin.AttachedFile{
 				Field: name, Name: filename,
 				Refused: i18n.Tf(lang, "at most %d files", MaxAttachments),
+			})
+			return nil
+		}
+
+		if filesRefused {
+			// Once per submission, and only when a file is turned away: a
+			// message without one is not the operator's concern.
+			if !warned {
+				warned = true
+				slog.Warn("a public form attachment is refused: the data directory is below its free-space floor",
+					"free_bytes", freeNow, "floor_bytes", floor, "error", freeErr)
+			}
+			// Named and never read: NextPart drains what is left of the part.
+			keeper.listed = append(keeper.listed, plugin.AttachedFile{
+				Field: name, Name: filename,
+				Refused: i18n.T(lang, "The file could not be accepted."),
 			})
 			return nil
 		}

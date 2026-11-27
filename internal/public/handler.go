@@ -118,8 +118,15 @@ type Handler struct {
 	// than one the operator sends.
 	maxMediaSize int64
 	maxVideoSize int64
-	defaultFS    fs.FS // embedded default template FS for static assets
-	secure       bool  // site is served over TLS; decides the scheme in absolute URLs
+	// minFreeBytes is the free-space floor of the data directory, the one
+	// /readyz reports against. Public form attachments need it and more:
+	// AttachmentFloor.
+	minFreeBytes uint64
+	// freeBytes is the test seam for the free space of the data directory. Nil
+	// means web.FreeBytes(h.dataDir), looked up at call time.
+	freeBytes func() (uint64, error)
+	defaultFS fs.FS // embedded default template FS for static assets
+	secure    bool  // site is served over TLS; decides the scheme in absolute URLs
 }
 
 // NewHandler creates a public site handler.
@@ -700,4 +707,28 @@ func (h *Handler) SetPlugins(m *plugin.Manager) { h.plugins = m }
 // rather than inventing a limit of its own.
 func (h *Handler) SetUploadLimits(image, video int64) {
 	h.maxMediaSize, h.maxVideoSize = image, video
+}
+
+// SetMinFreeBytes gives the handler the free-space floor of the data directory,
+// the same one /readyz reports against. Below it, plus room for what the
+// uploads already allowed could still bring in, a public form refuses files
+// (AttachmentFloor) and still takes the message.
+func (h *Handler) SetMinFreeBytes(n uint64) { h.minFreeBytes = n }
+
+// AttachmentFloor is the free space the data directory must have for a public
+// form to take a file: the floor itself plus the largest submission for every
+// upload slot. All four could be spooling their largest submission at once, and
+// the floor must still hold then; at the default limits that is 512 MB plus
+// about 300 MB.
+func (h *Handler) AttachmentFloor() uint64 {
+	limits := media.Limits{Image: h.maxMediaSize, Video: h.maxVideoSize}
+	return h.minFreeBytes + uint64(uploadSlots)*uint64(attachmentBound(limits))
+}
+
+// freeSpace is the free space of the data directory, read now.
+func (h *Handler) freeSpace() (uint64, error) {
+	if h.freeBytes != nil {
+		return h.freeBytes()
+	}
+	return web.FreeBytes(h.dataDir)
 }

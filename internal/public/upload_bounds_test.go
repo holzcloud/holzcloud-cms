@@ -1,12 +1,16 @@
 package public
 
 import (
+	"errors"
 	"net/http"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
+	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -159,4 +163,103 @@ func TestAnAddressThatNamesNoVisitorMeetsOnlyTheServerBound(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Below the free-space floor a file is refused with the catalogue's sentence,
+// in the page's language, and nothing is spooled for it; the fields are still
+// handed on, so a message without a file arrives.
+func TestBelowTheFreeSpaceFloorFilesAreRefusedAndTheMessageStillArrives(t *testing.T) {
+	h, ws := boundsCase(t, 5<<20, 50<<20)
+	h.SetMinFreeBytes(1 << 30)
+	floor := h.AttachmentFloor()
+	if want := uint64(1<<30) + uploadSlots*uint64(attachmentBound(media.Limits{Image: 5 << 20, Video: 50 << 20})); floor != want {
+		t.Fatalf("AttachmentFloor = %d, want the floor plus four of the largest submissions (%d)", floor, want)
+	}
+	body, ctype := rawMultipart(t, false, fld("name", "Anna"), filePart("anhang", "bild.png", onePixel(t)))
+	french := func(r *http.Request) { *r = *r.WithContext(i18n.WithLang(r.Context(), "fr")) }
+
+	for name, seam := range map[string]func() (uint64, error){
+		"one byte short of the floor": func() (uint64, error) { return floor - 1, nil },
+		"no space at all":             func() (uint64, error) { return 0, nil },
+		"the free space is unreadable": func() (uint64, error) {
+			return 1 << 62, errors.New("statfs: the filesystem is gone")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h.freeBytes = seam
+			fields, keeper, took, refused := takeBody(t, h, ws, body, ctype, french)
+			if !took || refused != nil {
+				t.Fatalf("took=%v refused=%+v: a low disk must refuse the file, not the message", took, refused)
+			}
+			if fields != "name=Anna" {
+				t.Errorf("fields = %q, want the message handed on", fields)
+			}
+			listed := keeper.List()
+			want := i18n.T("fr", "The file could not be accepted.")
+			if want == "The file could not be accepted." {
+				t.Fatalf("the sentence has no French translation: %q", want)
+			}
+			if len(listed) != 1 || listed[0].Refused != want || listed[0].MimeType != "" {
+				t.Errorf("listed = %+v, want the file named and refused with %q", listed, want)
+			}
+			if names := spoolEntries(t, h.dataDir); len(names) != 0 {
+				t.Errorf("the spool holds %v: a file was written below the floor", names)
+			}
+		})
+	}
+
+	// Exactly the floor, and plenty: the file is taken.
+	for _, free := range []uint64{floor, floor + 1<<30} {
+		h.freeBytes = func() (uint64, error) { return free, nil }
+		_, keeper, took, refused := takeBody(t, h, ws, body, ctype)
+		if !took || refused != nil {
+			t.Fatalf("with %d free: took=%v refused=%+v", free, took, refused)
+		}
+		if listed := keeper.List(); len(listed) != 1 || listed[0].Refused != "" || len(spoolFiles(t, h.dataDir)) != 1 {
+			t.Errorf("with %d free: listed = %+v, want the file taken", free, listed)
+		}
+		keeper.Close()
+	}
+}
+
+// The same through the real contact form: a message with a file is answered as
+// a refused file, a message without one is stored.
+func TestLowDiskThroughTheContactForm(t *testing.T) {
+	h, database, ws, _ := formularAufbau(t)
+	h.SetUploadLimits(5<<20, 50<<20)
+	h.SetMinFreeBytes(1 << 30)
+	h.freeBytes = func() (uint64, error) { return 1 << 20, nil }
+
+	form := func(extra ...formPart) ([]byte, string) {
+		parts := []formPart{
+			fld("seite", "kontakt"), fld("pfad", "/kontakt"),
+			fld("gestellt", timeToken(t, database, -10*time.Second)),
+			fld("name", "Eva Muster"), fld("email", "eva@example.test"),
+			fld("nachricht", "Guten Tag."),
+		}
+		return rawMultipart(t, false, append(parts, extra...)...)
+	}
+
+	body, ctype := form(filePart("anhang", "bild.png", onePixel(t)))
+	rec := postMultipart(t, h, ws, "/formular", body, ctype)
+	if ort := rec.Header().Get("Location"); rec.Code != http.StatusSeeOther || !strings.Contains(ort, "formular=fehler") {
+		t.Fatalf("a file on a low disk: %d %q, want 303 formular=fehler", rec.Code, ort)
+	}
+	var media int
+	if err := database.Read.QueryRow(`SELECT COUNT(*) FROM media WHERE owner_plugin = 'kontaktformular'`).Scan(&media); err != nil || media != 0 {
+		t.Errorf("%d media rows after a refused file, %v; want none", media, err)
+	}
+	if n := messages(t, database); n != 0 {
+		t.Errorf("%d messages stored for a message whose file was refused, want none", n)
+	}
+
+	body, ctype = form()
+	rec = postMultipart(t, h, ws, "/formular", body, ctype)
+	if ort := rec.Header().Get("Location"); rec.Code != http.StatusSeeOther || !strings.Contains(ort, "formular=gesendet") {
+		t.Fatalf("a message without a file on a low disk: %d %q, want 303 formular=gesendet", rec.Code, ort)
+	}
+	if n := messages(t, database); n != 1 {
+		t.Errorf("%d messages stored, want the one without a file", n)
+	}
+	spoolEmpty(t, h, "low disk")
 }

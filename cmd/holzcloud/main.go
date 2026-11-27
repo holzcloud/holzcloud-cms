@@ -1738,6 +1738,22 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// attaches to a form must not be allowed to be larger than one the operator
 	// chooses themselves.
 	publicHandler.SetUploadLimits(cfg.MaxMediaSize, cfg.MaxVideoSize)
+	// The floor /readyz reports against, which a public form's attachments
+	// now respect too: below it plus room for the largest submissions that may
+	// be inside at once, a form refuses files and still takes the message. Said
+	// at start so an operator of a small server can see why attachments stop.
+	publicHandler.SetMinFreeBytes(cfg.MinFreeBytes)
+	{
+		free, freeErr := web.FreeBytes(cfg.DataDir)
+		attrs := []any{
+			"floor_mb", publicHandler.AttachmentFloor() >> 20,
+			"free_mb", free >> 20,
+		}
+		if freeErr != nil {
+			attrs = append(attrs, "error", freeErr)
+		}
+		slog.Info("public form attachments need free space", attrs...)
+	}
 	// Two host functions need the public handler: reading pages and rendering a
 	// page in the website's theme. Only here does it exist, and a plugin calls
 	// them inside a hook at the earliest anyway.

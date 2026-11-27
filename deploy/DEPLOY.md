@@ -172,10 +172,20 @@ while the volume you mounted for data stays empty.
 | `HOLZCLOUD_MAX_TEMPLATE_SIZE` | `10485760` | Max template archive size in bytes |
 | `HOLZCLOUD_MAX_MEDIA_SIZE` | `5242880` | Max media file size in bytes |
 | `HOLZCLOUD_MAX_MEGAPIXELS` | `24` | Pixel budget for the variant pipeline; a byte limit is not a pixel limit |
+| `HOLZCLOUD_MIN_FREE_BYTES` | `536870912` | The free-space floor of the data directory, in bytes (512 MB). Below it `/readyz` reports unready, and a public form refuses files once the free space is below the floor plus room for the four largest submissions it may take at once (about 300 MB more at the default file limits). A message without a file is still taken. The start-up log line `public form attachments need free space` states the effective figure |
 | `HOLZCLOUD_ARGON2_MEMORY` | `65536` | Argon2id memory cost in KB. Changing it, or `HOLZCLOUD_ARGON2_ITERATIONS`, leaves every stored password at its old cost until that password is changed; until then a wrong password for an existing address takes a different time than one for an unknown address, which tells the two apart |
 | `HOLZCLOUD_ARGON2_ITERATIONS` | `1` | Argon2id time cost |
 | `HOLZCLOUD_ARGON2_PARALLELISM` | `2` | Argon2id parallelism |
 | `HOLZCLOUD_ARGON2_CONCURRENCY` | `2` | How many password checks may run at once (1 to 64); the peak memory is this times `HOLZCLOUD_ARGON2_MEMORY`. A check finding every slot busy waits up to 1.5 s (a signed-in person's own action up to 10 s), then is answered "busy, try again" and never counted as a wrong password. The start-up log line `password checks bounded` states the peak, including older hashes made with a larger memory setting |
+
+A form that answers "Service Unavailable" or "Too Many Requests" to a submission
+with a file means the upload bounds are full, not that something is broken: four
+submissions with files are taken at once on the whole server, two at once from
+one network (an IPv4 address, an IPv6 /64) and thirty an hour from one network.
+The answer carries `Retry-After` and the visitor can send again shortly. Behind
+a reverse proxy that `HOLZCLOUD_TRUSTED_PROXIES` does not name, the network
+bounds do not apply (every visitor would be one address) and only the server's
+four do.
 
 An invalid value is no longer silently replaced by the default: the process
 reports every bad setting at once and refuses to start. The effective
