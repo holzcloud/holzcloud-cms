@@ -181,6 +181,14 @@ func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
 		// Only within this site, by the local-path rule (web.LocalPath). An
 		// open redirect is a phishing tool: a link that starts with the
 		// operator's own domain and lands somewhere else.
+		//
+		// This keeps a plugin that echoes a visitor's input into its Location
+		// from becoming one. It is not a boundary against the plugin itself: a
+		// text/html answer can still send the visitor anywhere with
+		// <meta http-equiv="refresh">, a link or a form, none of which a content
+		// policy governs. The body is not filtered for them (an XML answer with
+		// XHTML in it could carry the same element), so the README says what
+		// the check is and is not.
 		loc, ok := pluginLocation(out.Location)
 		if !ok {
 			// The status text of the standard library, as the other public
@@ -215,7 +223,9 @@ func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
 // pluginHeaders is the closed list of headers a plugin may set.
 //
 // An allow list, not a deny list: the deny list that stood here missed Refresh,
-// which redirects without passing the Location check, and Link, which makes the
+// which redirects without passing the Location check (a header no plugin has a
+// reason to send; the same redirect from the body is not stopped, see
+// writePluginResponse), and Link, which makes the
 // browser preload a script (W-2 of the phase 35 security report), and the next
 // header a browser learns to obey would have been missed the same way. What is
 // on the list describes the answer (its caching, language, validators and

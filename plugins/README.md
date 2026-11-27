@@ -259,13 +259,18 @@ leaves, not the plugin.
   `text/plain; charset=utf-8`. The type is compared as parsed, not as a prefix.
 - **Headers.** `Cache-Control`, `Content-Disposition`, `Content-Language`,
   `ETag`, `Expires`, `Last-Modified`, `Retry-After`, `Vary` and `X-Robots-Tag`.
-  Every other header is dropped, whatever its case: `Refresh` (it redirects
-  without the `Location` check), `Link` (it preloads a script), `Set-Cookie`, the
-  security policies and anything a browser may learn to obey later.
+  Every other header is dropped, whatever its case: `Refresh`, `Link` (it
+  preloads a script), `Set-Cookie`, the security policies and anything a browser
+  may learn to obey later.
 - **Status.** 200 to 599. Anything below 200 (a 103 would carry headers to the
   browser ahead of the answer) or above 599 becomes 200.
 - **Location.** A path on the same site, as before; a redirect without a
-  3xx status becomes 303.
+  3xx status becomes 303. This keeps a plugin that puts a visitor's input into
+  its `Location` from turning the site into an open redirect. It is a check on
+  that header and not a limit on the plugin: a page a plugin writes can still
+  send the visitor elsewhere with a link, a form or
+  `<meta http-equiv="refresh">`, and the host does not filter the body for them.
+  A plugin that echoes visitor input into its HTML has to escape it.
 - **Script.** Every answer carries a content policy with `script-src 'none'`
   on top of the one the site already has. A plugin's page cannot use
   JavaScript, neither inline, nor in an event attribute, nor from a file.
