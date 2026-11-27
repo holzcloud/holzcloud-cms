@@ -1,12 +1,14 @@
 package public
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
@@ -21,6 +23,29 @@ import (
 const (
 	unlockCookiePrefix = page.UnlockCookiePrefix
 	unlockLifetime     = page.UnlockLifetime
+)
+
+// What the password form of a protected page lets a visitor try.
+//
+// The form needs no account and no CSRF token, so without a limit it was the
+// cheapest way to make this server run Argon2 for a stranger, and the way to
+// guess a page password at the speed of the network.
+const (
+	// gateClientMax is the attempts one client may make at one page in the
+	// window. A customer mistypes a password a few times, not ten.
+	gateClientMax = 10
+	// gatePageMax is the attempts all clients together may make at one page in
+	// the window. It is loose on purpose: it is shared, so reaching it closes
+	// the page to everybody, and one client must not be able to do that quickly
+	// (it takes ten clients to spend it). It still gives a guess spread over
+	// many addresses a ceiling.
+	gatePageMax = 100
+	// gateWindow is how long an attempt counts.
+	gateWindow = 15 * time.Minute
+	// gateMaxBody bounds what the form may send: a page address and a
+	// password. Anything larger is not this form, and is refused before any
+	// work is done for it.
+	gateMaxBody = 4 << 10
 )
 
 // unlockCookieName is the cookie for one page.
@@ -139,8 +164,15 @@ func (h *Handler) HandleUnlock(w http.ResponseWriter, r *http.Request) error {
 		http.NotFound(w, r)
 		return nil
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, gateMaxBody)
 	if err := r.ParseForm(); err != nil {
-		return err
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+			return nil
+		}
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return nil
 	}
 
 	// The gate posts the page's address without its leading slash, in a further
@@ -162,12 +194,50 @@ func (h *Handler) HandleUnlock(w http.ResponseWriter, r *http.Request) error {
 		return h.serve404(w, r, website)
 	}
 
-	if !page.CheckPagePassword(pg, r.FormValue("passwort")) {
+	// A client has a budget per page; an address that names no visitor
+	// (loopback, a private network: what a proxy looks like when it is not in
+	// HOLZCLOUD_TRUSTED_PROXIES) has none, because every visitor would share it
+	// and the first stranger would close the page after ten tries. Only the
+	// page's budget applies to them, which a stranger can still spend, with a
+	// hundred wrong tries instead of ten; naming the proxy is the remedy.
+	pageKey := strconv.FormatInt(pg.ID, 10)
+	clientKey := ""
+	if key, public := h.clientIP.ThrottleKey(r); public {
+		clientKey = key + "|" + pageKey
+	}
+	attempt, wait := h.unlockThrottle.Reserve(clientKey, pageKey)
+	if attempt == nil {
+		// The theme's own gate, without the wrong-password line (nothing was
+		// checked), without a cookie and without the password.
+		web.RetryAfter(w, wait)
+		return h.serveGateStatus(w, r, website, pg, false, http.StatusTooManyRequests)
+	}
+	// Whatever way this request leaves without having decided the attempt (a
+	// busy check, a failed lookup), both reservations go back.
+	defer attempt.Refund()
+
+	ok, err := page.CheckPagePassword(pg, r.FormValue("passwort"))
+	if errors.Is(err, auth.ErrBusy) {
+		// The server could not look at the password just now. That is not a
+		// wrong password and is not counted against the visitor.
+		web.RetryAfter(w, auth.BusyRetryAfter)
+		return h.serveGateStatus(w, r, website, pg, false, http.StatusServiceUnavailable)
+	}
+	if err != nil {
+		return fmt.Errorf("check page password: %w", err)
+	}
+	if !ok {
+		attempt.Fail()
 		// Rendered directly rather than redirected: the visitor sees the form
 		// again with the message, and the wrong password never reaches a URL
 		// or a server log.
 		return h.serveGate(w, r, website, pg, true)
 	}
+	// A right password is not a failure, and it is not "cleared" either: a page
+	// password is shared by many customers, and clearing the page's budget each
+	// time one of them opens the page would hand somebody guessing from many
+	// addresses a fresh budget every time. Both reservations are given back.
+	attempt.Refund()
 
 	home, err := h.pageStore.GetHomePageIn(r.Context(), website.ID, pg.Locale)
 	if err != nil {

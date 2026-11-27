@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 )
@@ -33,10 +34,10 @@ func TestProtectingAPageStoresOnlyAHash(t *testing.T) {
 	if stored.AccessPassword == "holz2026" {
 		t.Fatal("the password is stored in the clear")
 	}
-	if !CheckPagePassword(stored, "holz2026") {
+	if !checks(stored, "holz2026") {
 		t.Error("the right password does not open the page")
 	}
-	if CheckPagePassword(stored, "holz2025") {
+	if checks(stored, "holz2025") {
 		t.Error("a wrong password opens the page")
 	}
 	if stored.AccessHint != "Steht im Anschreiben." {
@@ -61,7 +62,7 @@ func TestAnEmptyPasswordKeepsTheExistingOne(t *testing.T) {
 	}
 
 	stored, _ := s.GetPage(ctx, p.ID)
-	if !CheckPagePassword(stored, "holz2026") {
+	if !checks(stored, "holz2026") {
 		t.Error("the password was lost when only the hint changed")
 	}
 	if stored.AccessHint != "Neuer Hinweis" {
@@ -115,7 +116,7 @@ func TestUnprotectingClearsTheSecret(t *testing.T) {
 	}
 	// A password that guards nothing is a secret with no purpose and a copy of
 	// it in every backup from now on.
-	if CheckPagePassword(stored, "holz2026") {
+	if checks(stored, "holz2026") {
 		t.Error("the old password still opens the page")
 	}
 }
@@ -230,5 +231,48 @@ func TestAProtectedPageIsServedButNeverListed(t *testing.T) {
 	}
 	if len(hits) == 0 {
 		t.Errorf("the search found nothing at all, so it proves nothing (%q exists)", open.Slug)
+	}
+}
+
+// checks is CheckPagePassword where the answer is all the test wants.
+func checks(p *Page, submitted string) bool {
+	ok, err := CheckPagePassword(p, submitted)
+	if err != nil {
+		panic(err)
+	}
+	return ok
+}
+
+// A server that has no Argon2 slot free cannot say whether the password is
+// right, and must not say that it is wrong.
+func TestCheckPagePasswordReportsABusyGate(t *testing.T) {
+	hash, err := auth.HashPassword("holz2026", cheapParams)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &Page{Access: "password", AccessPassword: hash}
+
+	gate := auth.NewGate(1, time.Millisecond, time.Millisecond)
+	release, err := gate.Acquire(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := auth.SetArgon2Gate(gate)
+	t.Cleanup(func() { auth.SetArgon2Gate(previous) })
+
+	ok, err := CheckPagePassword(p, "holz2026")
+	if ok || !errors.Is(err, auth.ErrBusy) {
+		t.Fatalf("busy gate: ok=%v err=%v, want false and ErrBusy", ok, err)
+	}
+
+	release()
+	if ok, err := CheckPagePassword(p, "holz2026"); !ok || err != nil {
+		t.Errorf("free gate, right password: ok=%v err=%v", ok, err)
+	}
+
+	// A damaged stored hash still means "this password does not open the page".
+	broken := &Page{Access: "password", AccessPassword: "not-a-hash"}
+	if ok, err := CheckPagePassword(broken, "holz2026"); ok || err != nil {
+		t.Errorf("malformed hash: ok=%v err=%v, want false and nil", ok, err)
 	}
 }

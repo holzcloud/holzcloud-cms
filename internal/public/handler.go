@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/album"
+	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/dsr"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
@@ -91,6 +92,9 @@ type Handler struct {
 	optoutNets *netBudget
 	clientIP   *web.ClientIPResolver
 	loader     *tmpl.Loader
+	// unlockThrottle limits the password form of a protected page, per client
+	// and page and per page (access.go).
+	unlockThrottle *auth.Throttle
 	// resolver supplies the canonical host. It may be nil, in which case the
 	// requested host is used.
 	resolver *domain.Resolver
@@ -123,6 +127,8 @@ func NewHandler(pageStore *page.Store, menuStore *menu.Store, mediaStore *media.
 		defaultFS:    defaultFS,
 		secure:       secure,
 		optoutNets:   newNetBudget(optoutNetsMax, time.Hour),
+
+		unlockThrottle: auth.NewThrottle(gateClientMax, gatePageMax, gateWindow),
 	}
 }
 

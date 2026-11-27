@@ -118,7 +118,7 @@ func TestProtectingAPageWithoutAUsablePasswordRefusesTheSave(t *testing.T) {
 			if tc.stored == "" && after.Protected() {
 				t.Error("a refused save protected the page")
 			}
-			if tc.stored != "" && !page.CheckPagePassword(after, tc.stored) {
+			if ok, _ := page.CheckPagePassword(after, tc.stored); tc.stored != "" && !ok {
 				t.Error("the stored password no longer opens the page")
 			}
 		})
@@ -158,7 +158,7 @@ func TestAProtectedPageKeepsItsPasswordWhenTheFieldIsLeftEmpty(t *testing.T) {
 	if after.ContentMarkdown != "nachher" || after.AccessHint != "Steht im Rundbrief" {
 		t.Errorf("text %q, hint %q not stored", after.ContentMarkdown, after.AccessHint)
 	}
-	if !after.Protected() || !page.CheckPagePassword(after, "geheim123") {
+	if ok, _ := page.CheckPagePassword(after, "geheim123"); !after.Protected() || !ok {
 		t.Error("the page lost its password")
 	}
 }

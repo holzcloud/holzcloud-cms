@@ -2,6 +2,7 @@ package page
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -95,12 +96,22 @@ var ErrNoPagePassword = fmt.Errorf("this page has no password yet")
 var ErrPagePasswordTooShort = fmt.Errorf("a page password needs at least %d characters", MinPagePasswordLength)
 
 // CheckPagePassword reports whether a submitted password opens a page.
-func CheckPagePassword(p *Page, submitted string) bool {
+//
+// The error is only ever auth.ErrBusy: every Argon2 derivation waits for a slot
+// and a server that has none free says so instead of guessing. A busy check is
+// not a wrong password, so it is neither a "false, nil" nor counted against
+// anyone; the caller answers "try again". Every other failure to verify (a
+// stored hash that cannot be read) stays what it always was: this password
+// does not open the page.
+func CheckPagePassword(p *Page, submitted string) (bool, error) {
 	if p == nil || !p.Protected() {
-		return false
+		return false, nil
 	}
 	match, err := auth.VerifyPassword(submitted, p.AccessPassword)
-	return err == nil && match
+	if errors.Is(err, auth.ErrBusy) {
+		return false, err
+	}
+	return err == nil && match, nil
 }
 
 // HasProtected reports whether a website has at least one live page behind a
