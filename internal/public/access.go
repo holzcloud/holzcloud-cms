@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/locale"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
@@ -27,20 +28,26 @@ func unlockCookieName(pageID int64) string {
 	return unlockCookiePrefix + strconv.FormatInt(pageID, 10)
 }
 
-// grantAccess sets the cookie that remembers an unlocked page.
+// pageAddress is where a page lives, in its own language: "/geheim" in the main
+// language, "/fr/secret" in a further one.
+func pageAddress(website *domain.Website, pg *page.Page) string {
+	return locale.Path(pg.Locale, website.Locale, "/"+pg.Slug)
+}
+
+// grantAccess sets the cookie that remembers an unlocked page, for the path
+// the page is served at.
 //
 // The value is a signed token rather than a flag: a cookie reading "yes" is one
 // any visitor can write themselves.
-func (h *Handler) grantAccess(w http.ResponseWriter, r *http.Request, pg *page.Page, isHome bool) {
+//
+// The path is the caller's, because it is not always the page's slug: the home
+// page is served at "/" (or "/fr"), and a cookie scoped to "/home" is never
+// sent there — the visitor would type the right password and meet the gate
+// again. A page in a further language lives under its prefix for the same
+// reason. The name carries the page id, so a wider path opens nothing else.
+func (h *Handler) grantAccess(w http.ResponseWriter, pg *page.Page, path string) {
 	if h.unlock == nil {
 		return
-	}
-	// The home page is served at "/", and a cookie scoped to "/home" is never
-	// sent there: the visitor would type the right password and meet the gate
-	// again. The name carries the page id, so the wider path opens nothing else.
-	path := "/" + pg.Slug
-	if isHome {
-		path = "/"
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     unlockCookieName(pg.ID),
@@ -71,6 +78,20 @@ func (h *Handler) hasAccess(r *http.Request, pg *page.Page) bool {
 // It answers 401 rather than 200: the page has not been delivered, and a
 // crawler that reads a 200 here would index the form as if it were the content.
 func (h *Handler) serveGate(w http.ResponseWriter, r *http.Request, website *domain.Website, pg *page.Page, wrong bool) error {
+	return h.serveGateStatus(w, r, website, pg, wrong, http.StatusUnauthorized)
+}
+
+// serveGateStatus is serveGate with the status the answer carries: 401 for a
+// locked page and a wrong password, 429 and 503 for a visitor who is not
+// allowed to try just now.
+func (h *Handler) serveGateStatus(w http.ResponseWriter, r *http.Request, website *domain.Website, pg *page.Page, wrong bool, status int) error {
+	// The address of the page in its own language. Every shipped theme posts
+	// {{.Page.Slug}} as the hidden "seite" field and none may be edited, so the
+	// slug carries the language prefix ("fr/secret") and the server reads the
+	// language back from it. The same value is what the layouts of the gate
+	// page mark the current menu entry with.
+	address := pageAddress(website, pg)
+
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
 	h.fillSnippets(r, &site, website.ID, snippets)
@@ -79,11 +100,11 @@ func (h *Handler) serveGate(w http.ResponseWriter, r *http.Request, website *dom
 		Site: site,
 		Page: tmpl.PageContent{
 			Title: pg.Title,
-			Slug:  pg.Slug,
+			Slug:  strings.TrimPrefix(address, "/"),
 		},
 		Menus: h.loadMenus(r, website.ID),
 		Meta: tmpl.MetaData{
-			CanonicalURL: site.URL + "/" + pg.Slug,
+			CanonicalURL: site.URL + address,
 			// A protected page must never be indexed, whatever its own setting
 			// says: what a crawler would file is the form, under the page's
 			// title, which is worse than no entry at all.
@@ -91,7 +112,7 @@ func (h *Handler) serveGate(w http.ResponseWriter, r *http.Request, website *dom
 		},
 		Gate: tmpl.GateData{
 			Hint:  pg.AccessHint,
-			Path:  "/" + pg.Slug,
+			Path:  address,
 			Wrong: wrong,
 		},
 	}
@@ -106,7 +127,7 @@ func (h *Handler) serveGate(w http.ResponseWriter, r *http.Request, website *dom
 	// who has already unlocked, or worse, the page to someone who has not.
 	w.Header().Set("Cache-Control", "no-store, private")
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
-	w.WriteHeader(http.StatusUnauthorized)
+	w.WriteHeader(status)
 	w.Write(content)
 	return nil
 }
@@ -122,11 +143,18 @@ func (h *Handler) HandleUnlock(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	slug := strings.TrimPrefix(strings.TrimSpace(r.FormValue("seite")), "/")
+	// The gate posts the page's address without its leading slash, in a further
+	// language with the prefix ("fr/secret"). A form posted under the prefix
+	// (/fr/freischalten) carries the language in the request instead.
+	tag, rest := locale.Split("/"+strings.TrimLeft(strings.TrimSpace(r.FormValue("seite")), "/"), website.Locales())
+	if tag == "" {
+		tag = LocaleFrom(r.Context())
+	}
+	slug := strings.TrimPrefix(rest, "/")
 	if slug == "" {
 		return h.serve404(w, r, website)
 	}
-	pg, err := h.pageStore.GetPublishedPage(r.Context(), website.ID, slug)
+	pg, err := h.pageStore.GetPublishedPageIn(r.Context(), website.ID, tag, slug)
 	if err != nil {
 		return fmt.Errorf("get page for unlock: %w", err)
 	}
@@ -147,19 +175,20 @@ func (h *Handler) HandleUnlock(w http.ResponseWriter, r *http.Request) error {
 	}
 	isHome := home != nil && home.ID == pg.ID
 
-	h.grantAccess(w, r, pg, isHome)
-	target := "/" + pg.Slug
+	// The page's own address, with its language prefix: "/geheim", "/fr/secret",
+	// and "/" or "/fr" for a start page, which is served there and not at /home.
+	target := pageAddress(website, pg)
 	if isHome {
-		// "/home" would only be redirected to "/" anyway.
-		target = h.localePath(r, website, "/")
+		target = locale.Path(pg.Locale, website.Locale, "/")
 	}
 	// The slug is data: a page stored under one that a browser reads as
-	// another server ("\host") goes back to the start page instead.
+	// another server ("\host") goes back to the language's start page instead.
 	if checked, ok := web.LocalPath(target); ok {
 		target = checked
 	} else {
-		target = h.localePath(r, website, "/")
+		target = locale.Path(pg.Locale, website.Locale, "/")
 	}
+	h.grantAccess(w, pg, target)
 	// 303, so a reload does not repost the password.
 	http.Redirect(w, r, target, http.StatusSeeOther)
 	return nil

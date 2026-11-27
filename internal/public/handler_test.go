@@ -39,7 +39,9 @@ func testFS() fstest.MapFS {
 		// one; without it here a protected page cannot be asked for at all, and
 		// the rule about what a shared cache may keep could not be tested.
 		"gate.html": &fstest.MapFile{Data: []byte(
-			`{{define "content"}}<form class="gate" method="POST" action="{{.Gate.Path}}">` +
+			`{{define "content"}}{{if .Gate.Wrong}}<p class="gate-error" role="alert">falsches Passwort</p>{{end}}` +
+				`<form class="gate" method="POST" action="/freischalten">` +
+				`<input type="hidden" name="seite" value="{{.Page.Slug}}">` +
 				`<p>{{.Gate.Hint}}</p><input type="password" name="passwort"></form>{{end}}`)},
 		"search.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<section class="suche">{{range .Search.Results}}` +
