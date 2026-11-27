@@ -179,6 +179,76 @@ DROP TABLE plugin_eins_c;`
 	}
 }
 
+// A foreign key is a write the authorizer never hears about: SQLite does not
+// ask about a REFERENCES clause, and the check it runs on an insert reads only
+// columns a migration may read anyway. A child row pointing at plugins, pages
+// or form_messages would then make the parent undeletable, the plugin that made
+// it and every other one included (CR-01).
+func TestAMigrationCannotPinHostRowsWithAForeignKey(t *testing.T) {
+	for _, c := range []struct{ name, sql, word string }{
+		{"plugins", `CREATE TABLE plugin_eins_pin (p TEXT REFERENCES plugins(id)); INSERT INTO plugin_eins_pin SELECT id FROM plugins;`, "plugins"},
+		{"pages", `CREATE TABLE plugin_eins_pin (p INTEGER REFERENCES pages(id)); INSERT INTO plugin_eins_pin SELECT id FROM pages;`, "pages"},
+		{"form messages", `CREATE TABLE plugin_eins_pin (p INTEGER REFERENCES form_messages(id)); INSERT INTO plugin_eins_pin SELECT id FROM form_messages;`, "form_messages"},
+		{"table constraint", `CREATE TABLE plugin_eins_pin (p INTEGER, FOREIGN KEY (p) REFERENCES pages(id)); INSERT INTO plugin_eins_pin SELECT id FROM pages;`, "pages"},
+		{"added column", `CREATE TABLE plugin_eins_pin (t TEXT); ALTER TABLE plugin_eins_pin ADD COLUMN p INTEGER REFERENCES pages(id); INSERT INTO plugin_eins_pin (p) SELECT id FROM pages;`, "pages"},
+		{"another plugin", `CREATE TABLE plugin_eins_pin (p INTEGER REFERENCES plugin_zwei_a(id));`, "plugin_zwei_a"},
+		{"a table that does not exist", `CREATE TABLE plugin_eins_pin (p INTEGER REFERENCES nosuchtable(id));`, "nosuchtable"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s, ds := neuerSpeicher(t)
+			ctx := context.Background()
+			ws, err := ds.CreateWebsite(ctx, "Velowerkstatt", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, id := range []string{"eins", "zwei", "drei"} {
+				if err := s.Install(ctx, paket(id)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := s.ApplyMigrations(ctx, "zwei", []Migration{{Name: "0001.sql",
+				SQL: `CREATE TABLE plugin_zwei_a (id INTEGER PRIMARY KEY); INSERT INTO plugin_zwei_a VALUES (1);`}}); err != nil {
+				t.Fatal(err)
+			}
+			seedLegacyMessages(t, s, ws.ID)
+
+			expectRefused(t, s, c.sql, c.word)
+
+			// Nothing is pinned: an unrelated plugin, the plugin itself, a contact
+			// message and the page it came from can all still go.
+			if err := s.Remove(ctx, "drei"); err != nil {
+				t.Errorf("removing an unrelated plugin: %v", err)
+			}
+			if err := s.Remove(ctx, "eins"); err != nil {
+				t.Errorf("removing the plugin itself: %v", err)
+			}
+			if _, err := s.DB.Write.ExecContext(ctx, `DELETE FROM form_messages`); err != nil {
+				t.Errorf("deleting the contact messages: %v", err)
+			}
+			if _, err := s.DB.Write.ExecContext(ctx, `DELETE FROM pages`); err != nil {
+				t.Errorf("deleting the pages: %v", err)
+			}
+		})
+	}
+
+	// A key between the plugin's own tables is its own business.
+	s, _ := neuerSpeicher(t)
+	ctx := context.Background()
+	if err := s.Install(ctx, paket("eins")); err != nil {
+		t.Fatal(err)
+	}
+	own := `CREATE TABLE plugin_eins_a (id INTEGER PRIMARY KEY);
+CREATE TABLE plugin_eins_b (a INTEGER REFERENCES plugin_eins_a(id) ON DELETE CASCADE);
+INSERT INTO plugin_eins_a VALUES (1);
+INSERT INTO plugin_eins_b VALUES (1);`
+	if err := s.ApplyMigrations(ctx, "eins", []Migration{{Name: "0001.sql", SQL: own}}); err != nil {
+		t.Fatalf("a key between own tables: %v", err)
+	}
+	if err := s.Remove(ctx, "eins"); err != nil {
+		t.Errorf("removing a plugin with its own keys: %v", err)
+	}
+}
+
 func TestARenameOutOfThePrefixIsRefused(t *testing.T) {
 	for _, c := range []struct{ name, sql, word string }{
 		{"to a core name", `CREATE TABLE plugin_eins_a (a TEXT); ALTER TABLE plugin_eins_a RENAME TO users2;`, "users2"},

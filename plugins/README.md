@@ -302,7 +302,10 @@ SQLite itself checks what it does, at install, while it runs:
 - **Refused:** every other table and column (`users`, `sessions`, `websites`,
   `pages.access_password` and so on), reading `plugin_store`, updating or
   deleting `plugin_store` rows, triggers, views, renaming a table out of the
-  prefix, `PRAGMA`, `ATTACH`, `BEGIN`/`COMMIT`/`SAVEPOINT`.
+  prefix, `PRAGMA`, `ATTACH`, `BEGIN`/`COMMIT`/`SAVEPOINT`, and a foreign key
+  (`REFERENCES`) from one of its tables to a table that is not its own: a row
+  pointing at `plugins`, `pages` or `form_messages` would keep the host from
+  deleting the row it points at. Keys between its own tables are fine.
 - **Names:** a plugin whose id would share a table prefix with an installed
   plugin's (`nicht` beside `nicht-gefunden`) is refused at install.
 - **Time:** a migration has ten seconds. A refused, failed or timed-out

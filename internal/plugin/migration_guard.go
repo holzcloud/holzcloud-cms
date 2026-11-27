@@ -285,7 +285,10 @@ func (g *migrationGuard) mayRead(table, column string) bool {
 		return c == "" || pagesColumns[c]
 	case t == "plugins":
 		// The foreign-key parent of plugin_store.plugin_id: SQLite asks for it
-		// whenever a row is inserted there. Nothing else of plugins.
+		// whenever a row is inserted there. The read cannot be told from a
+		// SELECT of the migration's own, so any migration can list the ids of
+		// the installed plugins. That is all it learns; it cannot pin them with a
+		// foreign key of its own, see checkForeignKeys. Nothing else of plugins.
 		return c == "id"
 	case t == "pragma_quick_check":
 		// ALTER TABLE ADD COLUMN on a STRICT table or one with rows checks the
@@ -546,6 +549,59 @@ func (g *migrationGuard) checkAfter(before, after map[schemaRow]bool, seqBefore,
 	return ""
 }
 
+// checkForeignKeys looks at the foreign keys of every table the plugin owns,
+// the ones it had before included, because ADD COLUMN can give an old table a
+// new key. Every parent has to be the plugin's own.
+//
+// SQLite never asks the authorizer about a REFERENCES clause, and the check it
+// runs when a child row is written reads only the parent's key column, which
+// for plugins, pages and form_messages a migration may read. A child row that
+// points at one of those makes the parent undeletable while it exists: a
+// plugin that nobody can remove, a page, a website or a contact message that
+// cannot be deleted. So a key out of the namespace is refused, whatever rows
+// the migration wrote.
+//
+// Runs disarmed, through the transaction.
+func (g *migrationGuard) checkForeignKeys(ctx context.Context, tx *sql.Tx, schema map[schemaRow]bool) (string, error) {
+	var tables []string
+	for r := range schema {
+		if r.kind == "table" && g.owns(r.name) {
+			tables = append(tables, r.name)
+		}
+	}
+	slices.Sort(tables)
+	for _, table := range tables {
+		parents, err := foreignKeyParents(ctx, tx, table)
+		if err != nil {
+			return "", err
+		}
+		for _, parent := range parents {
+			if !g.owns(parent) {
+				return fmt.Sprintf("%s has a foreign key to %s, which is not the plugin's", table, parent), nil
+			}
+		}
+	}
+	return "", nil
+}
+
+// foreignKeyParents lists the tables one table's foreign keys point at.
+func foreignKeyParents(ctx context.Context, tx *sql.Tx, table string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT "table" FROM pragma_foreign_key_list($1)`, table)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var parent string
+		if err := rows.Scan(&parent); err != nil {
+			return nil, err
+		}
+		out = append(out, parent)
+	}
+	return out, rows.Err()
+}
+
 // applyGuarded runs one migration under the guard and records it, all in one
 // transaction on a connection of its own.
 //
@@ -651,6 +707,13 @@ func (s *Store) applyGuarded(ctx context.Context, id string, m Migration, sum st
 		return failed(err)
 	}
 	if why := g.checkAfter(schemaBefore, schemaAfter, seqBefore, seqAfter); why != "" {
+		return fmt.Errorf("migration %q of plugin %q refused: %s", m.Name, id, why)
+	}
+	why, err := g.checkForeignKeys(ctx, tx, schemaAfter)
+	if err != nil {
+		return failed(err)
+	}
+	if why != "" {
 		return fmt.Errorf("migration %q of plugin %q refused: %s", m.Name, id, why)
 	}
 
