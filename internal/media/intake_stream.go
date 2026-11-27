@@ -84,7 +84,7 @@ func CheckStream(part io.Reader, filename string, limits Limits, dir string) (*I
 	// wrote, and it comes before the limit is chosen.
 	mimeType, err := ValidateMIME(bytes.NewReader(head), filename)
 	if err != nil {
-		return nil, Refusal{Code: RefusedKind, Arg: err.Error()}
+		return nil, kindRefusal(err)
 	}
 	// An SVG is refused on this path, by its first bytes and before anything
 	// is written (T-38-01 of the phase 38 audit). It is markup that can pull a

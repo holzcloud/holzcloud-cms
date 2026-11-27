@@ -104,7 +104,7 @@ func Check(file multipart.File, header *multipart.FileHeader, limits Limits) (*I
 	// sent, which is whatever the sender decided to write there.
 	mimeType, err := ValidateMIME(file, header.Filename)
 	if err != nil {
-		return nil, Refusal{Code: RefusedKind, Arg: err.Error()}
+		return nil, kindRefusal(err)
 	}
 	limit := limits.For(mimeType)
 	if header.Size > limit {

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -60,7 +61,25 @@ func ValidateMIME(file io.ReadSeeker, originalName string) (string, error) {
 		return "image/svg+xml", nil
 	}
 
-	return "", fmt.Errorf("disallowed MIME type: %s", detected)
+	return "", DisallowedTypeError{Detected: detected}
+}
+
+// DisallowedTypeError is ValidateMIME's answer for a kind that may not be
+// uploaded. Detected is the type the bytes were read as, which is what a
+// refusal names (kindRefusal); the message is for the log.
+type DisallowedTypeError struct{ Detected string }
+
+func (e DisallowedTypeError) Error() string { return "disallowed MIME type: " + e.Detected }
+
+// kindRefusal is the refusal for an error of ValidateMIME. Its argument goes
+// into a translated sentence, so it is the detected type alone, never a Go
+// error string (IN-06 of the phase 38 review).
+func kindRefusal(err error) Refusal {
+	var disallowed DisallowedTypeError
+	if errors.As(err, &disallowed) {
+		return Refusal{Code: RefusedKind, Arg: disallowed.Detected}
+	}
+	return Refusal{Code: RefusedRead}
 }
 
 // looksLikeSVG reports whether the sniffed header opens an SVG document,

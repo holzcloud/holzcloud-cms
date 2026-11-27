@@ -296,3 +296,16 @@ func TestKeepingASpooledVideoReadsItOnce(t *testing.T) {
 		t.Errorf("the stored video: %v, %v", info, err)
 	}
 }
+
+// A kind that is not allowed is named by its type alone: the refusal's
+// argument goes into a translated sentence, and a Go error string in it read
+// "Dateityp nicht erlaubt: disallowed MIME type: application/zip" (IN-06 of
+// the phase 38 review).
+func TestAKindRefusalNamesTheTypeOnly(t *testing.T) {
+	zip := append([]byte("PK\x03\x04"), make([]byte, 600)...)
+	_, err := CheckStream(bytes.NewReader(zip), "archiv.zip", Limits{Image: 1 << 20, Video: 8 << 20}, t.TempDir())
+	var ref Refusal
+	if !errors.As(err, &ref) || ref.Code != RefusedKind || ref.Arg != "application/zip" {
+		t.Fatalf("err = %#v, want a kind refusal naming application/zip", err)
+	}
+}
