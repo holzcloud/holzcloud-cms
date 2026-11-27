@@ -90,12 +90,12 @@ func (h *Handler) PluginMiddleware(next http.Handler) http.Handler {
 				writePluginResponse(w, out)
 				return
 			}
-			// A plugin that is busy or held back was not asked. The page is
-			// there, it is the plugin that cannot answer it now, so the visitor
-			// is told to come back and when, not that the page does not exist.
-			// Plain status text, as the 500 of the same kind elsewhere: this is
-			// a visitor's answer and not an operator sentence, and the reason
-			// lies in the plugin's own error line.
+			// A plugin that is busy, held back or being replaced was not asked.
+			// The page is there, it is the plugin that cannot answer it now, so
+			// the visitor is told to come back and when, not that the page does
+			// not exist. Plain status text, as the 500 of the same kind
+			// elsewhere: this is a visitor's answer and not an operator
+			// sentence, and the reason lies in the plugin's own error line.
 			var unavailable *plugin.UnavailableError
 			if errors.As(err, &unavailable) {
 				retry := int((unavailable.RetryAfter + time.Second - 1) / time.Second)

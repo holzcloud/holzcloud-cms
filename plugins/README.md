@@ -328,7 +328,8 @@ SQLite itself checks what it does, at install, while it runs:
   the call gets to run, not while it waits for another.
 - Callers of one plugin wait at most two seconds, and at most 32 of them wait.
   Beyond that a route answers `503` with `Retry-After`; so does a visitor who
-  asks while the plugin is held back.
+  asks while the plugin is held back, or while it is being updated or reloaded
+  (the moment between the old module and the new one).
 - After three failed calls in a row (a trap, a timeout, an error) the plugin is
   held back for 30 seconds: its routes answer `503` with `Retry-After`, and the
   admin shows that it is held back and until when. The first call after that

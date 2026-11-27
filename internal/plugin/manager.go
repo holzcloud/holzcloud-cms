@@ -395,11 +395,11 @@ func (m *Manager) HandleNotFound(ctx context.Context, websiteID int64, in Reques
 
 // HandleRoute lets the plugin that owns a path answer it.
 //
-// The error is non-nil only when the plugin was not asked at all: it is busy
-// or held back (an *UnavailableError). The page is there and the plugin is
-// meant to answer it, so that is a different thing from a plugin that declines
-// or fails, which keep their (nil, false); the caller answers it with a 503 and
-// a time to come back, not with a 404.
+// The error is non-nil only when the plugin was not asked at all: it is busy,
+// held back, or its instance is being replaced (an *UnavailableError). The page
+// is there and the plugin is meant to answer it, so that is a different thing
+// from a plugin that declines or fails, which keep their (nil, false); the
+// caller answers it with a 503 and a time to come back, not with a 404.
 func (m *Manager) HandleRoute(ctx context.Context, websiteID int64, in RequestIn) (*RequestOut, bool, error) {
 	id, ok := m.RouteOwner(in.Path, websiteID)
 	if !ok {
@@ -409,6 +409,17 @@ func (m *Manager) HandleRoute(ctx context.Context, websiteID int64, in RequestIn
 	if err := m.rt.Dispatch(ctx, id, HookRoute, websiteID, in, &out); err != nil {
 		if errors.Is(err, ErrBusy) || errors.Is(err, ErrHeldBack) {
 			return nil, false, err
+		}
+		// Not loaded while the routes still name it: an update or a reload has
+		// retired the instance and the new one is not there yet, which takes
+		// the better part of a second of compiling. The caller queued on the old
+		// instance, or arrived in the gap. Once the routes are rebuilt the
+		// plugin is either back or no longer the owner, so this lasts as long as
+		// the swap does.
+		if errors.Is(err, ErrNotLoaded) {
+			if owner, still := m.RouteOwner(in.Path, websiteID); still && owner == id {
+				return nil, false, &UnavailableError{Reason: ErrBusy, RetryAfter: time.Second}
+			}
 		}
 		return nil, false, nil
 	}

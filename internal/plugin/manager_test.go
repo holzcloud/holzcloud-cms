@@ -520,3 +520,73 @@ func TestConcurrentSyncsLoadAPluginOnce(t *testing.T) {
 		t.Errorf("the plugin was loaded %d times, expected once:\n%s", n, buf.String())
 	}
 }
+
+// A route whose plugin is being replaced answers "busy, come back", not "this
+// page does not exist". An upgrade unloads the running instance, compiles the
+// new one for the better part of a second and only then rebuilds the routes:
+// callers queued on the old instance, and callers arriving in the gap, used to
+// get ErrNotLoaded, which HandleRoute turned into a decline and the middleware
+// into a 404 for the plugin's own address (WR-04).
+func TestARouteBeingReplacedAnswersBusy(t *testing.T) {
+	m, _, site := neuerManager(t)
+	ctx := context.Background()
+	einspielen(t, m, echoArchive(t, func(man *Manifest) {
+		man.Hooks = append(man.Hooks, HookRoute)
+		man.Routes = []string{"/echo"}
+	}))
+	if err := m.Enable(ctx, "echo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SetWebsites(ctx, "echo", []int64{site}); err != nil {
+		t.Fatal(err)
+	}
+	in := RequestIn{WebsiteID: site, Method: "GET", Path: "/echo"}
+	busy := func(t *testing.T, what string, err error) {
+		t.Helper()
+		var u *UnavailableError
+		if !errors.As(err, &u) || !errors.Is(err, ErrBusy) || u.RetryAfter <= 0 {
+			t.Errorf("%s: got %v, want a busy UnavailableError with a Retry-After", what, err)
+		}
+	}
+
+	// A caller queued on the instance that is being retired.
+	old := instanceOf(m.rt)
+	old.lock <- struct{}{} // stands in for the call that is running
+	queued := make(chan error, 1)
+	go func() {
+		_, _, err := m.HandleRoute(ctx, site, in)
+		queued <- err
+	}()
+	waitFor(t, "one caller in the line", waiters(m.rt, 1))
+	unloaded := make(chan struct{})
+	go func() {
+		m.rt.Unload(ctx, "echo")
+		close(unloaded)
+	}()
+	waitFor(t, "the instance to be marked closed", old.closed.Load)
+	old.release()
+	busy(t, "a caller queued on the replaced instance", <-queued)
+	<-unloaded
+
+	// A caller in the gap before the new instance is there.
+	_, ok, err := m.HandleRoute(ctx, site, in)
+	if ok {
+		t.Fatal("answered with no instance loaded")
+	}
+	busy(t, "a caller between the unload and the load", err)
+
+	// Once the plugin is back, the route is served again, and a plugin that is
+	// switched off for good is no longer the route's owner at all.
+	if err := m.Sync(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := m.HandleRoute(ctx, site, in); err != nil {
+		t.Errorf("after the reload: %v", err)
+	}
+	if err := m.Disable(ctx, "echo"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := m.HandleRoute(ctx, site, in); ok || err != nil {
+		t.Errorf("a switched-off plugin: ok %v, err %v", ok, err)
+	}
+}
