@@ -134,6 +134,29 @@ func (g *migrationGuard) ownAutoIndex(name, table string) bool {
 	return g.owns(table) && strings.HasPrefix(asciiLower(name), "sqlite_autoindex_"+asciiLower(table)+"_")
 }
 
+// ownsAutoIndexName reports whether name is an automatic index of one of the
+// plugin's own tables, judged by the name alone: sqlite_autoindex_<table>_<n>,
+// with the table owned by the same rule as every other name, so that the
+// automatic index of another plugin's table (nicht-gefunden's, asked for by
+// nicht) or of a core table (plugin_store's, asked for by a plugin called
+// store) is not the plugin's.
+func (g *migrationGuard) ownsAutoIndexName(name string) bool {
+	rest, ok := strings.CutPrefix(asciiLower(name), "sqlite_autoindex_")
+	if !ok {
+		return false
+	}
+	i := strings.LastIndexByte(rest, '_')
+	if i <= 0 || i == len(rest)-1 {
+		return false
+	}
+	for _, c := range rest[i+1:] {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return g.owns(rest[:i])
+}
+
 // ownsRow reports whether a row of sqlite_schema is the plugin's own.
 func (g *migrationGuard) ownsRow(name, table string) bool {
 	return g.owns(table) && (g.owns(name) || g.ownAutoIndex(name, table))
@@ -219,8 +242,9 @@ func (g *migrationGuard) authorize(action sqlite.AuthorizerActionCode, arg1, arg
 			return sqlite.AuthorizerOK
 		}
 	case sqlite.AuthReindex:
-		// CREATE INDEX asks for it on the index it has just made.
-		if g.owns(arg1) || strings.HasPrefix(asciiLower(arg1), "sqlite_autoindex_"+g.prefix) {
+		// CREATE INDEX asks for it on the index it has just made. REINDEX of a
+		// table asks for each of its indexes, by index name.
+		if g.owns(arg1) || g.ownsAutoIndexName(arg1) {
 			return sqlite.AuthorizerOK
 		}
 	case sqlite.AuthInsert:

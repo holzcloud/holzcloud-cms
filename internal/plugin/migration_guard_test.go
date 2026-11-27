@@ -468,6 +468,54 @@ func TestPluginNamespacesDoNotOverlap(t *testing.T) {
 	}
 }
 
+// REINDEX is judged by the index name. An automatic index is named after its
+// table, and the rule compared that name with the plugin's prefix as text: a
+// plugin called store matched sqlite_autoindex_plugin_store_1, the core's, and
+// nicht matched the automatic indexes of nicht-gefunden (IN-04, I-3). Harmless
+// as a REINDEX, and the one rule that did not follow owns().
+func TestAReindexStaysInTheNamespace(t *testing.T) {
+	ctx := context.Background()
+	refused := func(t *testing.T, s *Store, id, q, word string) {
+		t.Helper()
+		err := s.ApplyMigrations(ctx, id, []Migration{{Name: "0001.sql", SQL: q}})
+		if err == nil || !strings.Contains(err.Error(), "refused") || !strings.Contains(err.Error(), word) {
+			t.Errorf("%s: %v", q, err)
+		}
+	}
+
+	for _, id := range []string{"store", "websites"} {
+		s, _ := neuerSpeicher(t)
+		if err := s.Install(ctx, paket(id)); err != nil {
+			t.Fatal(err)
+		}
+		refused(t, s, id, `REINDEX sqlite_autoindex_plugin_`+id+`_1;`, "sqlite_autoindex_plugin_"+id+"_1")
+	}
+
+	s, _ := neuerSpeicher(t)
+	for _, id := range []string{"nicht", "nicht-gefunden"} {
+		if _, err := s.DB.Write.ExecContext(ctx, `INSERT INTO plugins (id, name, version, manifest, sha256, enabled, installed_at, updated_at, last_error)
+			VALUES ($1, $1, '1', '{}', 'x', 0, 'x', 'x', '')`, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.DB.Write.ExecContext(ctx, `CREATE TABLE plugin_nicht_gefunden_a (k TEXT PRIMARY KEY)`); err != nil {
+		t.Fatal(err)
+	}
+	refused(t, s, "nicht", `REINDEX sqlite_autoindex_plugin_nicht_gefunden_a_1;`, "sqlite_autoindex_plugin_nicht_gefunden_a_1")
+
+	// Its own, by index and by table, are its own.
+	if err := s.ApplyMigrations(ctx, "nicht", []Migration{{Name: "0002.sql", SQL: `CREATE TABLE plugin_nicht_a (k TEXT PRIMARY KEY, v TEXT);
+CREATE INDEX plugin_nicht_a_v ON plugin_nicht_a (v);
+REINDEX sqlite_autoindex_plugin_nicht_a_1;
+REINDEX plugin_nicht_a_v;
+REINDEX plugin_nicht_a;`}}); err != nil {
+		t.Errorf("reindexing its own: %v", err)
+	}
+	if err := s.ApplyMigrations(ctx, "nicht-gefunden", []Migration{{Name: "0001.sql", SQL: `REINDEX sqlite_autoindex_plugin_nicht_gefunden_a_1;`}}); err != nil {
+		t.Errorf("nicht-gefunden reindexing its own: %v", err)
+	}
+}
+
 func TestTheShippedContactFormMigrationApplies(t *testing.T) {
 	m, store, site := neuerManager(t)
 	ctx := context.Background()
