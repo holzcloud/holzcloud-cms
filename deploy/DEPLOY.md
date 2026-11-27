@@ -1092,7 +1092,7 @@ administrator's own actions (setting a password, confirming their own) wait up t
 proxy, not here.
 
 **The journal line naming `HOLZCLOUD_TRUSTED_PROXIES`.** It means requests arrive
-from a private or loopback address that `HOLZCLOUD_TRUSTED_PROXIES` does not cover,
+from a private, loopback or link-local address that `HOLZCLOUD_TRUSTED_PROXIES` does not cover,
 that is, the proxy in front of the service is not trusted and every visitor
 arrives as that one address. The admin's throttles (sign-in, second step,
 confirmation) then count everybody together: ten wrong sign-ins from anyone close
