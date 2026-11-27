@@ -198,6 +198,9 @@ func (k *attachmentKeeper) keepAll(ctx context.Context, finished chan struct{}) 
 			// this submission is real.
 			continue
 		}
+		// The spool file goes as soon as its copy is stored, so a submission
+		// holds a file twice on the disk for no longer than one copy takes.
+		in.intake.Discard()
 		k.mu.Lock()
 		if k.late {
 			k.mu.Unlock()

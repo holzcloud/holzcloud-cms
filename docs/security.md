@@ -97,8 +97,9 @@
   request that arrives through a proxy that `HOLZCLOUD_TRUSTED_PROXIES` does not
   cover names no visitor, so it meets only the server's four places and no
   per-network bound. When the free space in the data directory is below
-  `HOLZCLOUD_MIN_FREE_BYTES` plus room for four uploads (the floor plus four
-  times the largest submission: about 809 MiB at the defaults), files are
+  `HOLZCLOUD_MIN_FREE_BYTES` plus room for four uploads (the floor plus twice
+  the largest submission four times, for the spool and the kept copy that lies
+  beside it until the spool file is removed: about 1107 MiB at the defaults), files are
   refused with a sentence and the message itself still arrives. The spool of a
   request is emptied when its answer is written, whatever happened, and the
   whole spool at every start and, for what is older than an hour, every hour.

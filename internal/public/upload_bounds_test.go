@@ -172,8 +172,11 @@ func TestBelowTheFreeSpaceFloorFilesAreRefusedAndTheMessageStillArrives(t *testi
 	h, ws := boundsCase(t, 5<<20, 50<<20)
 	h.SetMinFreeBytes(1 << 30)
 	floor := h.AttachmentFloor()
-	if want := uint64(1<<30) + uploadSlots*uint64(attachmentBound(media.Limits{Image: 5 << 20, Video: 50 << 20})); floor != want {
-		t.Fatalf("AttachmentFloor = %d, want the floor plus four of the largest submissions (%d)", floor, want)
+	// Each of the four places may hold its largest submission twice at once:
+	// in the spool and, while it is kept, as the stored copy beside it
+	// (WR-05 of the phase 38 review).
+	if want := uint64(1<<30) + uploadSlots*2*uint64(attachmentBound(media.Limits{Image: 5 << 20, Video: 50 << 20})); floor != want {
+		t.Fatalf("AttachmentFloor = %d, want the floor plus twice four of the largest submissions (%d)", floor, want)
 	}
 	body, ctype := rawMultipart(t, false, fld("name", "Anna"), filePart("anhang", "bild.png", onePixel(t)))
 	french := func(r *http.Request) { *r = *r.WithContext(i18n.WithLang(r.Context(), "fr")) }

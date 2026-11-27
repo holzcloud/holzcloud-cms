@@ -1,6 +1,7 @@
 package public
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"sync"
@@ -89,5 +90,29 @@ func TestAKeepThatOverrunsTheCallStoresTheMessageWithoutTheFile(t *testing.T) {
 	}
 	if n := mediaRows(); n != 1 {
 		t.Errorf("%d media rows after an ordinary message with a file, want 1", n)
+	}
+}
+
+// A kept file leaves the spool as soon as its copy is stored, not only when the
+// request is answered, so a submission does not hold its files twice for
+// longer than one copy takes (WR-05, IN-01 of the phase 38 review).
+func TestAKeptFileLeavesTheSpoolAtOnce(t *testing.T) {
+	h, ws := boundsCase(t, 5<<20, 50<<20)
+	body, ctype := rawMultipart(t, false,
+		filePart("anhang", "a.png", bigPNG(64<<10)),
+		filePart("anhang", "b.pdf", append([]byte("%PDF-1.4\n"), make([]byte, 64<<10)...)))
+	_, keeper, took, refused := takeBody(t, h, ws, body, ctype)
+	if !took || refused != nil {
+		t.Fatalf("took=%v refused=%+v", took, refused)
+	}
+	if n := len(spoolFiles(t, h.dataDir)); n != 2 {
+		t.Fatalf("%d files in the spool before the keep, want 2", n)
+	}
+	kept, err := keeper.Keep(context.Background())
+	if err != nil || len(kept) != 2 {
+		t.Fatalf("Keep = %+v, %v", kept, err)
+	}
+	if files := spoolFiles(t, h.dataDir); len(files) != 0 {
+		t.Errorf("after the keep, before the answer, the spool still holds %v", files)
 	}
 }

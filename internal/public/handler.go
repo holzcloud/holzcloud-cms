@@ -718,13 +718,14 @@ func (h *Handler) SetUploadLimits(image, video int64) {
 func (h *Handler) SetMinFreeBytes(n uint64) { h.minFreeBytes = n }
 
 // AttachmentFloor is the free space the data directory must have for a public
-// form to take a file: the floor itself plus the largest submission for every
-// upload slot. All four could be spooling their largest submission at once, and
-// the floor must still hold then; at the default limits that is 512 MB plus
-// about 300 MB.
+// form to take a file: the floor itself plus twice the largest submission for
+// every upload slot. All four could be spooling their largest submission at
+// once, and while one is kept its stored copy lies beside its spool file until
+// that is removed (WR-05 of the phase 38 review); the floor must still hold
+// then. At the default limits that is 512 MiB plus about 595 MiB.
 func (h *Handler) AttachmentFloor() uint64 {
 	limits := media.Limits{Image: h.maxMediaSize, Video: h.maxVideoSize}
-	return h.minFreeBytes + uint64(uploadSlots)*uint64(attachmentBound(limits))
+	return h.minFreeBytes + uint64(uploadSlots)*2*uint64(attachmentBound(limits))
 }
 
 // freeSpace is the free space of the data directory, read now.

@@ -93,7 +93,8 @@ type Config struct {
 	// HOLZCLOUD_MIN_FREE_BYTES, default 512 MB. Below it /readyz reports
 	// unready, and a public form refuses files once the free space is below the
 	// floor plus room for the four largest submissions the upload bounds allow
-	// at once (a message without a file is still taken). The administration's
+	// at once, each twice: spooled and kept (a message without a file is still
+	// taken). The administration's
 	// own upload does not read it.
 	//
 	// Sessions are written to the same database on every authenticated request,
