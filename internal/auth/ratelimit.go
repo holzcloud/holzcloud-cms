@@ -86,6 +86,23 @@ func NewThrottle(clientMax, accountMax int, window time.Duration) *Throttle {
 	}
 }
 
+// NewEvictingThrottle builds a throttle with a client axis only, whose limiter
+// makes room for a new client when it is full by forgetting the client
+// reserved longest ago, instead of refusing the new one.
+//
+// For a budget that has no account behind it: the hourly uploads of a network
+// (CR-01 of the phase 38 review). There, refusing a new key is the danger:
+// whoever has enough addresses (one IPv6 /48 is 65,536 networks) fills the
+// table and every other client is refused for the window. Forgetting a key can
+// only hand that one key a fresh budget, and the client who keeps sending keeps
+// its own key fresh. The login's throttles must not use this: forgetting a
+// live account key would reset the guess budget of that account.
+func NewEvictingThrottle(clientMax int, window time.Duration) *Throttle {
+	t := NewThrottle(clientMax, 0, window)
+	t.client.evictWhenFull = true
+	return t
+}
+
 // Reserve counts one attempt for the client and the account, or refuses.
 //
 // It returns an Attempt to settle, or nil and how long to wait when either axis
@@ -231,7 +248,8 @@ func (t *LoginThrottle) Cleanup() {
 // single-binary, single-host deployment, and it is bounded: it keeps at most
 // maxKeys keys and sweeps the keys whose window has passed on every
 // reservation. A live key is never forgotten to make room; a new key is refused
-// while the limiter is full of them (see DefaultMaxKeys). A restart clears it.
+// while the limiter is full of them (see DefaultMaxKeys), except in the client
+// limiter of NewEvictingThrottle. A restart clears it.
 type LoginLimiter struct {
 	mu   sync.Mutex
 	keys map[string]*list.Element // of *limitedKey
@@ -245,6 +263,10 @@ type LoginLimiter struct {
 	max     int
 	maxKeys int
 	window  time.Duration
+	// evictWhenFull makes room for a new key in a full limiter by forgetting
+	// the key reserved longest ago, instead of refusing the new one. Only for
+	// a limiter no account budget depends on (NewEvictingThrottle).
+	evictWhenFull bool
 
 	// now is injectable for tests.
 	now func() time.Time
@@ -273,7 +295,8 @@ func NewLoginLimiter(max int, window time.Duration) *LoginLimiter {
 // there will be room. The check and the count are one step under the lock.
 //
 // There is no room when the key is at its limit, and, for a key the limiter
-// does not hold yet, when it already holds maxKeys live keys.
+// does not hold yet, when it already holds maxKeys live keys, unless the
+// limiter makes room by forgetting the oldest (evictWhenFull).
 func (l *LoginLimiter) reserve(key string) (at time.Time, wait time.Duration, ok bool) {
 	key = storeKey(key)
 	l.mu.Lock()
@@ -289,7 +312,10 @@ func (l *LoginLimiter) reserve(key string) (at time.Time, wait time.Duration, ok
 		return time.Time{}, times[0].Add(l.window).Sub(now), false
 	}
 	if len(times) == 0 && l.order.Len() >= l.maxKeys {
-		return time.Time{}, l.fullWaitLocked(now), false
+		if !l.evictWhenFull {
+			return time.Time{}, l.fullWaitLocked(now), false
+		}
+		l.forgetLocked(l.order.Back())
 	}
 	l.addLocked(key, now)
 	return now, 0, true

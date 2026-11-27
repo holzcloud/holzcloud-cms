@@ -499,3 +499,52 @@ func TestTheSecondFactorAndConfirmationHaveTheirOwnLimits(t *testing.T) {
 		t.Error("the second step or the confirmation used up the login's budget")
 	}
 }
+
+// A throttle that keeps a budget for a client and has no account axis may make
+// room for a new key by forgetting the one reserved longest ago (CR-01 of the
+// phase 38 review). Refusing the new key would let anybody with enough
+// addresses fill the table and lock every other client out for the window;
+// forgetting a key can only hand that key a fresh budget, and there is no
+// account whose guess budget it could reset. The login's throttles keep
+// refusing (the test above).
+func TestAnEvictingThrottleMakesRoomForANewClient(t *testing.T) {
+	clock := &fixedClock{t: time.Unix(1_700_000_000, 0)}
+	th := NewEvictingThrottle(3, time.Hour)
+	th.client.now = clock.now
+	th.client.maxKeys = 100
+
+	for i := 0; i < 100; i++ {
+		a, _ := th.Reserve(fmt.Sprintf("2001:db8:%x::/64", i), "")
+		if a == nil {
+			t.Fatalf("reservation %d refused below the cap", i)
+		}
+		a.Fail()
+	}
+	for i := 100; i < 1000; i++ {
+		a, wait := th.Reserve(fmt.Sprintf("2001:db8:%x::/64", i), "")
+		if a == nil {
+			t.Fatalf("new client %d refused with %v while the table is full", i, wait)
+		}
+		a.Fail()
+	}
+	th.client.mu.Lock()
+	held, ordered := len(th.client.keys), th.client.order.Len()
+	th.client.mu.Unlock()
+	if held != 100 || ordered != 100 {
+		t.Errorf("the limiter holds %d keys (%d in order), want its cap of 100", held, ordered)
+	}
+	if th.client.count("2001:db8:0::/64") != 0 || th.client.count("2001:db8:3e7::/64") != 1 {
+		t.Error("the key reserved longest ago should have gone, the newest stayed")
+	}
+	// A client still held is counted on as before, and its own limit holds.
+	for i := 0; i < 2; i++ {
+		if a, _ := th.Reserve("2001:db8:3e7::/64", ""); a == nil {
+			t.Fatalf("a held client was refused below its limit at %d", i+2)
+		} else {
+			a.Fail()
+		}
+	}
+	if a, wait := th.Reserve("2001:db8:3e7::/64", ""); a != nil || wait <= 0 {
+		t.Errorf("the fourth from one client: %v, %v; want a refusal", a, wait)
+	}
+}
