@@ -165,6 +165,78 @@ func TestNobodyDeletesThemselvesOrTheLastAdministrator(t *testing.T) {
 	_ = database
 }
 
+// signedInAs stores a session for one account and returns its token, the
+// cookie that browser keeps sending.
+func signedInAs(t *testing.T, sm *scs.SessionManager, userID int64) string {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sm.Put(r.Context(), auth.SessionKeyUserID, userID)
+		sm.Put(r.Context(), auth.SessionKeyUserRole, user.RoleEditor)
+	})).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin/", nil))
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == sm.Cookie.Name {
+			return c.Value
+		}
+	}
+	t.Fatal("no session cookie was issued")
+	return ""
+}
+
+func sessionStored(t *testing.T, sm *scs.SessionManager, token string) bool {
+	t.Helper()
+	_, found, err := sm.Store.Find(token)
+	if err != nil {
+		t.Fatalf("session store: %v", err)
+	}
+	return found
+}
+
+// A deleted account's sessions end with it, on the screen and through the
+// administration interface the AI tools use. A session left behind names a
+// user id; the id of a deleted account is never meant to come back, but when it
+// does (the phase-36 audit made a plugin migration hand it to the next account)
+// that cookie would sign its holder in as whoever got the id.
+func TestDeletingAnAccountEndsItsSessions(t *testing.T) {
+	h, sm, _, admin := userAdmin(t)
+	ctx := context.Background()
+	gone, err := h.users.Create(ctx, "Ehemalige", "weg@example.com", "passwort123", user.RoleEditor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staying, err := h.users.Create(ctx, "Bleibende", "bleibt@example.com", "passwort123", user.RoleEditor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	goneA, goneB := signedInAs(t, sm, gone), signedInAs(t, sm, gone)
+	stays := signedInAs(t, sm, staying)
+
+	rec := serveAsOnly(t, h, sm, admin, h.HandleUserDelete,
+		postForm("/admin/users/2/delete", nil,
+			map[string]string{"id": strconv.FormatInt(gone, 10)}))
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if u, _ := h.users.GetByID(ctx, gone); u != nil {
+		t.Fatal("the account was not deleted")
+	}
+	if sessionStored(t, sm, goneA) || sessionStored(t, sm, goneB) {
+		t.Error("a session of the deleted account survived the deletion on the screen")
+	}
+	if !sessionStored(t, sm, stays) {
+		t.Error("deleting one account ended another account's session")
+	}
+
+	// The same through the operation the MCP tool delete_user calls.
+	viaTool := signedInAs(t, sm, staying)
+	if err := h.OpDeleteUser(ctx, staying); err != nil {
+		t.Fatal(err)
+	}
+	if sessionStored(t, sm, stays) || sessionStored(t, sm, viaTool) {
+		t.Error("a session of the account deleted through OpDeleteUser survived")
+	}
+}
+
 // Changing a password is how somebody locks out an attacker who already holds a
 // session cookie, so it ends every OTHER session and keeps the one doing it.
 func TestAPasswordChangeEndsTheOtherSessionsAndKeepsThisOne(t *testing.T) {

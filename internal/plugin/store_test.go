@@ -209,6 +209,112 @@ func TestRemovingTakesTheDataWithIt(t *testing.T) {
 	}
 }
 
+// The tables a plugin's migrations made go with it too. Left behind they were
+// reachable: a later plugin with the same id inherited them outright, and one
+// whose prefix starts theirs (kontakt after kontakt-formular) could read,
+// change or drop them, because the longest-prefix rule only knows installed
+// plugins (WR-02).
+func TestRemovingAPluginDropsItsTables(t *testing.T) {
+	ctx := context.Background()
+	objects := func(t *testing.T, s *Store, prefix string) []string {
+		t.Helper()
+		rows, err := s.DB.Read.QueryContext(ctx,
+			`SELECT name FROM sqlite_schema WHERE substr(name, 1, length($1)) = $1
+			 UNION ALL SELECT 'counter ' || name FROM sqlite_sequence WHERE substr(name, 1, length($1)) = $1
+			 ORDER BY 1`, prefix)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []string
+		for rows.Next() {
+			var n string
+			if err := rows.Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, n)
+		}
+		return out
+	}
+
+	s, _ := neuerSpeicher(t)
+	var coreBefore int
+	if err := s.DB.Read.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_schema`).Scan(&coreBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Install(ctx, paket("kontakt-formular")); err != nil {
+		t.Fatal(err)
+	}
+	// A counter, an index, a text key with SQLite's own index, and a key
+	// between two of its tables with rows on both sides, so that the order the
+	// tables are dropped in cannot matter.
+	if err := s.ApplyMigrations(ctx, "kontakt-formular", []Migration{{Name: "0001.sql", SQL: `
+CREATE TABLE plugin_kontakt_formular_a (id INTEGER PRIMARY KEY AUTOINCREMENT, t TEXT);
+CREATE INDEX plugin_kontakt_formular_a_t ON plugin_kontakt_formular_a (t);
+CREATE TABLE plugin_kontakt_formular_b (k TEXT PRIMARY KEY, a INTEGER REFERENCES plugin_kontakt_formular_a(id));
+INSERT INTO plugin_kontakt_formular_a (t) VALUES ('geheim');
+INSERT INTO plugin_kontakt_formular_b VALUES ('k', 1);`}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Remove(ctx, "kontakt-formular"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if left := objects(t, s, "plugin_kontakt_formular_"); len(left) > 0 {
+		t.Errorf("left behind after the removal: %v", left)
+	}
+	var n int
+	if err := s.DB.Read.QueryRowContext(ctx, `SELECT COUNT(*) FROM plugin_migrations`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("%d migration record(s) left behind (%v)", n, err)
+	}
+	if err := s.DB.Read.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_schema`).Scan(&n); err != nil || n != coreBefore {
+		t.Errorf("%d schema entries after the removal, %d before the install (%v)", n, coreBefore, err)
+	}
+
+	// A plugin whose prefix starts the removed one's finds nothing to read.
+	if err := s.Install(ctx, paket("kontakt")); err != nil {
+		t.Fatal(err)
+	}
+	err := s.ApplyMigrations(ctx, "kontakt", []Migration{{Name: "0001.sql",
+		SQL: `CREATE TABLE plugin_kontakt_x (t TEXT); INSERT INTO plugin_kontakt_x SELECT t FROM plugin_kontakt_formular_a;`}})
+	if err == nil {
+		t.Error("kontakt read the removed plugin's table")
+	}
+
+	// A database from before the namespace rule holds nicht and nicht-gefunden.
+	// Removing nicht takes its own tables and leaves the longer plugin's.
+	s2, _ := neuerSpeicher(t)
+	for _, id := range []string{"nicht", "nicht-gefunden"} {
+		if _, err := s2.DB.Write.ExecContext(ctx, `INSERT INTO plugins (id, name, version, manifest, sha256, enabled, installed_at, updated_at, last_error)
+			VALUES ($1, $1, '1', '{}', 'x', 0, 'x', 'x', '')`, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s2.DB.Write.ExecContext(ctx, `CREATE TABLE plugin_nicht_a (t TEXT); CREATE TABLE plugin_nicht_gefunden_a (t TEXT); INSERT INTO plugin_nicht_gefunden_a VALUES ('mine')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s2.Remove(ctx, "nicht"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if got := objects(t, s2, "plugin_nicht_"); len(got) != 1 || got[0] != "plugin_nicht_gefunden_a" {
+		t.Errorf("after removing nicht: %v, want only plugin_nicht_gefunden_a", got)
+	}
+	var v string
+	if err := s2.DB.Read.QueryRowContext(ctx, `SELECT t FROM plugin_nicht_gefunden_a`).Scan(&v); err != nil || v != "mine" {
+		t.Errorf("the table of nicht-gefunden: %q, %v", v, err)
+	}
+
+	// A plugin that is not installed is not found, and nothing is dropped for it.
+	if _, err := s2.DB.Write.ExecContext(ctx, `CREATE TABLE plugin_waise_a (t TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s2.Remove(ctx, "waise"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("removing a plugin that is not installed: %v", err)
+	}
+	if got := objects(t, s2, "plugin_waise_"); len(got) != 1 {
+		t.Errorf("removing a plugin that is not installed dropped %v", got)
+	}
+}
+
 func TestEigeneMigrationenLaufenEinmal(t *testing.T) {
 	s, _ := neuerSpeicher(t)
 	ctx := context.Background()
@@ -282,29 +388,29 @@ func TestAFailureIsNotedAndTruncated(t *testing.T) {
 
 func TestMigrationSandbox(t *testing.T) {
 	ctx := context.Background()
+	// Each case that needs the plugin's own table creates it first, so it fails
+	// on the rule it is about.
+	const own = `CREATE TABLE plugin_eins_a (a TEXT); `
 	bad := map[string]string{
 		"attach":         `ATTACH DATABASE '/tmp/x.db' AS x;`,
 		"attach mixed":   `aTtAcH database '/tmp/x.db' as x;`,
 		"attach comment": "/* hi */ -- x\n ATTACH DATABASE 'y' AS y;",
 		"pragma":         `PRAGMA writable_schema = 1;`,
-		"vacuum":         `VACUUM INTO '/tmp/copy.db';`,
-		"extension":      `INSERT INTO plugin_eins_a SELECT load_extension('x');`,
+		"extension":      own + `INSERT INTO plugin_eins_a SELECT load_extension('x');`,
 		"core table":     `CREATE TABLE users2 (a TEXT);`,
 		"drop core":      `DROP TABLE users;`,
 		"alter core":     `ALTER TABLE users ADD COLUMN x TEXT;`,
 		"insert core":    `INSERT INTO users (id) VALUES (1);`,
 		"update core":    `UPDATE pages SET title = 'x';`,
 		"delete core":    `DELETE FROM plugin_migrations;`,
-		"read secrets":   `INSERT INTO plugin_eins_a SELECT password_hash FROM users;`,
+		"read secrets":   own + `INSERT INTO plugin_eins_a SELECT password FROM users;`,
 		"hidden second":  `CREATE TABLE plugin_eins_a (a TEXT); DROP TABLE users;`,
 		"quoted":         `DROP TABLE "users";`,
-		"trigger":        `CREATE TRIGGER plugin_eins_t AFTER INSERT ON plugin_eins_a BEGIN DELETE FROM users; END;`,
+		"trigger":        own + `CREATE TRIGGER plugin_eins_t AFTER INSERT ON plugin_eins_a BEGIN DELETE FROM users; END;`,
 		"other plugin":   `CREATE TABLE plugin_zwei_a (a TEXT);`,
 		"store foreign":  `DELETE FROM plugin_store WHERE plugin_id = 'zwei';`,
 		"store nameless": `DELETE FROM plugin_store;`,
 		"temp":           `CREATE TEMP TABLE plugin_eins_a (a TEXT);`,
-		"schema":         `DELETE FROM sqlite_master;`,
-		"unterminated":   `CREATE TABLE plugin_eins_a (a TEXT) -- ok` + "\n" + `; INSERT INTO plugin_eins_a VALUES ('x`,
 	}
 	for name, q := range bad {
 		t.Run(name, func(t *testing.T) {
@@ -323,6 +429,34 @@ func TestMigrationSandbox(t *testing.T) {
 			}
 			if n != 0 {
 				t.Errorf("%d migration(s) recorded", n)
+			}
+		})
+	}
+
+	// What SQLite refuses by itself is no refusal of the guard, but it must leave
+	// the same nothing behind.
+	byTheEngine := map[string]string{
+		"vacuum":       `VACUUM INTO '/tmp/copy.db';`,
+		"schema":       `DELETE FROM sqlite_master;`,
+		"unterminated": `CREATE TABLE plugin_eins_a (a TEXT) -- ok` + "\n" + `; INSERT INTO plugin_eins_a VALUES ('x`,
+	}
+	for name, q := range byTheEngine {
+		t.Run(name, func(t *testing.T) {
+			s, _ := neuerSpeicher(t)
+			if err := s.Install(ctx, paket("eins")); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.ApplyMigrations(ctx, "eins", []Migration{{Name: "0001.sql", SQL: q}}); err == nil {
+				t.Fatal("not stopped")
+			}
+			var n int
+			if err := s.DB.Read.QueryRowContext(ctx,
+				`SELECT (SELECT COUNT(*) FROM plugin_migrations WHERE plugin_id = 'eins') +
+				        (SELECT COUNT(*) FROM sqlite_schema WHERE name LIKE 'plugin\_eins\_%' ESCAPE '\')`).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			if n != 0 {
+				t.Errorf("%d trace(s) left", n)
 			}
 		})
 	}

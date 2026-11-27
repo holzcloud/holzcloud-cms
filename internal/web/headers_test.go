@@ -127,3 +127,70 @@ func TestPublicCSPIgnoresEmptyOrigins(t *testing.T) {
 		t.Errorf("PublicCSP(\"\") = %q", got)
 	}
 }
+
+// A plugin's answer is the one public response that never needs script.
+// ForbidScript rewrites the policy the response already carries, so whatever an
+// earlier layer allowed (the payment form-action) stays.
+func TestForbidScriptTightensWhateverPolicyIsSet(t *testing.T) {
+	scriptSrc := func(csp string) string {
+		for _, d := range strings.Split(csp, ";") {
+			d = strings.TrimSpace(d)
+			if strings.HasPrefix(d, "script-src") {
+				return d
+			}
+		}
+		return ""
+	}
+
+	t.Run("payment policy", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		before := PublicCSP(PaymentFormAction)
+		rec.Header().Set("Content-Security-Policy", before)
+		ForbidScript(rec)
+		got := rec.Header().Get("Content-Security-Policy")
+		if scriptSrc(got) != "script-src 'none'" {
+			t.Errorf("script-src = %q in %s", scriptSrc(got), got)
+		}
+		if want := strings.Replace(before, "script-src 'self'", "script-src 'none'", 1); got != want {
+			t.Errorf("another directive changed:\n got %s\nwant %s", got, want)
+		}
+		if !strings.Contains(got, PaymentFormAction) {
+			t.Errorf("payment form-action lost: %s", got)
+		}
+	})
+
+	t.Run("no policy", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		ForbidScript(rec)
+		got := rec.Header().Get("Content-Security-Policy")
+		if scriptSrc(got) != "script-src 'none'" || !strings.Contains(got, "default-src 'self'") {
+			t.Errorf("policy = %s", got)
+		}
+		if strings.Contains(got, "script-src 'self'") {
+			t.Errorf("still allows own scripts: %s", got)
+		}
+		if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+			t.Error("nosniff missing")
+		}
+	})
+
+	t.Run("policy without script-src", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		rec.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self'")
+		ForbidScript(rec)
+		got := rec.Header().Get("Content-Security-Policy")
+		if scriptSrc(got) != "script-src 'none'" || !strings.Contains(got, "img-src 'self'") {
+			t.Errorf("policy = %s", got)
+		}
+	})
+
+	t.Run("sources are replaced, not appended", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		rec.Header().Set("Content-Security-Policy", "script-src 'self' 'unsafe-inline' https://x.example; img-src 'self'")
+		ForbidScript(rec)
+		got := rec.Header().Get("Content-Security-Policy")
+		if got != "script-src 'none'; img-src 'self'" {
+			t.Errorf("policy = %s", got)
+		}
+	})
+}

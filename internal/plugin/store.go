@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"crypto/sha256"
@@ -18,6 +19,9 @@ const timeLayout = "2006-01-02T15:04:05Z"
 
 // ErrNotFound is returned when a plugin is not installed.
 var ErrNotFound = errors.New("plugin not installed")
+
+// ErrNamespaceTaken is returned when another plugin's table names would overlap.
+var ErrNamespaceTaken = errors.New("the table names of another plugin overlap")
 
 // ErrRouteTaken is returned when another plugin already claims a route.
 var ErrRouteTaken = errors.New("another plugin already claims that route")
@@ -46,6 +50,13 @@ type Installed struct {
 // disabled and removed through ordinary SQL even when it cannot be loaded.
 type Store struct {
 	DB *db.DB
+
+	// removeGuard takes the migration policy off a driver connection. Nil means
+	// the real one; only a test sets it, to make the removal fail.
+	removeGuard func(driverConn any) error
+
+	// migrationTimeout overrides MigrationTimeout. Only a test sets it.
+	migrationTimeout time.Duration
 }
 
 // NewStore creates a store.
@@ -66,46 +77,71 @@ const MaxKeyBytes = 200
 // collision found here is an upload that fails with a message; found later it
 // is two plugins that both believe they own /suche, one of which silently never
 // runs.
+//
+// The checks and the insert are one write transaction. Checked through the
+// read pool first, two installs at the same moment (nicht and nicht-gefunden,
+// or two plugins claiming /suche) could both pass before either was written.
 func (s *Store) Install(ctx context.Context, p *Package) error {
-	if err := s.checkRoutes(ctx, p.Manifest); err != nil {
-		return err
-	}
 	raw, err := json.Marshal(p.Manifest)
 	if err != nil {
+		return err
+	}
+	tx, err := s.DB.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := checkRoutes(ctx, tx, p.Manifest); err != nil {
+		return err
+	}
+	if err := checkNamespaces(ctx, tx, p.Manifest.ID); err != nil {
 		return err
 	}
 	now := time.Now().UTC().Format(timeLayout)
 
 	// An upgrade keeps the enabled state and the websites: an operator who
 	// updates a plugin expects it to keep working, not to switch itself off.
-	_, err = s.DB.Write.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO plugins (id, name, version, manifest, sha256, enabled, installed_at, updated_at, last_error)
 		VALUES ($1, $2, $3, $4, $5, 0, $6, $6, '')
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name, version = excluded.version,
 			manifest = excluded.manifest, sha256 = excluded.sha256,
 			updated_at = excluded.updated_at, last_error = ''`,
-		p.Manifest.ID, p.Manifest.Name, p.Manifest.Version, string(raw), p.SHA256, now)
-	return err
+		p.Manifest.ID, p.Manifest.Name, p.Manifest.Version, string(raw), p.SHA256, now); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // checkRoutes refuses a manifest whose routes another plugin already holds.
-func (s *Store) checkRoutes(ctx context.Context, m *Manifest) error {
+func checkRoutes(ctx context.Context, tx *sql.Tx, m *Manifest) error {
 	if len(m.Routes) == 0 {
 		return nil
 	}
-	others, err := s.List(ctx)
+	rows, err := tx.QueryContext(ctx, `SELECT name, manifest FROM plugins WHERE id <> $1`, m.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("list plugins: %w", err)
 	}
+	defer rows.Close()
 	claimed := map[string]string{}
-	for _, o := range others {
-		if o.ID == m.ID || o.Manifest == nil {
+	for rows.Next() {
+		var name, raw string
+		if err := rows.Scan(&name, &raw); err != nil {
+			return err
+		}
+		// A manifest that no longer parses claims nothing, as in List.
+		o, err := ParseManifest([]byte(raw))
+		if err != nil {
 			continue
 		}
-		for _, r := range o.Manifest.Routes {
-			claimed[r] = o.Name
+		for _, r := range o.Routes {
+			claimed[r] = name
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
 	}
 	for _, r := range m.Routes {
 		if by, ok := claimed[r]; ok {
@@ -113,6 +149,32 @@ func (s *Store) checkRoutes(ctx context.Context, m *Manifest) error {
 		}
 	}
 	return nil
+}
+
+// checkNamespaces refuses an id whose table prefix starts another installed
+// plugin's, or the other way round. Ids may contain hyphens, which become
+// underscores in the prefix: plugin_nicht_ is the beginning of
+// plugin_nicht_gefunden_, so a plugin called nicht could otherwise reach the
+// tables of nicht-gefunden by its prefix alone.
+func checkNamespaces(ctx context.Context, tx *sql.Tx, id string) error {
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM plugins WHERE id <> $1`, id)
+	if err != nil {
+		return fmt.Errorf("list plugins: %w", err)
+	}
+	defer rows.Close()
+	mine := migrationPrefix(id)
+	for rows.Next() {
+		var other string
+		if err := rows.Scan(&other); err != nil {
+			return err
+		}
+		theirs := migrationPrefix(other)
+		if strings.HasPrefix(theirs, mine) || strings.HasPrefix(mine, theirs) {
+			return fmt.Errorf("%w: plugin %q and plugin %q would share table names (%s and %s)",
+				ErrNamespaceTaken, id, other, mine, theirs)
+		}
+	}
+	return rows.Err()
 }
 
 const pluginColumns = `id, name, version, manifest, sha256, enabled, installed_at, updated_at, last_error`
@@ -267,18 +329,71 @@ func (s *Store) SetError(ctx context.Context, id, msg string) error {
 
 // Remove deletes a plugin and everything it stored.
 //
-// The rows go with it, by foreign key. Keeping a plugin's data after it was
-// removed would mean a reinstall silently inherits state from a version that
-// may have kept it in a different shape.
+// The rows go with it, by foreign key, and so do the tables its migrations
+// made, in the same transaction. Keeping a plugin's data after it was removed
+// would mean a reinstall silently inherits state from a version that may have
+// kept it in a different shape. Its tables would be worse than that: a later
+// plugin with the same id would own them outright, and one whose prefix starts
+// theirs (kontakt after kontakt-formular) could reach them, because a name
+// belongs to the installed plugin with the longest prefix and the removed one
+// is no longer installed. A table that belongs to an installed plugin with a
+// longer prefix stays.
 func (s *Store) Remove(ctx context.Context, id string) error {
-	res, err := s.DB.Write.ExecContext(ctx, `DELETE FROM plugins WHERE id = $1`, id)
+	tx, err := s.DB.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("remove plugin: %w", err)
+	}
+	defer tx.Rollback()
+
+	// A key between two of the plugin's tables would make the order of the
+	// drops matter. Checked at the commit instead, when both are gone.
+	if _, err := tx.ExecContext(ctx, `PRAGMA defer_foreign_keys = ON`); err != nil {
+		return fmt.Errorf("remove plugin: %w", err)
+	}
+	tables, err := ownTables(ctx, tx, id)
+	if err != nil {
+		return fmt.Errorf("remove plugin: %w", err)
+	}
+	for _, t := range tables {
+		if _, err := tx.ExecContext(ctx, `DROP TABLE "`+strings.ReplaceAll(t, `"`, `""`)+`"`); err != nil {
+			return fmt.Errorf("remove plugin: drop %s: %w", t, err)
+		}
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM plugins WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("remove plugin: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
-	return nil
+	return tx.Commit()
+}
+
+// ownTables lists the tables in a plugin's namespace, by the rule its
+// migrations are held to.
+func ownTables(ctx context.Context, tx *sql.Tx, id string) ([]string, error) {
+	g := newMigrationGuard(id)
+	others, err := readOtherPrefixes(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	g.others = others
+	rows, err := tx.QueryContext(ctx, `SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		if g.owns(name) {
+			out = append(out, name)
+		}
+	}
+	return out, rows.Err()
 }
 
 // --- the plugin's own key/value space ---------------------------------------
@@ -377,6 +492,13 @@ func escapeLike(s string) string {
 
 // ApplyMigrations runs a plugin's SQL, once each, in name order.
 //
+// Each runs in a transaction of its own on a connection of its own, under a
+// policy given to SQLite's authorizer and a pre-update hook: the plugin may
+// create and change tables with its own prefix, read what its own tables and a
+// short list of columns of the legacy tables give it, and write plugin_store
+// rows of its own id, and nothing else. The policy is armed only around the
+// plugin's SQL and is off the connection before it goes back to the pool.
+//
 // The checksum is recorded as well as the name: a plugin that ships changed SQL
 // under a name that already ran would otherwise apply nothing and leave a
 // schema that does not match the code expecting it — the kind of mismatch that
@@ -399,25 +521,7 @@ func (s *Store) ApplyMigrations(ctx context.Context, id string, ms []Migration) 
 			return fmt.Errorf("plugin migration lookup: %w", err)
 		}
 
-		if err := s.checkMigration(ctx, id, m.SQL); err != nil {
-			return fmt.Errorf("migration %q of plugin %q refused: %w", m.Name, id, err)
-		}
-
-		tx, err := s.DB.Write.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, m.SQL); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("migration %q of plugin %q failed: %w", m.Name, id, err)
-		}
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO plugin_migrations (plugin_id, name, sha256, applied_at) VALUES ($1, $2, $3, $4)`,
-			id, m.Name, want, time.Now().UTC().Format(timeLayout)); err != nil {
-			tx.Rollback()
-			return err
-		}
-		if err := tx.Commit(); err != nil {
+		if err := s.applyGuarded(ctx, id, m, want); err != nil {
 			return err
 		}
 	}

@@ -1,9 +1,13 @@
 package public
 
 import (
+	"errors"
 	"io"
+	"mime"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
@@ -81,15 +85,28 @@ func (h *Handler) PluginMiddleware(next http.Handler) http.Handler {
 		}
 
 		if claimed {
-			if out, ok := h.plugins.HandleRoute(ctx, website.ID, in); ok {
+			out, ok, err := h.plugins.HandleRoute(ctx, website.ID, in)
+			if ok {
 				writePluginResponse(w, out)
+				return
+			}
+			// A plugin that is busy, held back or being replaced was not asked.
+			// The page is there, it is the plugin that cannot answer it now, so
+			// the visitor is told to come back and when, not that the page does
+			// not exist. Plain status text, as the 500 of the same kind
+			// elsewhere: this is a visitor's answer and not an operator
+			// sentence, and the reason lies in the plugin's own error line.
+			var unavailable *plugin.UnavailableError
+			if errors.As(err, &unavailable) {
+				retry := int((unavailable.RetryAfter + time.Second - 1) / time.Second)
+				w.Header().Set("Retry-After", strconv.Itoa(max(retry, 1)))
+				http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 				return
 			}
 			// A plugin that claims a path and then declines gets a 404 rather
 			// than the core's page lookup: it owns the address, and letting the
 			// request fall through would mean a slug could shadow it depending
 			// on what a plugin happened to answer.
-			_ = owner
 			http.NotFound(w, r)
 			return
 		}
@@ -152,8 +169,10 @@ func pluginLocation(loc string) (string, bool) {
 // cookies — are the host's, and a plugin that could set them could undo the
 // protections every other page relies on.
 func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
+	// 200 to 599: an informational status is not an answer, and a 103 would
+	// carry a plugin's headers to the browser before the real one.
 	status := out.Status
-	if status < 100 || status > 599 {
+	if status < 200 || status > 599 {
 		status = http.StatusOK
 	}
 
@@ -161,6 +180,14 @@ func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
 		// Only within this site, by the local-path rule (web.LocalPath). An
 		// open redirect is a phishing tool: a link that starts with the
 		// operator's own domain and lands somewhere else.
+		//
+		// This keeps a plugin that echoes a visitor's input into its Location
+		// from becoming one. It is not a boundary against the plugin itself: a
+		// text/html answer can still send the visitor anywhere with
+		// <meta http-equiv="refresh">, a link or a form, none of which a content
+		// policy governs. The body is not filtered for them (an XML answer with
+		// XHTML in it could carry the same element), so the README says what
+		// the check is and is not.
 		loc, ok := pluginLocation(out.Location)
 		if !ok {
 			// The status text of the standard library, as the other public
@@ -176,32 +203,68 @@ func writePluginResponse(w http.ResponseWriter, out *plugin.RequestOut) {
 	}
 
 	for k, v := range out.Headers {
-		if reservedHeader(k) {
+		if !pluginHeaders[http.CanonicalHeaderKey(k)] {
 			continue
 		}
 		w.Header().Set(k, v)
 	}
 
-	ct := out.ContentType
-	if ct == "" {
-		ct = "text/html; charset=utf-8"
-	}
-	w.Header().Set("Content-Type", ct)
+	// The one rule for every answer, redirects included: no script runs on a
+	// page a plugin wrote. Before WriteHeader, or the header is gone.
+	web.ForbidScript(w)
+	w.Header().Set("Content-Type", pluginContentType(out.ContentType))
 	w.WriteHeader(status)
 	if out.Body != "" {
 		_, _ = io.WriteString(w, out.Body)
 	}
 }
 
-// reservedHeader names the ones a plugin may not set.
-func reservedHeader(name string) bool {
-	switch strings.ToLower(name) {
-	case "content-security-policy", "content-security-policy-report-only",
-		"set-cookie", "strict-transport-security", "x-frame-options",
-		"content-type", "location", "content-length", "transfer-encoding",
-		"referrer-policy", "permissions-policy", "x-content-type-options",
-		"access-control-allow-origin":
-		return true
+// pluginHeaders is the closed list of headers a plugin may set.
+//
+// An allow list, not a deny list: the deny list that stood here missed Refresh,
+// which redirects without passing the Location check (a header no plugin has a
+// reason to send; the same redirect from the body is not stopped, see
+// writePluginResponse), and Link, which makes the
+// browser preload a script (W-2 of the phase 35 security report), and the next
+// header a browser learns to obey would have been missed the same way. What is
+// on the list describes the answer (its caching, language, validators and
+// filename) and decides nothing about how the browser treats the origin. Names
+// are canonicalised first, so case does not matter.
+var pluginHeaders = map[string]bool{
+	"Cache-Control": true, "Content-Disposition": true, "Content-Language": true,
+	"Etag": true, "Expires": true, "Last-Modified": true, "Retry-After": true,
+	"Vary": true, "X-Robots-Tag": true,
+}
+
+// pluginMediaTypes is the closed list of media types a plugin may answer with.
+//
+// The media type decides what a browser does with the body. text/javascript
+// satisfies script-src 'self' on a website's own origin, and that origin shares
+// its session with the admin, so a plugin that could choose its type could
+// choose to run script there (finding M2 of the phase 35 security report).
+// Everything a plugin of this CMS has a reason to send is on the list: a page, a
+// feed, data, a calendar, a table. Anything else, SVG and CSS included, goes
+// out as plain text.
+var pluginMediaTypes = map[string]bool{
+	"text/html": true, "text/plain": true, "text/csv": true, "text/calendar": true,
+	"text/xml": true, "application/json": true, "application/xml": true,
+	"application/rss+xml": true, "application/atom+xml": true,
+}
+
+// pluginContentType turns the type a plugin asked for into the one that is
+// sent. The parsed media type is compared with the list, never a prefix or a
+// substring: "text/html-x" and "text/html, text/javascript" are not text/html.
+func pluginContentType(asked string) string {
+	const fallback = "text/plain; charset=utf-8"
+	if asked == "" {
+		return "text/html; charset=utf-8"
 	}
-	return false
+	media, params, err := mime.ParseMediaType(asked)
+	if err != nil || !pluginMediaTypes[media] {
+		return fallback
+	}
+	if ct := mime.FormatMediaType(media, params); ct != "" {
+		return ct
+	}
+	return fallback
 }

@@ -143,3 +143,49 @@ func AllowFormActionTo(w http.ResponseWriter, origin string) {
 func AllowOpener(w http.ResponseWriter) {
 	w.Header().Set("Cross-Origin-Opener-Policy", "unsafe-none")
 }
+
+// ForbidScript makes this response one on which no script runs.
+//
+// A plugin's answer is the one public response that never needs script: a form
+// posts and a link navigates without it, and the plugin's own code runs in the
+// host, not in the browser. A plugin page that carried an inline script, an
+// event handler or a javascript: URL would otherwise run it on the origin of
+// the website, which shares a session with the admin, so script-src is set to
+// 'none' whatever the response said before.
+//
+// The policy the response already carries is rewritten, not replaced, so it
+// composes with AllowFormActionTo and the payment form-action: every other
+// directive stays as it was. A response without a policy starts from the public
+// one. The element and attribute forms of the directive are closed as well,
+// because they would otherwise take precedence over script-src for the
+// browsers that know them.
+func ForbidScript(w http.ResponseWriter) {
+	h := w.Header()
+	csp := h.Get("Content-Security-Policy")
+	if strings.TrimSpace(csp) == "" {
+		csp = publicCSP
+	}
+	var out []string
+	seen := false
+	for _, d := range strings.Split(csp, ";") {
+		d = strings.TrimSpace(d)
+		if d == "" {
+			continue
+		}
+		name, _, _ := strings.Cut(d, " ")
+		switch strings.ToLower(name) {
+		case "script-src":
+			seen = true
+			out = append(out, "script-src 'none'")
+		case "script-src-elem", "script-src-attr":
+			out = append(out, strings.ToLower(name)+" 'none'")
+		default:
+			out = append(out, d)
+		}
+	}
+	if !seen {
+		out = append(out, "script-src 'none'")
+	}
+	h.Set("Content-Security-Policy", strings.Join(out, "; "))
+	h.Set("X-Content-Type-Options", "nosniff")
+}

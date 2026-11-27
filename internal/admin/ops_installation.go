@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
@@ -278,8 +279,14 @@ func (h *Handler) OpDeleteUser(ctx context.Context, id int64) error {
 		return errNoSuchUser
 	case errors.Is(err, user.ErrLastAdmin):
 		return errors.New("the last administrator cannot be deleted")
+	case err != nil:
+		return err
 	}
-	return err
+	// As on the user screen: the account's sessions end with it.
+	if err := auth.DestroyUserSessions(ctx, h.sm, id, ""); err != nil {
+		slog.Error("could not end the sessions of a deleted user", "err", err, "user_id", id)
+	}
+	return nil
 }
 
 // --- plugins ----------------------------------------------------------------

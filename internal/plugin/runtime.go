@@ -26,6 +26,71 @@ import (
 // rather than a dead one.
 const CallTimeout = 2 * time.Second
 
+// QueueWait is how long a call waits for a busy plugin before it is answered
+// with ErrBusy. Two seconds is the length of one call: a caller that would
+// wait longer than a whole call would be waiting behind a plugin that is not
+// going to get to it. A starting value, tunable by SetLimits.
+const QueueWait = 2 * time.Second
+
+// QueueLength is how many callers may wait for one plugin at the same time.
+// A caller who would be the thirty-third is answered with ErrBusy at once
+// rather than held as a connection and a goroutine. A starting value.
+const QueueLength = 32
+
+// BreakerFailures is how many calls in a row may fail before a plugin is held
+// back. A starting value.
+const BreakerFailures = 3
+
+// BreakerCooldown is how long a plugin that failed BreakerFailures calls in a
+// row is held back before one call is tried again. Fixed, not growing: a
+// plugin that stays broken then costs one bounded call per cooldown. A
+// starting value.
+const BreakerCooldown = 30 * time.Second
+
+// reviveTimeout bounds bringing a closed module back from its compiled module.
+// Far above the seven milliseconds an instantiation takes, and the same kind of
+// bound as LoadTimeout: a start function that never returns must not hold a
+// call for ever.
+const reviveTimeout = 10 * time.Second
+
+// Limits are the bounds of a plugin call. A zero field keeps its default.
+type Limits struct {
+	// CallTimeout bounds one hook once the call holds the plugin.
+	CallTimeout time.Duration
+	// QueueWait is how long a call waits for the plugin before ErrBusy.
+	QueueWait time.Duration
+	// QueueLength is how many callers may wait for one plugin.
+	QueueLength int
+	// BreakerFailures is the number of failed calls in a row that holds a
+	// plugin back.
+	BreakerFailures int
+	// BreakerCooldown is how long a held-back plugin is left alone.
+	BreakerCooldown time.Duration
+}
+
+// SetLimits replaces the bounds of a call. It is meant for tests, which need
+// short ones, and must be called before the first Load: the values are read on
+// every call without a lock. They are fields of the Runtime and not package
+// variables so that one test's bounds cannot reach another test's runtime
+// under go test -race.
+func (r *Runtime) SetLimits(l Limits) {
+	if l.CallTimeout > 0 {
+		r.callTimeout = l.CallTimeout
+	}
+	if l.QueueWait > 0 {
+		r.queueWait = l.QueueWait
+	}
+	if l.QueueLength > 0 {
+		r.queueLength = l.QueueLength
+	}
+	if l.BreakerFailures > 0 {
+		r.breakerFailures = l.BreakerFailures
+	}
+	if l.BreakerCooldown > 0 {
+		r.breakerCooldown = l.BreakerCooldown
+	}
+}
+
 // LoadTimeout is the default bound of every Runtime on compiling a module and
 // running its _initialize; the bound itself lives on the Runtime
 // (loadTimeout). It is far above what a shipped plugin needs (well under a
@@ -60,6 +125,17 @@ type Runtime struct {
 	// another test's runtime under go test -race.
 	loadTimeout time.Duration
 
+	// The bounds of a call, see Limits. Fields for the same reason as
+	// loadTimeout.
+	callTimeout     time.Duration
+	queueWait       time.Duration
+	queueLength     int
+	breakerFailures int
+	breakerCooldown time.Duration
+	reviveTimeout   time.Duration
+	// now is the clock of the breaker; a test moves it past a cooldown.
+	now func() time.Time
+
 	mu      sync.RWMutex
 	loaded  map[string]*instance
 	closed  bool
@@ -78,12 +154,34 @@ type instance struct {
 	manifest *Manifest
 	compiled wazero.CompiledModule
 
-	// mu guards mod: one linear memory, one caller at a time.
-	mu  sync.Mutex
-	mod api.Module
+	// lock holds the instance: one linear memory, one caller at a time. A
+	// one-slot channel and not a sync.Mutex, because a caller has to be able to
+	// give up its place in the line: when its context ends, when the wait is
+	// longer than the queue wait, and never at all when the line is full. A
+	// mutex can only be waited for.
+	//
+	// Everything below it is read and written only while it is held.
+	lock    chan struct{}
+	waiting atomic.Int32
+	// closed marks an instance that Load or Unload replaced. It is set before
+	// close waits for the lock, so that a caller already in the line does not
+	// get the instance first and bring its compiled module back to life.
+	closed atomic.Bool
 
+	mod    api.Module
 	alloc  api.Function
 	handle api.Function
+
+	// The breaker. failures counts calls in a row that failed on the guest's
+	// side, heldUntil is when a hold ends (zero when there is none). A hold
+	// that has ended is not cleared until a call succeeds: the first call after
+	// it is the trial.
+	failures  int
+	heldUntil time.Time
+}
+
+func newInstance(m *Manifest, compiled wazero.CompiledModule) *instance {
+	return &instance{manifest: m, compiled: compiled, lock: make(chan struct{}, 1)}
 }
 
 // callCtx travels with a call so the host functions know who is asking and
@@ -163,7 +261,13 @@ func NewRuntime(ctx context.Context, store *Store, log *slog.Logger) (*Runtime, 
 		return nil, fmt.Errorf("wasi bereitstellen: %w", err)
 	}
 
-	r := &Runtime{store: store, log: log, engine: engine, loadTimeout: LoadTimeout, loaded: map[string]*instance{}}
+	r := &Runtime{
+		store: store, log: log, engine: engine, loaded: map[string]*instance{},
+		loadTimeout: LoadTimeout,
+		callTimeout: CallTimeout, queueWait: QueueWait, queueLength: QueueLength,
+		breakerFailures: BreakerFailures, breakerCooldown: BreakerCooldown,
+		reviveTimeout: reviveTimeout, now: time.Now,
+	}
 
 	host, err := engine.NewHostModuleBuilder(HostModule).
 		NewFunctionBuilder().WithFunc(r.hostCall).Export(FnCall).
@@ -217,6 +321,38 @@ func (r *Runtime) Load(ctx context.Context, m *Manifest, module []byte) error {
 		}
 	}
 
+	mod, err := r.instantiate(ctx, compiled)
+	if err != nil {
+		compiled.Close(ctx)
+		return fmt.Errorf("the module cannot be started: %w", err)
+	}
+
+	inst := newInstance(m, compiled)
+	inst.setModule(mod)
+
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		mod.Close(ctx)
+		compiled.Close(ctx)
+		return errors.New("die Laufzeit ist beendet")
+	}
+	old := r.loaded[m.ID]
+	r.loaded[m.ID] = inst
+	r.mu.Unlock()
+
+	// The old instance is closed after the map is released: closing waits for
+	// the call that is running in it, and a Dispatch that wants the map in the
+	// meantime would wait for that call too, whichever plugin it was for.
+	if old != nil {
+		old.close(ctx)
+	}
+	return nil
+}
+
+// instantiate starts a compiled module. A module config is used once, so every
+// instantiation, the first and a revival alike, builds a fresh one.
+func (r *Runtime) instantiate(ctx context.Context, compiled wazero.CompiledModule) (api.Module, error) {
 	cfg := wazero.NewModuleConfig().
 		WithName("").
 		// _initialize rather than _start: a reactor module sets itself up and
@@ -224,30 +360,14 @@ func (r *Runtime) Load(ctx context.Context, m *Manifest, module []byte) error {
 		WithStartFunctions("_initialize").
 		WithSysNanotime().
 		WithSysWalltime()
+	return r.engine.InstantiateModule(ctx, compiled, cfg)
+}
 
-	mod, err := r.engine.InstantiateModule(ctx, compiled, cfg)
-	if err != nil {
-		compiled.Close(ctx)
-		return fmt.Errorf("the module cannot be started: %w", err)
-	}
-
-	inst := &instance{
-		manifest: m, compiled: compiled, mod: mod,
-		alloc: mod.ExportedFunction(GuestAlloc), handle: mod.ExportedFunction(GuestHandle),
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		mod.Close(ctx)
-		compiled.Close(ctx)
-		return errors.New("die Laufzeit ist beendet")
-	}
-	if old := r.loaded[m.ID]; old != nil {
-		old.close(ctx)
-	}
-	r.loaded[m.ID] = inst
-	return nil
+// setModule makes a freshly started module the instance's own.
+func (i *instance) setModule(mod api.Module) {
+	i.mod = mod
+	i.alloc = mod.ExportedFunction(GuestAlloc)
+	i.handle = mod.ExportedFunction(GuestHandle)
 }
 
 // Unload stops a plugin and frees its memory.
@@ -261,13 +381,16 @@ func (r *Runtime) Unload(ctx context.Context, id string) {
 	}
 }
 
+// close retires the instance. The flag is set before the lock is waited for:
+// callers already in the line then find the instance closed when their turn
+// comes, instead of getting it first and starting its module again. The wait
+// itself is not subject to the queue (a replaced plugin must be released however
+// long the line is) and is for the one call that is running.
 func (i *instance) close(ctx context.Context) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	if i.mod != nil {
-		i.mod.Close(ctx)
-		i.mod = nil
-	}
+	i.closed.Store(true)
+	i.lock <- struct{}{}
+	defer i.release()
+	i.closeModule()
 	if i.compiled != nil {
 		i.compiled.Close(ctx)
 		i.compiled = nil
@@ -317,17 +440,34 @@ func (r *Runtime) Dispatch(ctx context.Context, id, hook string, websiteID int64
 		return fmt.Errorf("the payload for %q is larger than %d MB", hook, MaxPayloadBytes>>20)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, CallTimeout)
-	defer cancel()
-	ctx = context.WithValue(ctx, callCtxKey{}, &callCtx{
+	// The call is the plugin's own and not the visitor's. A request that is
+	// dropped, before the call or while it runs, would otherwise take the wasm
+	// module down with it (the engine closes a module whose context is done),
+	// and one visitor who closed a tab would switch the plugin off for every
+	// website. The call keeps what the request carries, the language, the
+	// read-only marker, the request and the attachments, and none of its
+	// cancellation; its bound starts once it holds the plugin, see call.
+	base := context.WithValue(context.WithoutCancel(ctx), callCtxKey{}, &callCtx{
 		pluginID: id, manifest: inst.manifest, websiteID: websiteID,
 		files: keeperFrom(ctx),
 	})
 
-	answer, err := inst.call(ctx, hook, payload)
+	answer, o, err := r.call(ctx, inst, base, hook, payload)
 	if err != nil {
-		r.fail(id, hook, err)
+		switch {
+		case r.isClosed():
+			// The runtime was shut down under the call: the engine closed
+			// the module, which says nothing about the plugin. Recorded, it
+			// would be the first thing the operator saw after the restart.
+		case o.held:
+			r.hold(id, hook, err, o)
+		case failure(err):
+			r.fail(id, hook, err)
+		}
 		return err
+	}
+	if o.cleared {
+		r.record(id, "")
 	}
 	if len(answer) == 0 || out == nil {
 		return nil
@@ -343,24 +483,146 @@ func (r *Runtime) Dispatch(ctx context.Context, id, hook string, websiteID int64
 // ErrNotLoaded is returned when a plugin is not running.
 var ErrNotLoaded = errors.New("plugin nicht geladen")
 
+// ErrBusy is the reason of an UnavailableError for a plugin that has no room
+// for one more caller: the line behind it is full, or the caller waited as long
+// as it may.
+var ErrBusy = errors.New("the plugin is busy")
+
+// ErrHeldBack is the reason of an UnavailableError for a plugin that failed
+// call after call and is being left alone for a while.
+var ErrHeldBack = errors.New("the plugin is held back after repeated failures")
+
+// UnavailableError says that a plugin was not asked at all, and when it is
+// worth asking again. It is an answer about the moment and not a failure of the
+// plugin: nothing is recorded on the plugin for it.
+//
+// errors.Is(err, ErrBusy) and errors.Is(err, ErrHeldBack) tell the two apart;
+// errors.As gives RetryAfter, which a route turns into a Retry-After header.
+type UnavailableError struct {
+	Reason     error
+	RetryAfter time.Duration
+}
+
+func (e *UnavailableError) Error() string { return e.Reason.Error() }
+func (e *UnavailableError) Unwrap() error { return e.Reason }
+
+// leftError is a caller who stopped waiting for the plugin. It is the caller's
+// own context that ended, and so it says nothing about the plugin.
+type leftError struct{ err error }
+
+func (e *leftError) Error() string { return e.err.Error() }
+func (e *leftError) Unwrap() error { return e.err }
+
+// failure reports whether err says something about the plugin. Busy and held
+// back answers, a caller who left the line and a plugin that has been replaced
+// do not: recording them would send the operator after a fault that is not
+// there.
+func failure(err error) bool {
+	var u *UnavailableError
+	var l *leftError
+	return !errors.As(err, &u) && !errors.As(err, &l) && !errors.Is(err, ErrNotLoaded)
+}
+
 // fail records why a plugin misbehaved, in the log and on the plugin itself.
 func (r *Runtime) fail(id, hook string, err error) {
 	r.log.Error("plugin call failed", "plugin", id, "hook", hook, "err", err)
-	// Best effort and deliberately not on the request's context: the request
-	// may already be cancelled, and losing the reason would leave the operator
-	// with a plugin that quietly does nothing.
+	r.record(id, fmt.Sprintf("%s: %v", hook, err))
+}
+
+// hold records that a plugin was held back, once: this call is the one that
+// opened the hold. The calls it turns away afterwards record nothing.
+//
+// One line in the log and one on the plugin, in place of the line fail would
+// write, and it carries the failure that tipped the count so that the cause is
+// not lost behind the consequence.
+func (r *Runtime) hold(id, hook string, err error, o outcome) {
+	until := o.until.UTC().Format(time.RFC3339)
+	r.log.Error("plugin held back after repeated failures",
+		"plugin", id, "hook", hook, "failures", o.failures, "until", until, "err", err)
+	r.record(id, fmt.Sprintf("held back after %d failed calls in a row, tried again at %s; last failure: %s: %v",
+		o.failures, until, hook, err))
+}
+
+// record writes the plugin's error line. Best effort and deliberately not on
+// the request's context: the request may already be cancelled, and losing the
+// reason would leave the operator with a plugin that quietly does nothing. Never
+// called while the instance lock is held, so that a plugin's lock is not held
+// while the single write connection is waited for.
+func (r *Runtime) record(id, msg string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_ = r.store.SetError(ctx, id, fmt.Sprintf("%s: %v", hook, err))
+	_ = r.store.SetError(ctx, id, msg)
+}
+
+// outcome is what a call tells Dispatch about the breaker, so that the one
+// line that is worth writing is written, after the lock is released.
+type outcome struct {
+	// held is set on the call that opened a hold: the plugin has failed
+	// `failures` calls in a row and is left alone until `until`.
+	held     bool
+	failures int
+	until    time.Time
+	// cleared is set on the first success after a hold: the error recorded
+	// when it began is stale.
+	cleared bool
 }
 
 // call moves the bytes across and back.
-func (i *instance) call(ctx context.Context, hook string, payload []byte) ([]byte, error) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	if i.mod == nil {
-		return nil, ErrNotLoaded
+//
+// The bound of the call starts once it holds the instance. A caller that waited
+// behind another has its whole bound left to run in: starting the clock before
+// the lock would hand a slow call's time to the one queued behind it.
+func (r *Runtime) call(ctx context.Context, i *instance, base context.Context, hook string, payload []byte) ([]byte, outcome, error) {
+	var o outcome
+	if err := r.acquire(ctx, i); err != nil {
+		return nil, o, err
 	}
+	defer i.release()
+	// An instance that Load or Unload replaced is gone, whatever the caller
+	// queued for. Its compiled module is not brought back for a caller that
+	// holds a reference nothing else holds.
+	if i.closed.Load() || r.isClosed() {
+		return nil, o, ErrNotLoaded
+	}
+
+	// A plugin that failed call after call is left alone for the cooldown, and
+	// before anything is started: the point of the hold is that a crash loop
+	// does not cost an instantiation per request. After the cooldown this call
+	// goes through as the trial.
+	if !i.heldUntil.IsZero() {
+		if left := i.heldUntil.Sub(r.now()); left > 0 {
+			return nil, o, &UnavailableError{Reason: ErrHeldBack, RetryAfter: left}
+		}
+	}
+
+	res, err := r.run(i, base, hook, payload)
+	switch {
+	case err == nil:
+		o.cleared = !i.heldUntil.IsZero()
+		i.failures, i.heldUntil = 0, time.Time{}
+	case failure(err):
+		i.failures++
+		if i.failures >= r.breakerFailures {
+			i.heldUntil = r.now().Add(r.breakerCooldown)
+			o.held, o.failures, o.until = true, i.failures, i.heldUntil
+		}
+	}
+	return res, o, err
+}
+
+// run revives the module if it is closed and makes the call. The caller holds
+// the instance.
+func (r *Runtime) run(i *instance, base context.Context, hook string, payload []byte) ([]byte, error) {
+	// A module that a timeout, a trap or the engine closed is brought back
+	// from the compiled module under the lock, so that no two calls revive it.
+	if i.mod == nil || i.mod.IsClosed() {
+		if err := r.revive(i); err != nil {
+			return nil, err
+		}
+	}
+
+	cctx, cancel := context.WithTimeout(base, r.callTimeout)
+	defer cancel()
 
 	// A trap in the guest arrives as an error, but a panic in wazero's own
 	// machinery would otherwise take the request with it.
@@ -372,9 +634,86 @@ func (i *instance) call(ctx context.Context, hook string, payload []byte) ([]byt
 				err = fmt.Errorf("the module crashed: %v", p)
 			}
 		}()
-		res, err = i.callLocked(ctx, hook, payload)
+		res, err = i.callLocked(cctx, hook, payload)
 	}()
+	if err != nil {
+		// A guest that trapped or was cut off is in an unknown state: a Go
+		// runtime halfway through a goroutine switch cannot be resumed. Its
+		// module is closed here, if the engine has not done so, and the next
+		// call starts a fresh one.
+		i.closeModule()
+	}
 	return res, err
+}
+
+// acquire takes the instance for one call, or says why the call cannot have it.
+//
+// A free instance is taken without a look at the caller's context: the call is
+// detached from the request by design, and a submission that reached the plugin
+// should complete even if its visitor has gone. Only waiting depends on the
+// caller. The line is bounded in length, so that a slow plugin is not a place
+// where every request of a busy site piles up as a goroutine and a connection,
+// and in time, so that a caller is not held longer than a call takes.
+func (r *Runtime) acquire(ctx context.Context, i *instance) error {
+	select {
+	case i.lock <- struct{}{}:
+		return nil
+	default:
+	}
+
+	busy := &UnavailableError{Reason: ErrBusy, RetryAfter: r.queueWait}
+	if int(i.waiting.Add(1)) > r.queueLength {
+		i.waiting.Add(-1)
+		return busy
+	}
+	defer i.waiting.Add(-1)
+
+	timer := time.NewTimer(r.queueWait)
+	defer timer.Stop()
+	select {
+	case i.lock <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return &leftError{err: ctx.Err()}
+	case <-timer.C:
+		return busy
+	}
+}
+
+func (i *instance) release() { <-i.lock }
+
+// revive starts the instance's module again. The caller holds the instance.
+func (r *Runtime) revive(i *instance) error {
+	i.closeModule()
+	if i.compiled == nil {
+		return ErrNotLoaded
+	}
+	// A context of its own: the call has not begun, so there is no call
+	// context yet, and a fresh Load does not run under one either.
+	ctx, cancel := context.WithTimeout(context.Background(), r.reviveTimeout)
+	defer cancel()
+	mod, err := r.instantiate(ctx, i.compiled)
+	if err != nil {
+		return fmt.Errorf("the module cannot be started again: %w", err)
+	}
+	i.setModule(mod)
+	return nil
+}
+
+// closeModule releases the instance's module and its memory. The caller holds
+// the instance.
+func (i *instance) closeModule() {
+	if i.mod != nil {
+		i.mod.Close(context.Background())
+		i.mod = nil
+		i.alloc, i.handle = nil, nil
+	}
+}
+
+func (r *Runtime) isClosed() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.closed
 }
 
 func (i *instance) callLocked(ctx context.Context, hook string, payload []byte) ([]byte, error) {

@@ -6,13 +6,16 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 )
 
 // A plugin's files come from an archive and are served from the admin's own
-// origin, so a page or an image with script in it must never open as a page.
+// origin, so nothing a browser runs or opens as a page may come out of
+// /plugin-assets: not a script, not a document, even when an installation from
+// before the extension table still has one on disk.
 func TestPluginAssetsAreNeverServedAsDocuments(t *testing.T) {
 	h, _, database, _ := newTestAdmin(t)
 	dir := t.TempDir()
@@ -31,9 +34,21 @@ func TestPluginAssetsAreNeverServedAsDocuments(t *testing.T) {
 	if err := os.MkdirAll(assets, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	files := map[string]bool{ // name -> forced download
-		"seite.html": true, "seite.htm": true, "bild.svg": true, "daten.xml": true, "x.xhtml": true,
-		"app.js": false, "stil.css": false,
+	type want struct {
+		status   int
+		ct       string
+		download bool
+	}
+	files := map[string]want{
+		"app.js":     {http.StatusNotFound, "", false},
+		"modul.mjs":  {http.StatusNotFound, "", false},
+		"seite.html": {http.StatusNotFound, "", false},
+		"seite.htm":  {http.StatusNotFound, "", false},
+		"x.xhtml":    {http.StatusNotFound, "", false},
+		"daten.xml":  {http.StatusNotFound, "", false},
+		"ohne":       {http.StatusNotFound, "", false},
+		"stil.css":   {http.StatusOK, "text/css; charset=utf-8", false},
+		"bild.svg":   {http.StatusOK, "image/svg+xml", true},
 	}
 	for name := range files {
 		if err := os.WriteFile(filepath.Join(assets, name), []byte("<script>alert(1)</script>"), 0o644); err != nil {
@@ -41,7 +56,7 @@ func TestPluginAssetsAreNeverServedAsDocuments(t *testing.T) {
 		}
 	}
 
-	for name, download := range files {
+	for name, w := range files {
 		req := httptest.NewRequest(http.MethodGet, "/plugin-assets/eins/"+name, nil)
 		req.SetPathValue("id", "eins")
 		req.SetPathValue("path", name)
@@ -49,18 +64,77 @@ func TestPluginAssetsAreNeverServedAsDocuments(t *testing.T) {
 		if err := h.HandlePluginAsset(rec, req); err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		if rec.Code != http.StatusOK {
-			t.Fatalf("%s: status %d", name, rec.Code)
+		if rec.Code != w.status {
+			t.Errorf("%s: status %d, want %d", name, rec.Code, w.status)
+			continue
+		}
+		if w.status != http.StatusOK {
+			if body := rec.Body.String(); strings.Contains(body, "alert(1)") {
+				t.Errorf("%s: the file's content was served: %q", name, body)
+			}
+			continue
 		}
 		hd := rec.Header()
+		if got := hd.Get("Content-Type"); got != w.ct {
+			t.Errorf("%s: Content-Type %q, want %q", name, got, w.ct)
+		}
 		if hd.Get("X-Content-Type-Options") != "nosniff" {
 			t.Errorf("%s: no nosniff", name)
 		}
 		if csp := hd.Get("Content-Security-Policy"); csp != "sandbox; default-src 'none'" {
 			t.Errorf("%s: CSP %q", name, csp)
 		}
-		if got := hd.Get("Content-Disposition") == "attachment"; got != download {
-			t.Errorf("%s: attachment=%v, want %v", name, got, download)
+		if got := hd.Get("Content-Disposition") == "attachment"; got != w.download {
+			t.Errorf("%s: attachment=%v, want %v", name, got, w.download)
 		}
+	}
+}
+
+// A directory whose name carries an asset extension (the archive entry
+// assets/a.css/b.png makes one) is not a file. http.ServeFile would answer it
+// with a directory listing as text/html, over the type the table set (IN-05).
+func TestAPluginAssetDirectoryIsNotListed(t *testing.T) {
+	h, _, database, _ := newTestAdmin(t)
+	dir := t.TempDir()
+	store := plugin.NewStore(database)
+	rt, err := plugin.NewRuntime(context.Background(), store, nil)
+	if err != nil {
+		t.Fatalf("NewRuntime: %v", err)
+	}
+	mgr, err := plugin.NewManager(context.Background(), store, rt, dir, nil)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	h.SetPlugins(mgr)
+
+	sub := filepath.Join(dir, "plugins", "eins", plugin.AssetDir, "a.css")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "b.png"), []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"a.css", "a.css/"} {
+		req := httptest.NewRequest(http.MethodGet, "/plugin-assets/eins/"+path, nil)
+		req.SetPathValue("id", "eins")
+		req.SetPathValue("path", path)
+		rec := httptest.NewRecorder()
+		if err := h.HandlePluginAsset(rec, req); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "b.png") {
+			t.Errorf("%s: status %d, body %q; a directory must be a 404", path, rec.Code, rec.Body.String())
+		}
+	}
+	// The file in it is an ordinary asset.
+	req := httptest.NewRequest(http.MethodGet, "/plugin-assets/eins/a.css/b.png", nil)
+	req.SetPathValue("id", "eins")
+	req.SetPathValue("path", "a.css/b.png")
+	rec := httptest.NewRecorder()
+	if err := h.HandlePluginAsset(rec, req); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "image/png" {
+		t.Errorf("the file in the directory: status %d, Content-Type %q", rec.Code, rec.Header().Get("Content-Type"))
 	}
 }
