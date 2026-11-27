@@ -166,8 +166,8 @@ func ThrottleKey(ip string) string {
 // budget); the admin throttles key them anyway, because an operator on
 // loopback or a LAN must still be throttled.
 //
-// It logs once per resolver when the peer itself is a private or loopback
-// address that the trusted proxies do not cover.
+// It logs once per resolver when the peer itself is a private, loopback or
+// link-local address that the trusted proxies do not cover.
 func (r *ClientIPResolver) ThrottleKey(req *http.Request) (key string, public bool) {
 	ip := hostOnly(req.RemoteAddr)
 	if r != nil {
@@ -185,11 +185,14 @@ func (r *ClientIPResolver) noteUntrustedPeer(peer string) {
 		return
 	}
 	addr = addr.Unmap().WithZone("")
-	if !(addr.IsLoopback() || addr.IsPrivate()) || r.isTrusted(peer) {
+	// Link-local too: a proxy on the same link (fe80::/10, 169.254.0.0/16)
+	// hides its visitors exactly as a private one does. Trust is asked of the
+	// address without its zone, which a configured prefix never carries.
+	if !(addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast()) || r.isTrusted(addr.String()) {
 		return
 	}
 	r.untrustedPeerNoted.Do(func() {
-		slog.Warn("requests arrive from a private or loopback address that HOLZCLOUD_TRUSTED_PROXIES does not cover; "+
+		slog.Warn("requests arrive from a private, loopback or link-local address that HOLZCLOUD_TRUSTED_PROXIES does not cover; "+
 			"every visitor then shares this one address and one throttle budget. If a reverse proxy is in front, add it to HOLZCLOUD_TRUSTED_PROXIES",
 			"peer", peer)
 	})

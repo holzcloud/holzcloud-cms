@@ -146,3 +146,21 @@ func TestAnUntrustedPrivatePeerIsLoggedOnce(t *testing.T) {
 		t.Errorf("%d log records for a trusted or public peer, want none", len(h2.records))
 	}
 }
+
+// I-6: a link-local peer (fe80::/10, 169.254.0.0/16) is not a visitor either:
+// it is a proxy on the same link that HOLZCLOUD_TRUSTED_PROXIES does not name,
+// and it is told about like a private or loopback one.
+func TestAnUntrustedLinkLocalPeerIsLoggedToo(t *testing.T) {
+	for _, peer := range []string{"[fe80::1%eth0]:4000", "169.254.10.20:4000"} {
+		h := &recordingHandler{}
+		previous := slog.Default()
+		slog.SetDefault(slog.New(h))
+		r := resolverFor(t, "127.0.0.1/32")
+		r.ThrottleKey(throttleRequest(peer, ""))
+		r.ThrottleKey(throttleRequest(peer, ""))
+		slog.SetDefault(previous)
+		if len(h.records) != 1 || h.records[0].Level != slog.LevelWarn {
+			t.Errorf("%s: %d log records, want exactly one warning", peer, len(h.records))
+		}
+	}
+}

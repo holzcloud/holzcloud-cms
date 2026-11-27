@@ -212,3 +212,41 @@ func TestTheOwnPasswordCheckOfAPasswordChangeIsThrottled(t *testing.T) {
 		t.Error("a throttled change altered the password")
 	}
 }
+
+// IN-05: a stored hash that cannot be read is a fault of the server, not a
+// wrong password. The confirmation used to answer "That password is wrong" and
+// count it, while the password change, which shares its throttle, answered
+// 500 and gave the attempt back. Both now give it back.
+func TestAnUnreadableStoredHashIsNotCountedAtTheConfirmation(t *testing.T) {
+	h, sm, database, admin := userAdmin(t)
+	setHash := func(hash string) {
+		t.Helper()
+		if _, err := database.Write.ExecContext(context.Background(),
+			`UPDATE users SET password = $1 WHERE id = $2`, hash, admin); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setHash("kaputt")
+	for i := 0; i < auth.ConfirmUserMax+1; i++ {
+		req := postForm("/admin/bestaetigen", url.Values{"password": {"passwort123"}, "weiter": {"/admin/users"}}, nil)
+		req.RemoteAddr = confirmClient
+		var handlerErr error
+		sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			sm.Put(r.Context(), auth.SessionKeyUserID, admin)
+			sm.Put(r.Context(), auth.SessionKeyUserRole, user.RoleAdmin)
+			handlerErr = h.HandleConfirmPassword(w, r)
+		})).ServeHTTP(httptest.NewRecorder(), req)
+		if handlerErr == nil {
+			t.Fatalf("confirmation %d against an unreadable hash: no error, want a server error", i+1)
+		}
+	}
+
+	hash, err := auth.HashPassword("passwort123", cheapHashing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	setHash(hash)
+	if res := postConfirm(t, h, sm, admin, "passwort123"); !res.Elevated {
+		t.Errorf("the right password was refused (%d) after server errors: they were counted as wrong passwords", res.Code)
+	}
+}

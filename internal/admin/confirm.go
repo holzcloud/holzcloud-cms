@@ -2,6 +2,7 @@ package admin
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -71,7 +72,14 @@ func (h *Handler) HandleConfirmPassword(w http.ResponseWriter, r *http.Request) 
 			data.Errors.Add("password", "The server is busy checking other passwords. Please try again in a moment.")
 			return web.RenderAdminStatus(w, h.templates, r, "confirm", data, http.StatusServiceUnavailable)
 		}
-		if err != nil || !ok {
+		if err != nil {
+			// A stored hash that cannot be read is the server's fault, not a
+			// wrong password: the deferred Refund gives the attempt back, as
+			// the password change does with the same throttle (code review
+			// IN-05).
+			return fmt.Errorf("verify own password: %w", err)
+		}
+		if !ok {
 			attempt.Fail()
 			// No hint about which part was wrong.
 			data := h.confirmForm(r, back)

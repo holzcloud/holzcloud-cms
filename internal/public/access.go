@@ -248,14 +248,12 @@ func (h *Handler) HandleUnlock(w http.ResponseWriter, r *http.Request) error {
 	defer attempt.Refund()
 
 	ok, err := page.CheckPagePassword(pg, r.FormValue("passwort"))
-	if errors.Is(err, auth.ErrBusy) {
-		// The server could not look at the password just now. That is not a
-		// wrong password and is not counted against the visitor.
+	if err != nil {
+		// The only error CheckPagePassword returns is auth.ErrBusy: the server
+		// could not look at the password just now. That is not a wrong
+		// password and is not counted against the visitor.
 		web.RetryAfter(w, auth.BusyRetryAfter)
 		return h.serveGateStatus(w, r, website, pg, false, http.StatusServiceUnavailable)
-	}
-	if err != nil {
-		return fmt.Errorf("check page password: %w", err)
 	}
 	if !ok {
 		attempt.Fail()
