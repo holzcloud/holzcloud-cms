@@ -420,6 +420,13 @@ func (h *Handler) HandleUserDelete(w http.ResponseWriter, r *http.Request) error
 	if err := h.deleteUser(r.Context(), id); err != nil {
 		return err
 	}
+	// The account's sessions go with it. A cookie that outlives its account
+	// names a user id, and whoever holds that id next would be signed in by it.
+	if err := auth.DestroyUserSessions(r.Context(), h.sm, id, ""); err != nil {
+		// The account itself is already gone; log and carry on rather than
+		// showing a failure for a deletion that did take effect.
+		slog.Error("could not end the sessions of a deleted user", "err", err, "user_id", id)
+	}
 
 	h.LogActivity(r, activity.Entry{
 		Action:     activity.ActionUserDelete,
