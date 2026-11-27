@@ -302,8 +302,9 @@ SQLite itself checks what it does, at install, while it runs:
   `sqlite_sequence`) can be read, because SQLite itself reads them when it alters
   a table: the structure of the host's tables is public in the source and the
   counters are all that is learned there. That is a known and accepted limit.
-  Changing them is checked after every statement: a new entry outside its prefix,
-  a missing foreign entry or a changed foreign counter refuses the migration.
+  Changing them is checked once the whole migration file has run: a new entry
+  outside its prefix, a missing foreign entry or a changed foreign counter
+  refuses the migration.
 - **Refused:** every other table and column (`users`, `sessions`, `websites`,
   `pages.access_password` and so on), reading `plugin_store`, updating or
   deleting `plugin_store` rows, triggers, views, renaming a table out of the

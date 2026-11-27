@@ -107,7 +107,6 @@ func (h *Handler) PluginMiddleware(next http.Handler) http.Handler {
 			// than the core's page lookup: it owns the address, and letting the
 			// request fall through would mean a slug could shadow it depending
 			// on what a plugin happened to answer.
-			_ = owner
 			http.NotFound(w, r)
 			return
 		}
