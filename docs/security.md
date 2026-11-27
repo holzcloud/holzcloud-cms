@@ -17,16 +17,36 @@
 ## The measures
 
 - **Argon2id** password hashing, tunable to the server's performance, with a
-  minimum of eight characters everywhere a password is set
+  minimum of eight characters everywhere a password is set. Password checks run
+  in a bounded pool: at most `HOLZCLOUD_ARGON2_CONCURRENCY` of them at once
+  (default 2, each one takes `HOLZCLOUD_ARGON2_MEMORY`), and the start-up line
+  *password checks bounded* names the slot count and the worst-case memory. A
+  stranger's check (a sign-in, a page password) waits 1.5 seconds for a slot, a
+  signed-in person's own (hashing a new password, confirming their own) 10
+  seconds. A check that finds every slot taken is answered "busy, try again"
+  (503 with `Retry-After`) and is **never counted as a wrong password**, so a
+  flood cannot use the defence to lock the owner out: it only makes the server
+  say so.
 - **CSRF** protection on all state-changing requests, through gorilla/csrf, with
   the token in `hx-headers` on `<body>` for htmx requests
 - **Session rotation** on login, to prevent fixation
 - **Session revalidation** — every admin request re-checks the user against the
   database, so deleting a user or changing a role takes effect immediately
 - **Session revocation** — changing a password ends that user's other sessions
-- **Login throttling** — 10 failures per client address and 100 per account
-  within 15 minutes; the per-account limit is deliberately loose so it cannot be
-  used to lock somebody out
+- **Throttling of every password check**, all within 15 minutes and all in memory
+  only (a restart clears them): the sign-in allows 10 failures per client
+  address and 100 per account; the second sign-in step 10 per client and 5 per
+  account, and a sign-in ends after 3 wrong codes, so the password has to be
+  typed again; the confirmation step ("please confirm") and the "current
+  password" field of a password change 10 per client and 5 per user; the
+  password form of a protected page 10 per visitor and page and 100 per page.
+  An IPv6 address counts by its /64, not as 18 quintillion budgets. A check is
+  reserved before it is made and given back when the server was too busy to make
+  it, so parallel guesses cannot get past a limit and a busy answer costs
+  nothing. The per-account limits are deliberately loose, or accepted as the
+  price: whoever knows an account's password can spend its second-step budget
+  and keep the owner out of the second step for up to 15 minutes. A sign-in code
+  (TOTP) works once, even when several requests send it at the same moment
 - **Nothing loads at runtime** — a `default-src 'self'` CSP on every response,
   stricter still on `/admin`; template archives are refused at upload if they
   reference an external stylesheet, script, font or image
@@ -156,7 +176,8 @@ it is cut to the first 24 bits (IPv4) or 48 bits (IPv6) before it is written; an
 address that cannot be read is written as `unknown`. Three limits belong with
 that:
 
-- The rate limit holds the whole address, in memory only, and forgets it.
+- The rate limit holds the whole IPv4 address, or the /64 of an IPv6 address, in
+  memory only, and forgets it.
 - The journal itself is kept for 14 days by `deploy/journald-holzcloud.conf`. That
   file is a journald drop-in; it is system-wide, because journald has no
   per-unit retention, it is installed by hand (the command is in the file), and
@@ -1066,6 +1087,23 @@ everyone who gets the word gets in, and there is no record of who did. What it
 does guarantee is that the page never appears in a listing, an archive, the
 search, the feed or the sitemap, because the title and the excerpt are exactly
 what the password was meant to hold back.
+
+A protected page works **in every language** of the website: the password form
+posts the address with its language prefix (`fr/secret`), the cookie is scoped to
+that address and the visitor returns to the page in the language they came from.
+Before 0.1.6 a protected page in a further language could not be unlocked at all.
+
+An unlock is **bound to the page's current password**. Changing the password,
+also to the same words, ends every earlier unlock of that page; changing only the
+hint does not. With the update to 0.1.6 every unlock made before it ended once,
+and visitors type the password again. The form is throttled (10 attempts per
+visitor and page and 100 per page within 15 minutes, counted by the /64 for IPv6);
+a visitor who tries more often sees the form again with status 429 and a
+`Retry-After` until the wait is over, and a server that is busy says 503 and does
+not count the attempt. The body of the form is read up to 4 KiB. Behind a proxy
+that is not listed in `HOLZCLOUD_TRUSTED_PROXIES` every visitor shares one
+address: such a visitor has no budget of their own and only the page's 100 apply
+(see [DEPLOY.md](../deploy/DEPLOY.md#locked-out-of-the-admin-interface)).
 
 **And that no cache in front of this server keeps it.** The page a visitor gets
 after entering the password is answered `Cache-Control: no-store, private`, so a
