@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"image/gif"
 	"image/jpeg"
 	"image/png"
 	"path/filepath"
@@ -89,9 +88,11 @@ func (in *Intake) Oversize(maxMegapixels int) (width, height int, ok bool) {
 	}
 	if in.MimeType == "image/gif" {
 		// Scaling flattens an animation to one frame, the reason CanMakeVariants
-		// leaves GIF out. The frames are decoded only after the budget check.
-		all, err := gif.DecodeAll(bytes.NewReader(in.content))
-		if err != nil || len(all.Image) != 1 {
+		// leaves GIF out. The frames are counted, never decoded: gifFrames walks
+		// the blocks and stops at the second one (finding M6). A GIF it cannot
+		// read is not offered, as one that failed to decode was before.
+		frames, _, err := gifFrames(bytes.NewReader(in.content), 1, int64(maxMegapixels)*1_000_000)
+		if err != nil || frames != 1 {
 			return 0, 0, false
 		}
 	}
