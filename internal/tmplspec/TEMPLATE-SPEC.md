@@ -825,6 +825,12 @@ In `gate.html`, `{{.Page.Slug}}` is the address of the page being unlocked
 without its leading slash: `tarifs`, or `fr/tarifs` in a further language. Post
 it unchanged as `seite` — the server reads the page's language from the prefix.
 
+Changing a page's password ends every earlier unlock of that page. A visitor who
+tries too often is answered with the same `gate.html`, status 429 (too many
+attempts) or 503 (the server is busy), and `.Gate.Wrong` is false in both: nothing
+was checked, so do not say the password was wrong. A dedicated field for the
+wait is future work.
+
 **product.html** — the buy form:
 
 ```html

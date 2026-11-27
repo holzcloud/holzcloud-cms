@@ -56,7 +56,7 @@ func TestAnUnlockedPageIsNotHandedToAProxy(t *testing.T) {
 	// --- unlocked: the page itself ---
 	cookie := &http.Cookie{
 		Name:  unlockCookieName(pg.ID),
-		Value: h.unlock.Token(pg.ID, time.Now().Add(time.Hour)),
+		Value: h.unlockSigner(pg).Token(pg.ID, time.Now().Add(time.Hour)),
 	}
 	rec = protectedGet(t, h, ws, "preise", cookie)
 	if rec.Code != http.StatusOK {

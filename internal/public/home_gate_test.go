@@ -66,7 +66,7 @@ func TestProtectedHomePageAsksForThePassword(t *testing.T) {
 	}
 
 	cookie := &http.Cookie{Name: unlockCookieName(pg.ID),
-		Value: h.unlock.Token(pg.ID, time.Now().Add(time.Hour))}
+		Value: h.unlockSigner(pg).Token(pg.ID, time.Now().Add(time.Hour))}
 	rec = getHome(t, h, ws, cookie)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Geheimer Inhalt") {
 		t.Fatalf("unlocked: status %d, content missing", rec.Code)

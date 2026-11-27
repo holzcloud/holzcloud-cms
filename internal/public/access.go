@@ -1,6 +1,8 @@
 package public
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -53,6 +55,30 @@ func unlockCookieName(pageID int64) string {
 	return unlockCookiePrefix + strconv.FormatInt(pageID, 10)
 }
 
+// unlockSigner is the signer that mints and checks the unlock of one page.
+//
+// It is derived from the unlock signer and from a fingerprint of the page's
+// stored password hash, so an unlock is bound to the password it was given for:
+// a new password has a fresh salt and so a new hash, the fingerprint changes,
+// and every earlier unlock stops opening the page. Changing only the hint keeps
+// the hash, and the unlocks with it. Re-entering the same password in the
+// editor ends them too, because the salt is new.
+//
+// A fingerprint of what is already stored, and not a counter in a new column:
+// it needs no migration, and the share-link and opt-out signers and the token
+// format stay exactly as they were. The price is that every unlock issued
+// before this version, minted by the underived signer, ends once at the
+// upgrade and visitors type the password again (owner decision D11).
+//
+// A nil unlock signer stays nil: without one nothing is granted or accepted.
+func (h *Handler) unlockSigner(pg *page.Page) *sharelink.Signer {
+	if h.unlock == nil {
+		return nil
+	}
+	sum := sha256.Sum256([]byte(pg.AccessPassword))
+	return h.unlock.Derive("page:" + strconv.FormatInt(pg.ID, 10) + ":" + hex.EncodeToString(sum[:8]))
+}
+
 // pageAddress is where a page lives, in its own language: "/geheim" in the main
 // language, "/fr/secret" in a further one.
 func pageAddress(website *domain.Website, pg *page.Page) string {
@@ -76,7 +102,7 @@ func (h *Handler) grantAccess(w http.ResponseWriter, pg *page.Page, path string)
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     unlockCookieName(pg.ID),
-		Value:    h.unlock.Token(pg.ID, time.Now().Add(unlockLifetime)),
+		Value:    h.unlockSigner(pg).Token(pg.ID, time.Now().Add(unlockLifetime)),
 		Path:     path,
 		MaxAge:   int(unlockLifetime / time.Second),
 		HttpOnly: true,
@@ -94,7 +120,7 @@ func (h *Handler) hasAccess(r *http.Request, pg *page.Page) bool {
 	if err != nil {
 		return false
 	}
-	id, err := h.unlock.Check(c.Value, time.Now())
+	id, err := h.unlockSigner(pg).Check(c.Value, time.Now())
 	return err == nil && id == pg.ID
 }
 
