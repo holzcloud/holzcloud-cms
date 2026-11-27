@@ -308,6 +308,11 @@ SQLite itself checks what it does, at install, while it runs:
   deleting the row it points at. Keys between its own tables are fine.
 - **Names:** a plugin whose id would share a table prefix with an installed
   plugin's (`nicht` beside `nicht-gefunden`) is refused at install.
+- **Removal:** removing a plugin drops the tables in its prefix together with
+  its store, its website assignments and the record of its migrations, so a
+  plugin installed later under the same id starts empty and runs its
+  migrations again. An update (installing a new version over the old one)
+  keeps all of it.
 - **Time:** a migration has ten seconds. A refused, failed or timed-out
   migration changes nothing and does not stop the host from working.
 

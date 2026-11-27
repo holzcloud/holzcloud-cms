@@ -307,18 +307,71 @@ func (s *Store) SetError(ctx context.Context, id, msg string) error {
 
 // Remove deletes a plugin and everything it stored.
 //
-// The rows go with it, by foreign key. Keeping a plugin's data after it was
-// removed would mean a reinstall silently inherits state from a version that
-// may have kept it in a different shape.
+// The rows go with it, by foreign key, and so do the tables its migrations
+// made, in the same transaction. Keeping a plugin's data after it was removed
+// would mean a reinstall silently inherits state from a version that may have
+// kept it in a different shape. Its tables would be worse than that: a later
+// plugin with the same id would own them outright, and one whose prefix starts
+// theirs (kontakt after kontakt-formular) could reach them, because a name
+// belongs to the installed plugin with the longest prefix and the removed one
+// is no longer installed. A table that belongs to an installed plugin with a
+// longer prefix stays.
 func (s *Store) Remove(ctx context.Context, id string) error {
-	res, err := s.DB.Write.ExecContext(ctx, `DELETE FROM plugins WHERE id = $1`, id)
+	tx, err := s.DB.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("remove plugin: %w", err)
+	}
+	defer tx.Rollback()
+
+	// A key between two of the plugin's tables would make the order of the
+	// drops matter. Checked at the commit instead, when both are gone.
+	if _, err := tx.ExecContext(ctx, `PRAGMA defer_foreign_keys = ON`); err != nil {
+		return fmt.Errorf("remove plugin: %w", err)
+	}
+	tables, err := ownTables(ctx, tx, id)
+	if err != nil {
+		return fmt.Errorf("remove plugin: %w", err)
+	}
+	for _, t := range tables {
+		if _, err := tx.ExecContext(ctx, `DROP TABLE "`+strings.ReplaceAll(t, `"`, `""`)+`"`); err != nil {
+			return fmt.Errorf("remove plugin: drop %s: %w", t, err)
+		}
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM plugins WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("remove plugin: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
-	return nil
+	return tx.Commit()
+}
+
+// ownTables lists the tables in a plugin's namespace, by the rule its
+// migrations are held to.
+func ownTables(ctx context.Context, tx *sql.Tx, id string) ([]string, error) {
+	g := newMigrationGuard(id)
+	others, err := readOtherPrefixes(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	g.others = others
+	rows, err := tx.QueryContext(ctx, `SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		if g.owns(name) {
+			out = append(out, name)
+		}
+	}
+	return out, rows.Err()
 }
 
 // --- the plugin's own key/value space ---------------------------------------
