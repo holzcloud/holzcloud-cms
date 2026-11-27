@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -235,7 +236,7 @@ func TestASuccessfulCodeClearsOnlyTheAccountKey(t *testing.T) {
 	}
 	// The account key is empty again: all five reservations of its budget fit.
 	for i := range 5 {
-		a, _ := throttle.Reserve("other-client-"+string(rune('a'+i)), "wer@test.local")
+		a, _ := throttle.Reserve("other-client-"+string(rune('a'+i)), strconv.FormatInt(id, 10))
 		if a == nil {
 			t.Fatalf("account key full after %d probes: the success did not clear it", i)
 		}
@@ -351,5 +352,23 @@ func TestANewPasswordSignInStartsAFreshCountOfCodes(t *testing.T) {
 		if res.Cookie != nil {
 			cookie = res.Cookie
 		}
+	}
+}
+
+// WR-03: the second step's budget belongs to the account, so it is keyed on
+// the pending account's id. Keyed on the e-mail address, as it was, a changed
+// address started a fresh budget, and an address that could not be read
+// skipped the account's budget altogether.
+func TestTheSecondStepBudgetFollowsTheAccountNotItsAddress(t *testing.T) {
+	h, sm, database, id := newSecondStepAdmin(t)
+	for i := range auth.SecondFactorAccountMax {
+		postCode(t, h, sm, fmt.Sprintf("203.0.113.%d:1", 30+i), nil, id, false, "000000")
+	}
+	if _, err := database.Write.ExecContext(context.Background(),
+		`UPDATE users SET email = 'anders@test.local' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if res := postCode(t, h, sm, "203.0.113.90:1", nil, id, false, goodCode(t)); res.SignedIn == id {
+		t.Error("a right code got through a spent second-step budget once the address had changed")
 	}
 }

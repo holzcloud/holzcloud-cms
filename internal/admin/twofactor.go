@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
@@ -113,9 +114,12 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 	// guessing them already holds the password. Reserved before the code is
 	// looked at, so a parallel burst cannot pass the limit. Recovery codes count
 	// on the same key as the digits: they are guessed at the same place.
+	//
+	// The account is the pending id, which the session already holds: no
+	// lookup that could fail and leave the account's budget out, and no key
+	// that a changed e-mail address would start afresh (code review WR-03).
 	client, _ := h.clientIP.ThrottleKey(r)
-	account := strings.ToLower(h.emailFor(r, pending))
-	attempt, _ := h.loginThrottle.SecondFactor().Reserve(client, account)
+	attempt, _ := h.loginThrottle.SecondFactor().Reserve(client, strconv.FormatInt(pending, 10))
 	if attempt == nil {
 		web.SetFlashError(h.sm, r.Context(),
 			"Too many failed attempts. Please wait a moment.")
@@ -414,15 +418,6 @@ func (h *Handler) roleAndEmail(r *http.Request, userID int64) (role, email strin
 		return "", "", nil
 	}
 	return role, email, err
-}
-
-// emailFor is roleAndEmail when only the address is wanted.
-func (h *Handler) emailFor(r *http.Request, userID int64) string {
-	_, email, err := h.roleAndEmail(r, userID)
-	if err != nil {
-		return ""
-	}
-	return email
 }
 
 // issuerName is what the authenticator app lists the account under.
