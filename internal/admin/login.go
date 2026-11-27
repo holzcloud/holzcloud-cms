@@ -2,6 +2,7 @@ package admin
 
 import (
 	"database/sql"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -37,17 +38,25 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 	email := strings.TrimSpace(r.FormValue("email"))
 	password := r.FormValue("password")
 
-	ip := h.clientIP.ClientIP(r)
 	account := strings.ToLower(email)
 
-	if !h.loginThrottle.Allowed(ip, account) {
-		wait := h.loginThrottle.RetryAfter(ip, account)
-		slog.Warn("login rate limited", "ip", ip, "retry_after_s", int(wait.Seconds()))
+	// Reserved before anything is looked up or hashed: the check and the count
+	// are one step, so a parallel burst cannot pass a limit that each of its
+	// requests would see as unspent. The admin keys every address, public or
+	// not: an operator on loopback or a LAN must still be throttled, and the
+	// resolver logs once when a proxy in front of this program is not trusted.
+	client, _ := h.clientIP.ThrottleKey(r)
+	attempt, wait := h.loginThrottle.Login().Reserve(client, account)
+	if attempt == nil {
+		slog.Warn("login rate limited", "client", client, "retry_after_s", int(wait.Seconds()))
 		web.SetFlashError(h.sm, r.Context(),
 			web.Titlef(r, "Too many failed attempts. Try again in %d minutes.", int(wait.Minutes())+1))
 		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return nil
 	}
+	// Every exit that does not settle the attempt gives the reservation back: a
+	// busy gate, a database error and a cancelled request are not guesses.
+	defer attempt.Refund()
 
 	var id int64
 	var storedEmail, storedPassword, role string
@@ -58,8 +67,11 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 	if err == sql.ErrNoRows {
 		// Hash against a dummy password so an unknown email costs the same as a
 		// known one. Without this the response time reveals which emails exist.
-		auth.VerifyDummyPassword(password, h.argon2Params)
-		h.loginThrottle.RecordFailure(ip, account)
+		// A busy gate is answered exactly as it is for a known address.
+		if err := auth.VerifyDummyPassword(password, h.argon2Params); errors.Is(err, auth.ErrBusy) {
+			return h.loginBusy(w, r)
+		}
+		attempt.Fail()
 		// The address that was tried and not the id: on a failed attempt there
 		// is no signed-in account, and it is precisely the address one wants to
 		// recognise later.
@@ -77,14 +89,21 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	match, err := auth.VerifyPassword(password, storedPassword)
+	// Before any bookkeeping: a busy gate is neither a wrong password nor a
+	// right one, and must cost the owner no attempt.
+	if errors.Is(err, auth.ErrBusy) {
+		return h.loginBusy(w, r)
+	}
 	if err != nil || !match {
-		h.loginThrottle.RecordFailure(ip, account)
+		attempt.Fail()
 		web.SetFlashError(h.sm, r.Context(), "Email address or password is not right")
 		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return nil
 	}
 
-	h.loginThrottle.Reset(ip, account)
+	// Gives back this attempt's own client reservation and clears the account's
+	// key. The client's earlier failures stand.
+	attempt.Succeed()
 
 	// Rotate session ID BEFORE setting values (prevents session fixation)
 	if err := h.sm.RenewToken(r.Context()); err != nil {
@@ -107,6 +126,22 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 	h.completeLogin(r, id, role, storedEmail)
 	http.Redirect(w, r, auth.PopReturn(h.sm, r.Context()), http.StatusSeeOther)
 	return nil
+}
+
+// loginBusy answers a sign-in whose password check found every slot of the
+// Argon2 gate taken. It is rendered in place with 503 and Retry-After rather
+// than redirected: the status is the point, and the form is a plain POST, so
+// the browser shows the body. The reservation is given back by the deferred
+// Refund of the caller.
+func (h *Handler) loginBusy(w http.ResponseWriter, r *http.Request) error {
+	slog.Warn("login refused: password gate full")
+	web.RetryAfter(w, auth.BusyRetryAfter)
+	data := loginData{
+		LayoutData: web.NewLayoutData(r, h.sm, "Sign in"),
+		OIDCName:   OIDCButton(h.cfg),
+	}
+	data.Flash.Error = web.T(r, "The server is busy checking other passwords. Please try again in a moment.")
+	return web.RenderAdminStatus(w, h.templates, r, "login", data, http.StatusServiceUnavailable)
 }
 
 // completeLogin puts the account into the session and records the sign-in.
