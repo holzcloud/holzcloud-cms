@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -725,7 +726,13 @@ func (h *Handler) SetMinFreeBytes(n uint64) { h.minFreeBytes = n }
 // then. At the default limits that is 512 MiB plus about 595 MiB.
 func (h *Handler) AttachmentFloor() uint64 {
 	limits := media.Limits{Image: h.maxMediaSize, Video: h.maxVideoSize}
-	return h.minFreeBytes + uint64(uploadSlots)*2*uint64(attachmentBound(limits))
+	// Saturated rather than wrapped (IN-05): a floor that wrapped to a small
+	// number would let files in on a full disk.
+	room := uint64(attachmentBound(limits))
+	if room > (math.MaxUint64-h.minFreeBytes)/(2*uploadSlots) {
+		return math.MaxUint64
+	}
+	return h.minFreeBytes + 2*uploadSlots*room
 }
 
 // freeSpace is the free space of the data directory, read now.

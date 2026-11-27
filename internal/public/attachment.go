@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -288,8 +289,25 @@ const (
 // At most one part may use the video limit (owner decision D2), so the largest
 // honest submission is one video and two images plus the text. The bound that
 // stood here before counted three videos, nearly 192 MB at the default limits.
+//
+// The sum saturates at MaxInt64 instead of wrapping: the configuration takes
+// any positive limit, and a wrapped, negative bound would refuse every
+// submission (IN-05 of the phase 38 review).
 func attachmentBound(l media.Limits) int64 {
-	return max(l.Video, l.Image) + (MaxAttachments-1)*l.Image + MaxPluginBodyBytes + multipartSlack
+	bound := satAdd(max(l.Video, l.Image), MaxPluginBodyBytes+multipartSlack)
+	for range MaxAttachments - 1 {
+		bound = satAdd(bound, l.Image)
+	}
+	return bound
+}
+
+// satAdd adds two non-negative numbers and answers MaxInt64 where the sum
+// would not fit.
+func satAdd(a, b int64) int64 {
+	if a > math.MaxInt64-b {
+		return math.MaxInt64
+	}
+	return a + b
 }
 
 // attachPartHook exists for the test that proves a panic inside the take
