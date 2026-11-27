@@ -1911,6 +1911,7 @@
 "The same list, but as many of them as you like — as checkboxes.": "Lo stesso elenco, ma quante se ne vuole — come caselle da spuntare.",
 "The sentence beside the tick box": "La frase accanto alla casella",
 "The sentence in %s": "La frase in %s",
+"The server is busy checking other passwords. Please try again in a moment.": "Il server sta controllando altre password. Riprova tra un momento.",
 "The server, port or user name was changed — please enter the password again.": "Server, porta o nome utente sono cambiati: inserire di nuovo la password.",
 "The setup has expired. Please start again.": "La configurazione è scaduta. Ricomincia da capo.",
 "The shipping notification could not be stored.": "Non è stato possibile salvare l'avviso di spedizione.",

@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -255,9 +256,21 @@ func NewLanguageLookup(sm *scs.SessionManager, database *db.DB) func(*http.Reque
 
 // ErrHandler wraps a handler function that returns an error into an http.HandlerFunc.
 // On error, it logs with slog.Error and returns a 500 status.
+//
+// An error that wraps auth.ErrBusy is not a defect: every slot of the password
+// gate was taken. It is answered 503 with Retry-After, a translated sentence,
+// and a Warn line. This is the backstop for every privileged caller that
+// simply returns the error (setup, user create, password change, invite and
+// reset links, page password); the anonymous callers handle ErrBusy themselves.
 func (h *Handler) ErrHandler(fn func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := fn(w, r); err != nil {
+			if errors.Is(err, auth.ErrBusy) {
+				slog.Warn("password check refused: gate full", "path", r.URL.Path, "method", r.Method)
+				web.RetryAfter(w, auth.BusyRetryAfter)
+				http.Error(w, web.T(r, "The server is busy checking other passwords. Please try again in a moment."), http.StatusServiceUnavailable)
+				return
+			}
 			slog.Error("handler error", "err", err, "path", r.URL.Path, "method", r.Method)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
