@@ -1055,6 +1055,13 @@ password can use that to keep its owner out of the second step for a quarter of
 an hour. That is accepted, not prevented (T-37-13); restarting the service is the
 way back in at once.
 
+Each of these limits remembers at most 10,000 client addresses or accounts. One
+that is still counting is never forgotten to make room, because a flood of
+invented addresses would otherwise give an account under attack a fresh budget.
+So in the unlikely case that all 10,000 are still counting, a new address or
+account is refused with the same "too many attempts" answer until the oldest
+leaves its 15 minutes. Restarting the service clears that too.
+
 There is no reset link and `/admin/setup` returns 404 once a user
 exists, so recovery goes through the binary:
 

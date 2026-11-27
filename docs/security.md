@@ -43,7 +43,10 @@
   An IPv6 address counts by its /64, not as 18 quintillion budgets. A check is
   reserved before it is made and given back when the server was too busy to make
   it, so parallel guesses cannot get past a limit and a busy answer costs
-  nothing. The per-account limits are deliberately loose, or accepted as the
+  nothing. Each limit remembers at most 10,000 addresses or accounts and never
+  forgets one that is still counting to make room for another, so a flood of
+  invented addresses cannot hand an account under attack a fresh budget; while
+  all 10,000 are still counting, a new one has to wait (a restart clears it). The per-account limits are deliberately loose, or accepted as the
   price: whoever knows an account's password can spend its second-step budget
   and keep the owner out of the second step for up to 15 minutes. A sign-in code
   (TOTP) works once, even when several requests send it at the same moment

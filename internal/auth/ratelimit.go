@@ -31,9 +31,19 @@ const (
 )
 
 // DefaultMaxKeys is how many keys a limiter keeps. Each key holds at most its
-// limit of timestamps, so the bound is a few megabytes per limiter. An attacker
-// flooding distinct keys evicts the coldest keys first, and a key under attack
-// stays hot because every attempt touches it.
+// limit of timestamps, so a full limiter is bounded at DefaultMaxKeys times its
+// limit: about 40 MiB for the largest, the login's account axis (100 each),
+// and a few megabytes for every other one.
+//
+// A key that still has an attempt in its window is never forgotten to make
+// room. The account axis of the login is keyed on whatever address is typed,
+// so anybody can mint fresh keys; if a flood of them could push out a key at
+// its limit, that account would get a fresh budget each time (code review
+// CR-01). When every held key is still live, a NEW key is refused instead,
+// with the wait until the oldest one leaves its window, and a key already held
+// goes on being counted as before. Filling a limiter therefore takes
+// DefaultMaxKeys attempts inside one window, each of which went through the
+// Argon2 gate or is waiting at it; a restart clears it, like every throttle.
 const DefaultMaxKeys = 10000
 
 // maxStoredKey is the longest key kept as given. A longer one is stored as a
@@ -207,12 +217,18 @@ func (t *LoginThrottle) Cleanup() {
 //
 // It is a plain in-memory sliding-window counter, appropriate for a
 // single-binary, single-host deployment, and it is bounded: it keeps at most
-// maxKeys keys, the key reserved longest ago forgotten first, and sweeps the
-// keys whose window has passed on every reservation. A restart clears it.
+// maxKeys keys and sweeps the keys whose window has passed on every
+// reservation. A live key is never forgotten to make room; a new key is refused
+// while the limiter is full of them (see DefaultMaxKeys). A restart clears it.
 type LoginLimiter struct {
-	mu    sync.Mutex
-	keys  map[string]*list.Element // of *limitedKey
-	order *list.List               // most recently touched at the front
+	mu   sync.Mutex
+	keys map[string]*list.Element // of *limitedKey
+	// order is by the newest reservation, most recent at the front, so the
+	// sweep can stop at the first key still in its window. A refused
+	// reservation does not move its key: no live key is ever evicted, so the
+	// order decides only what the sweep looks at, and moving a key whose newest
+	// attempt is old to the front would hide it from the sweep.
+	order *list.List
 
 	max     int
 	maxKeys int
@@ -243,6 +259,9 @@ func NewLoginLimiter(max int, window time.Duration) *LoginLimiter {
 // reserve counts an attempt for key when there is room and reports the moment
 // it was counted at; otherwise it counts nothing and reports how long until
 // there will be room. The check and the count are one step under the lock.
+//
+// There is no room when the key is at its limit, and, for a key the limiter
+// does not hold yet, when it already holds maxKeys live keys.
 func (l *LoginLimiter) reserve(key string) (at time.Time, wait time.Duration, ok bool) {
 	key = storeKey(key)
 	l.mu.Lock()
@@ -257,8 +276,24 @@ func (l *LoginLimiter) reserve(key string) (at time.Time, wait time.Duration, ok
 	if len(times) >= l.max {
 		return time.Time{}, times[0].Add(l.window).Sub(now), false
 	}
+	if len(times) == 0 && l.order.Len() >= l.maxKeys {
+		return time.Time{}, l.fullWaitLocked(now), false
+	}
 	l.addLocked(key, now)
 	return now, 0, true
+}
+
+// fullWaitLocked is how long a new key waits while the limiter is full: until
+// the key at the back, the one reserved longest ago, leaves its window. The
+// sweep has just run, so that key is still in it.
+func (l *LoginLimiter) fullWaitLocked(now time.Time) time.Duration {
+	wait := l.window
+	if el := l.order.Back(); el != nil {
+		if times := el.Value.(*limitedKey).times; len(times) > 0 {
+			wait = times[len(times)-1].Add(l.window).Sub(now)
+		}
+	}
+	return max(wait, time.Second)
 }
 
 // refund removes exactly one reservation made at the given moment, and forgets
@@ -294,18 +329,16 @@ func (l *LoginLimiter) clear(key string) {
 	}
 }
 
-// addLocked records an attempt at now and makes key the most recently touched.
+// addLocked records an attempt at now and makes key the most recently
+// reserved. reserve has checked that a new key fits under maxKeys.
 func (l *LoginLimiter) addLocked(key string, now time.Time) {
 	if el, ok := l.keys[key]; ok {
 		k := el.Value.(*limitedKey)
 		k.times = append(k.times, now)
 		l.order.MoveToFront(el)
-	} else {
-		l.keys[key] = l.order.PushFront(&limitedKey{key: key, times: []time.Time{now}})
+		return
 	}
-	for l.order.Len() > l.maxKeys {
-		l.forgetLocked(l.order.Back())
-	}
+	l.keys[key] = l.order.PushFront(&limitedKey{key: key, times: []time.Time{now}})
 }
 
 func (l *LoginLimiter) forgetLocked(el *list.Element) {

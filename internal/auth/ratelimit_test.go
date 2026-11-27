@@ -349,28 +349,91 @@ func TestAnAccountAxisRefusalGivesTheClientReservationBack(t *testing.T) {
 	}
 }
 
-func TestTheLimiterForgetsTheOldestKeyPastItsCap(t *testing.T) {
-	l, _ := newTestLimiter(5, time.Hour)
+// A full limiter does not make room by forgetting a key that still counts:
+// that key could be an account somebody is guessing at. It refuses the new key
+// instead, so the memory stays bounded and no budget is handed out again.
+func TestAFullLimiterRefusesANewKeyRatherThanForgetALiveOne(t *testing.T) {
+	l, clock := newTestLimiter(5, time.Hour)
 	l.maxKeys = 100
 
-	last := ""
-	for i := 0; i < 1000; i++ {
-		last = fmt.Sprintf("user%d@example.com", i)
-		if _, _, ok := l.reserve(last); !ok {
-			t.Fatalf("reservation %d refused", i)
+	for i := 0; i < 100; i++ {
+		if _, _, ok := l.reserve(fmt.Sprintf("user%d@example.com", i)); !ok {
+			t.Fatalf("reservation %d refused below the cap", i)
+		}
+	}
+	for i := 100; i < 1000; i++ {
+		if _, wait, ok := l.reserve(fmt.Sprintf("user%d@example.com", i)); ok || wait <= 0 {
+			t.Fatalf("reservation %d past the cap: ok=%v wait=%v, want a refusal with a wait", i, ok, wait)
 		}
 	}
 	l.mu.Lock()
 	held, ordered := len(l.keys), l.order.Len()
 	l.mu.Unlock()
-	if held > 100 || ordered > 100 {
-		t.Errorf("the limiter holds %d keys (%d in order), want at most 100", held, ordered)
+	if held != 100 || ordered != 100 {
+		t.Errorf("the limiter holds %d keys (%d in order), want 100", held, ordered)
 	}
-	if l.count(last) != 1 {
-		t.Error("the key reserved most recently is no longer counted")
+	if l.count("user0@example.com") != 1 {
+		t.Error("the oldest key, still in its window, was forgotten to make room")
 	}
-	if l.count("user0@example.com") != 0 {
-		t.Error("the oldest key is still held")
+	// A key already held is not new: it is still counted while the cap is full.
+	if _, _, ok := l.reserve("user0@example.com"); !ok || l.count("user0@example.com") != 2 {
+		t.Error("a key already held was refused because the limiter is full")
+	}
+
+	// Once the window has passed, the keys are swept and there is room again.
+	clock.advance(time.Hour + time.Second)
+	if _, _, ok := l.reserve("fresh@example.com"); !ok {
+		t.Error("a new key was refused after every held key had left its window")
+	}
+}
+
+// CR-01: the account axis is keyed on whatever address is typed, so anybody
+// can make fresh keys. Spending an account's budget and then filling the
+// limiter with junk must not give that account a fresh budget, whether the
+// junk is counted as wrong guesses or only held (a request waiting at the
+// gate, then refunded as busy).
+func TestAFloodOfFreshKeysDoesNotRestoreASpentAccount(t *testing.T) {
+	for _, settle := range []string{"fail", "refund"} {
+		t.Run(settle, func(t *testing.T) {
+			th, _ := newTestThrottle(10, 100, 15*time.Minute)
+			for i := 0; i < 100; i++ {
+				a, _ := th.Reserve(fmt.Sprintf("203.0.113.%d", i/10), "victim@example.com")
+				if a == nil {
+					t.Fatalf("guess %d at the victim refused", i+1)
+				}
+				a.Fail()
+			}
+			if a, _ := th.Reserve("198.51.100.1", "victim@example.com"); a != nil {
+				t.Fatal("the victim's budget is not spent")
+			}
+
+			// DefaultMaxKeys junk addresses from a thousand client keys, ten each.
+			var held []*Attempt
+			for i := 0; i < DefaultMaxKeys; i++ {
+				a, _ := th.Reserve(fmt.Sprintf("2001:db8:%x::/64", i/10), fmt.Sprintf("junk%d@example.com", i))
+				if a == nil {
+					continue
+				}
+				if settle == "fail" {
+					a.Fail()
+				} else {
+					held = append(held, a)
+				}
+			}
+			for _, a := range held {
+				a.Refund()
+			}
+
+			if a, wait := th.Reserve("198.51.100.2", "victim@example.com"); a != nil || wait <= 0 {
+				t.Errorf("after %d junk keys the spent account could be guessed again (wait %v)", DefaultMaxKeys, wait)
+			}
+			th.account.mu.Lock()
+			n := len(th.account.keys)
+			th.account.mu.Unlock()
+			if n > DefaultMaxKeys {
+				t.Errorf("the account axis holds %d keys, more than its cap of %d", n, DefaultMaxKeys)
+			}
+		})
 	}
 }
 
