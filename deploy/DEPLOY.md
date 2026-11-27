@@ -1042,6 +1042,7 @@ sudo journalctl -u holzcloud --since today # Today's logs
 
 - holzcloud-CMS is designed for a modest server and should use well under 100 MB at rest; 1 GB of RAM is enough for a small site
 - If memory grows, check for connection leaks in logs
+- A ceiling the kernel enforces is a second line behind the program's own bounds: `holzcloud.service` carries `GOMEMLIMIT` and `MemoryMax` commented out. `GOMEMLIMIT` (about two thirds of the memory the machine can spare) makes the Go runtime collect harder before it grows; `MemoryMax` (about three quarters) ends the process beyond it, and the unit restarts it. Leave both off until you know what the server needs at its busiest
 
 
 ## Recovery

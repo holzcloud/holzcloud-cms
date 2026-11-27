@@ -171,12 +171,12 @@ var attachPartHook func()
 
 // whole is the refusal of a submission as a whole for the error that ended it.
 //
-// A body over the bound is 413. Any other read error is 400: a body cut short
-// is not a shorter form, and a stored partial file would look like a finished
-// upload.
+// A body over the bound, or a part header over its own, is 413. Any other read
+// error is 400: a body cut short is not a shorter form, and a stored partial
+// file would look like a finished upload.
 func whole(err error) *uploadRefusal {
 	var tooBig *http.MaxBytesError
-	if errors.As(err, &tooBig) {
+	if errors.As(err, &tooBig) || errors.Is(err, errPartHeaderTooLarge) {
 		return &uploadRefusal{Status: http.StatusRequestEntityTooLarge}
 	}
 	return &uploadRefusal{Status: http.StatusBadRequest}
@@ -270,8 +270,12 @@ func (h *Handler) takeAttachments(w http.ResponseWriter, r *http.Request, websit
 	warned := false
 
 	// With the ResponseWriter, so the server closes the connection after an
-	// overflow instead of reading on.
-	reader := multipart.NewReader(http.MaxBytesReader(w, r.Body, bound), params["boundary"])
+	// overflow instead of reading on. The header bound sits between the two:
+	// mime/multipart would hold a part's whole header in memory before this
+	// code sees the part (partheader.go).
+	reader := multipart.NewReader(
+		newPartHeaderBound(http.MaxBytesReader(w, r.Body, bound), params["boundary"], maxPartHeaderBytes),
+		params["boundary"])
 	fields := url.Values{}
 	lang := i18n.Lang(r.Context())
 
